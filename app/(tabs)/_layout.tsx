@@ -1,45 +1,98 @@
-import { Tabs } from 'expo-router';
-import React from 'react';
-import { Platform } from 'react-native';
+import React, { useState } from "react";
+import { Tabs } from "expo-router";
+import { Pressable } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useColorScheme } from "react-native";
+import { Colors } from "@/constants/Colors";
+import { PlusMenu } from "@/components/PlusMenu";
 
-import { HapticTab } from '@/components/HapticTab';
-import { IconSymbol } from '@/components/ui/IconSymbol';
-import TabBarBackground from '@/components/ui/TabBarBackground';
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
+type ColorScheme = "light" | "dark";
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  const colorScheme = useColorScheme() as ColorScheme;
+  const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
 
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        headerShown: false,
-        tabBarButton: HapticTab,
-        tabBarBackground: TabBarBackground,
-        tabBarStyle: Platform.select({
-          ios: {
-            // Use a transparent background on iOS to show the blur effect
-            position: 'absolute',
+    <>
+      <Tabs
+        screenOptions={{
+          tabBarActiveTintColor: Colors[colorScheme].tint,
+          tabBarShowLabel: true,
+          tabBarStyle: {
+            height: 90,
+            paddingBottom: 20,
           },
-          default: {},
-        }),
-      }}>
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
         }}
+      >
+        <Tabs.Screen
+          name="index"
+          options={{
+            title: "Home",
+            tabBarIcon: ({ color }) => (
+              <Ionicons name="home-outline" size={24} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="recipes"
+          options={{
+            title: "Recipes",
+            tabBarIcon: ({ color }) => (
+              <Ionicons name="book-outline" size={24} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="plus"
+          options={{
+            title: "",
+            tabBarIcon: ({ color }) => (
+              <Pressable
+                onPress={() => setIsPlusMenuOpen(true)}
+                style={{
+                  backgroundColor: Colors[colorScheme].tint,
+                  width: 56,
+                  height: 56,
+                  borderRadius: 28,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginBottom: 20,
+                }}
+              >
+                <Ionicons name="add" size={24} color="#FFF" />
+              </Pressable>
+            ),
+          }}
+          listeners={{
+            tabPress: (e) => {
+              e.preventDefault();
+              setIsPlusMenuOpen(true);
+            },
+          }}
+        />
+        <Tabs.Screen
+          name="meal-plan"
+          options={{
+            title: "Plan",
+            tabBarIcon: ({ color }) => (
+              <Ionicons name="calendar-outline" size={24} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="shopping-list"
+          options={{
+            title: "Groceries",
+            tabBarIcon: ({ color }) => (
+              <Ionicons name="cart-outline" size={24} color={color} />
+            ),
+          }}
+        />
+      </Tabs>
+      <PlusMenu
+        isOpen={isPlusMenuOpen}
+        onClose={() => setIsPlusMenuOpen(false)}
       />
-      <Tabs.Screen
-        name="explore"
-        options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
-        }}
-      />
-    </Tabs>
+    </>
   );
 }

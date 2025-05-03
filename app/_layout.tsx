@@ -1,39 +1,102 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
-import 'react-native-reanimated';
+import { Stack } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import { RecipeProvider } from "../context/RecipeContext";
+import { CupboardProvider } from "../context/CupboardContext";
+import { ShoppingListProvider } from "../context/ShoppingListContext";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { AuthProvider } from "../context/AuthContext";
+import { useAuth } from "../context/AuthContext";
+import { useRouter, useSegments } from "expo-router";
+import { useEffect } from "react";
+import React from "react";
 
-import { useColorScheme } from '@/hooks/useColorScheme';
+const queryClient = new QueryClient();
 
-// Prevent the splash screen from auto-hiding before asset loading is complete.
-SplashScreen.preventAutoHideAsync();
-
-export default function RootLayout() {
-  const colorScheme = useColorScheme();
-  const [loaded] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
-  });
+// Auth protection component
+function AuthProtection({ children }: { children: React.ReactNode }) {
+  const { user, initialized } = useAuth();
+  const segments = useSegments();
+  const router = useRouter();
 
   useEffect(() => {
-    if (loaded) {
-      SplashScreen.hideAsync();
+    if (!initialized) return;
+
+    // Check if the user is on a protected route
+    const inAuthGroup =
+      segments[0] === "(tabs)" ||
+      segments[0] === "recipe" ||
+      segments[0] === "add-recipe" ||
+      segments[0] === "profile" ||
+      segments[0] === "settings";
+
+    if (!user && inAuthGroup) {
+      // Redirect to login if not authenticated
+      router.replace("/login");
+    } else if (user && segments[0] === "login") {
+      // Redirect to home if already authenticated
+      router.replace("/");
     }
-  }, [loaded]);
+  }, [user, initialized, segments]);
 
-  if (!loaded) {
-    return null;
-  }
+  return <>{children}</>;
+}
 
+export default function RootLayout() {
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="+not-found" />
-      </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <AuthProtection>
+            <RecipeProvider>
+              <CupboardProvider>
+                <ShoppingListProvider>
+                  <StatusBar style="dark" />
+                  <Stack>
+                    <Stack.Screen
+                      name="(tabs)"
+                      options={{ headerShown: false }}
+                    />
+                    <Stack.Screen
+                      name="recipe/[id]"
+                      options={{
+                        headerTitle: "Recipe Details",
+                        headerBackTitle: "Back",
+                      }}
+                    />
+                    <Stack.Screen
+                      name="add-recipe"
+                      options={{
+                        headerTitle: "Add Recipe",
+                        presentation: "modal",
+                      }}
+                    />
+                    <Stack.Screen
+                      name="profile"
+                      options={{
+                        headerTitle: "Profile",
+                      }}
+                    />
+                    <Stack.Screen
+                      name="settings"
+                      options={{
+                        headerTitle: "Settings",
+                      }}
+                    />
+                    <Stack.Screen
+                      name="login"
+                      options={{
+                        headerShown: false,
+                        presentation: "fullScreenModal",
+                      }}
+                    />
+                  </Stack>
+                </ShoppingListProvider>
+              </CupboardProvider>
+            </RecipeProvider>
+          </AuthProtection>
+        </AuthProvider>
+      </QueryClientProvider>
+    </SafeAreaProvider>
   );
 }
