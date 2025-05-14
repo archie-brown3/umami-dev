@@ -1,0 +1,6 @@
+module Pods_Umami {
+  umbrella header "Pods-Umami-umbrella.h"
+
+  export *
+  module * { export * }
+}

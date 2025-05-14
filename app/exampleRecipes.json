@@ -1,0 +1,57 @@
+[
+  {
+    "id": "1",
+    "name": "Spaghetti Bolognese",
+    "description": "A classic Italian pasta dish with rich, meaty sauce.",
+    "ingredients": [
+      { "id": "ing-1", "name": "Spaghetti", "amount": 200, "unit": "g" },
+      { "id": "ing-2", "name": "Ground Beef", "amount": 300, "unit": "g" },
+      { "id": "ing-3", "name": "Onion", "amount": 1, "unit": "item" },
+      { "id": "ing-4", "name": "Garlic", "amount": 2, "unit": "cloves" },
+      { "id": "ing-5", "name": "Tomato Sauce", "amount": 400, "unit": "ml" },
+      { "id": "ing-6", "name": "Olive Oil", "amount": 2, "unit": "tbsp" },
+      { "id": "ing-7", "name": "Salt", "amount": 1, "unit": "tsp" },
+      { "id": "ing-8", "name": "Pepper", "amount": 0.5, "unit": "tsp" }
+    ],
+    "instructions": [
+      "Cook spaghetti according to package instructions.",
+      "Heat olive oil in a pan, sauté onion and garlic until soft.",
+      "Add ground beef and cook until browned.",
+      "Pour in tomato sauce, add salt and pepper, simmer for 15 minutes.",
+      "Serve sauce over spaghetti."
+    ],
+    "prepTime": 10,
+    "cookTime": 30,
+    "servings": 2,
+    "imageUrl": "https://images.unsplash.com/photo-1504674900247-0877df9cc836",
+    "tags": ["Italian", "Pasta", "Main Course"]
+  },
+  {
+    "id": "2",
+    "name": "Vegetarian Chili",
+    "description": "A hearty and healthy vegetarian chili packed with beans and vegetables.",
+    "ingredients": [
+      { "id": "ing-1", "name": "Kidney Beans", "amount": 400, "unit": "g" },
+      { "id": "ing-2", "name": "Black Beans", "amount": 400, "unit": "g" },
+      { "id": "ing-3", "name": "Bell Pepper", "amount": 1, "unit": "item" },
+      { "id": "ing-4", "name": "Onion", "amount": 1, "unit": "item" },
+      { "id": "ing-5", "name": "Garlic", "amount": 2, "unit": "cloves" },
+      { "id": "ing-6", "name": "Tomato", "amount": 2, "unit": "item" },
+      { "id": "ing-7", "name": "Chili Powder", "amount": 2, "unit": "tsp" },
+      { "id": "ing-8", "name": "Cumin", "amount": 1, "unit": "tsp" },
+      { "id": "ing-9", "name": "Salt", "amount": 1, "unit": "tsp" },
+      { "id": "ing-10", "name": "Olive Oil", "amount": 2, "unit": "tbsp" }
+    ],
+    "instructions": [
+      "Heat olive oil in a large pot, sauté onion, garlic, and bell pepper until soft.",
+      "Add chili powder and cumin, cook for 1 minute.",
+      "Add beans, tomatoes, and salt. Simmer for 20 minutes.",
+      "Serve hot, optionally with rice or bread."
+    ],
+    "prepTime": 15,
+    "cookTime": 25,
+    "servings": 4,
+    "imageUrl": "https://images.unsplash.com/photo-1519864600265-abb23847ef2c",
+    "tags": ["Vegetarian", "Chili", "Healthy"]
+  }
+]

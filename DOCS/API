@@ -1,0 +1,173 @@
+# Expo Integration with Recipe Extraction Service
+
+This document explains how to integrate the Recipe Extraction Service (hosted on Render) with your Expo application for production use.
+
+## Overview
+
+The Recipe Extraction Service is a backend API that extracts recipe information from Instagram posts. This service is hosted on Render and can be integrated into your Expo application.
+
+## Base URL
+
+```
+https://recipeextractionservice.onrender.com
+```
+
+## API Endpoints
+
+### 1. Health Check
+
+- **Endpoint**: `/health`
+- **Method**: GET
+- **Purpose**: Verify service availability
+- **Response**: `{ "status": "ok" }`
+
+### 2. Extract Recipe
+
+- **Endpoint**: `/api/extract`
+- **Method**: POST
+- **Body**: `{ "url": "instagram_post_url" }`
+- **Response**: Recipe data including ingredients, instructions, and media
+
+## Integration Steps
+
+1. **Environment Setup**
+
+   ```javascript
+   // config.js
+   export const API_BASE_URL = "https://recipeextractionservice.onrender.com";
+   ```
+
+2. **API Service Implementation**
+
+   ```javascript
+   // services/recipeService.js
+   import axios from "axios";
+   import { API_BASE_URL } from "../config";
+
+   export const extractRecipe = async (instagramUrl) => {
+     try {
+       const response = await axios.post(`${API_BASE_URL}/api/extract`, {
+         url: instagramUrl,
+       });
+       return response.data;
+     } catch (error) {
+       throw new Error("Failed to extract recipe");
+     }
+   };
+   ```
+
+3. **Error Handling**
+
+   - Implement proper error handling for:
+     - Network errors
+     - Invalid URLs
+     - API rate limiting
+     - Service unavailability
+
+4. **Loading States**
+   - Show loading indicators during API calls
+   - Implement timeout handling
+   - Add retry logic for failed requests
+
+## Production Considerations
+
+1. **Error Monitoring**
+
+   - Implement error tracking (e.g., Sentry)
+   - Log API failures
+   - Monitor API response times
+
+2. **Performance**
+
+   - Cache successful responses
+   - Implement request debouncing
+   - Optimize image loading
+
+3. **User Experience**
+
+   - Add offline support
+   - Implement proper loading states
+   - Show user-friendly error messages
+
+4. **Security**
+   - Validate URLs before sending to API
+   - Implement proper error handling
+   - Handle API failures gracefully
+
+## Testing
+
+1. **Unit Tests**
+
+   - Test API integration
+   - Test error handling
+   - Test loading states
+
+2. **Integration Tests**
+   - Test end-to-end flow
+   - Test error scenarios
+   - Test offline behavior
+
+## Example Usage
+
+```javascript
+import { extractRecipe } from "../services/recipeService";
+
+const RecipeScreen = () => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [recipe, setRecipe] = useState(null);
+
+  const handleExtract = async (url) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await extractRecipe(url);
+      setRecipe(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ... rest of the component
+};
+```
+
+## Troubleshooting
+
+1. **Service Unavailable**
+
+   - Check the health endpoint
+   - Verify network connectivity
+   - Check Render service status
+
+2. **Invalid Responses**
+
+   - Validate URL format
+   - Check response structure
+   - Verify error handling
+
+3. **Performance Issues**
+   - Monitor response times
+   - Check network conditions
+   - Implement caching if needed
+
+## Support
+
+For issues with the Recipe Extraction Service:
+
+1. Check the Render dashboard for service status
+2. Monitor the service logs
+3. Contact the service administrator
+
+## Best Practices
+
+1. Always implement proper error handling
+2. Show loading states during API calls
+3. Cache successful responses when appropriate
+4. Implement retry logic for failed requests
+5. Monitor API performance and errors
+6. Keep the API base URL in a config file
+7. Implement proper URL validation
+8. Handle offline scenarios gracefully
