@@ -324,6 +324,13 @@ const DebugPage = () => {
       <Text style={styles.header}>API Debug Information</Text>
 
       <View style={styles.section}>
+        <Text style={styles.warningText}>
+          ⚠️ VPN Required: API connections in iOS simulators require an active
+          VPN. No VPN is needed on actual devices.
+        </Text>
+      </View>
+
+      <View style={styles.section}>
         <Text style={styles.sectionTitle}>Recipe Extraction API Status</Text>
         <Text style={styles.apiUrl}>{EXTRACT_API_URL}</Text>
 
@@ -701,6 +708,14 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     color: colors.gray[700],
     marginBottom: spacing.xs,
+  },
+  warningText: {
+    fontSize: fontSizes.md,
+    color: "#FF6B35",
+    fontWeight: "600",
+    marginBottom: spacing.sm,
+    textAlign: "center",
+    padding: spacing.sm,
   },
 });
 
