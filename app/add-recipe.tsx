@@ -26,6 +26,7 @@ export default function AddRecipeScreen() {
   // Get the active tab from URL params or default to manual
   const initialTab = (params?.tab as TabType) || "manual";
   const previousScreen = (params?.previousScreen as string) || "/recipes";
+  const isModal = params?.presentationStyle === "modal";
   const [activeTab, setActiveTab] = useState<TabType>(initialTab);
 
   // Form state for manual input
@@ -51,7 +52,13 @@ export default function AddRecipeScreen() {
 
   // Handle close/back button - go to previous screen
   const handleClose = () => {
-    router.push(previousScreen as any);
+    if (isModal) {
+      // If presented as modal, simply go back
+      router.back();
+    } else {
+      // Otherwise navigate to previous screen
+      router.push(previousScreen as any);
+    }
   };
 
   // Extract recipe from URL
@@ -114,7 +121,7 @@ export default function AddRecipeScreen() {
           [
             {
               text: "OK",
-              onPress: () => router.push(previousScreen as any),
+              onPress: navigateAfterSuccess,
             },
           ]
         );
@@ -251,7 +258,7 @@ export default function AddRecipeScreen() {
           [
             {
               text: "OK",
-              onPress: () => router.push(previousScreen as any),
+              onPress: navigateAfterSuccess,
             },
           ]
         );
@@ -308,10 +315,19 @@ export default function AddRecipeScreen() {
       [
         {
           text: "OK",
-          onPress: () => router.push(previousScreen as any),
+          onPress: navigateAfterSuccess,
         },
       ]
     );
+  };
+
+  // Update the success alerts to use the correct navigation method
+  const navigateAfterSuccess = () => {
+    if (isModal) {
+      router.back();
+    } else {
+      router.push(previousScreen as any);
+    }
   };
 
   // Render a tab button

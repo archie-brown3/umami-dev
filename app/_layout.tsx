@@ -52,9 +52,9 @@ export default function RootLayout() {
             <Stack.Screen
               name="add-recipe"
               options={{
-                headerShown: true,
-                headerTitle: "Add Recipe",
+                headerShown: false,
                 presentation: "modal",
+                animation: "slide_from_bottom",
               }}
             />
           </Stack>

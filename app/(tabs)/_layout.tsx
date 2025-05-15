@@ -10,46 +10,11 @@ import useColorScheme from "../hooks/useColorScheme";
 import { NetworkStatusBar } from "../components/layout/NetworkStatusBar";
 
 export default function TabLayout() {
-  const pathname = usePathname();
   const colorScheme = useColorScheme();
-  const [isFabOpen, setIsFabOpen] = useState(false);
-
-  const isActive = (path: string) => {
-    return pathname === path;
-  };
-
-  // Hide FAB on recipe detail and add recipe pages
-  const shouldShowFab =
-    !pathname.includes("/recipe/") &&
-    !pathname.includes("/add-recipe") &&
-    !pathname.includes("/edit-recipe");
-
-  // Custom tab bar button for the "Add" button
-  const AddTabButton = () => {
-    return (
-      <Pressable
-        style={styles.addTabButton}
-        onPress={() =>
-          router.push({
-            pathname: "/create-recipe",
-            params: { tab: "instagram" },
-          })
-        }
-        android_ripple={{ color: colors.primaryDark, radius: 32 }}
-      >
-        <View style={styles.addButtonInner}>
-          <Ionicons name="add" size={32} color="#fff" />
-        </View>
-      </Pressable>
-    );
-  };
 
   return (
     <SafeAreaView style={styles.container} edges={["bottom"]}>
-      {/* Network Status Bar - visible when online or offline */}
       <NetworkStatusBar />
-
-      {/* Content area */}
       <Tabs
         screenOptions={{
           headerShown: false,
@@ -88,21 +53,13 @@ export default function TabLayout() {
             ),
           }}
         />
-        {/* Plus button in the center */}
         <Tabs.Screen
           name="add-recipe"
           options={{
-            tabBarButton: () => <AddTabButton />, // Plus button
-            title: "",
-          }}
-          listeners={{
-            tabPress: (e) => {
-              e.preventDefault();
-              router.push({
-                pathname: "/create-recipe",
-                params: { tab: "instagram" },
-              });
-            },
+            title: "Add",
+            tabBarIcon: ({ color, focused }) => (
+              <Ionicons name="add-circle" size={28} color={color} />
+            ),
           }}
         />
         <Tabs.Screen
@@ -145,7 +102,6 @@ export default function TabLayout() {
           }}
         />
       </Tabs>
-
       <StatusBar style={colorScheme === "dark" ? "light" : "dark"} />
     </SafeAreaView>
   );
@@ -175,23 +131,5 @@ const styles = StyleSheet.create({
   },
   tabBarItem: {
     paddingVertical: 5,
-  },
-  addTabButton: {
-    position: "absolute",
-    left: "50%",
-    transform: [{ translateX: -32 }, { translateY: -22 }],
-    justifyContent: "center",
-    alignItems: "center",
-    height: 64,
-    zIndex: 10,
-  },
-  addButtonInner: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: colors.primary,
-    justifyContent: "center",
-    alignItems: "center",
-    ...createShadow(4, 0.3, 8),
   },
 });

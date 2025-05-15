@@ -3,11 +3,29 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createClient } from "@supabase/supabase-js";
 
 // Initialize Supabase client
-const supabaseUrl =
-  process.env.EXPO_PUBLIC_SUPABASE_URL ||
-  "https://your-supabase-url.supabase.co";
-const supabaseAnonKey =
-  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "your-anon-key";
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+
+console.log("Supabase Env URL:", supabaseUrl); // For Metro bundler console
+console.log("Supabase Env Anon Key:", supabaseAnonKey ? "********" : undefined); // For Metro bundler console
+
+if (!supabaseUrl) {
+  console.error(
+    "ERROR: EXPO_PUBLIC_SUPABASE_URL is not set. Please check your .env file and ensure it's loaded."
+  );
+  throw new Error(
+    "Supabase URL is not configured. Check environment variables."
+  );
+}
+
+if (!supabaseAnonKey) {
+  console.error(
+    "ERROR: EXPO_PUBLIC_SUPABASE_ANON_KEY is not set. Please check your .env file and ensure it's loaded."
+  );
+  throw new Error(
+    "Supabase Anon Key is not configured. Check environment variables."
+  );
+}
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {

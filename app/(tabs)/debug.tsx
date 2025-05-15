@@ -233,41 +233,114 @@ const DebugPage = () => {
 
   const checkSupabaseApi = async () => {
     setIsLoading(true);
-    addLog("Testing Supabase API health...");
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
+    addLog("--- Testing Supabase API health ---");
+    addLog(`Platform: ${Platform.OS}`);
+    addLog(`SUPABASE_API_URL (from env): ${SUPABASE_API_URL}`);
+    const supabaseHealthCheckUrl = `${SUPABASE_API_URL}/rest/v1/`;
+    addLog(`Attempting to reach: ${supabaseHealthCheckUrl}`);
+
     try {
-      // Try a simple GET to the root or /rest/v1/ endpoint
-      const response = await fetch(`${SUPABASE_API_URL}/rest/v1/`, {
+      const netState = await NetInfo.fetch();
+      addLog(
+        `Network State immediately before Supabase fetch: isConnected=${netState.isConnected}, isInternetReachable=${netState.isInternetReachable}, type=${netState.type}`
+      );
+    } catch (e) {
+      addLog(
+        `Failed to get network state before Supabase health check: ${
+          e instanceof Error ? e.message : String(e)
+        }`
+      );
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      addLog(
+        "Supabase health check: Request timed out after 10 seconds, aborting."
+      );
+      controller.abort();
+    }, 10000); // 10s timeout
+
+    const headers = {
+      apikey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "",
+      // "Authorization": `Bearer ${process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || ""}` // Standard for Supabase is apikey in header
+    };
+    addLog(`Request Headers: ${JSON.stringify(headers)}`);
+
+    try {
+      addLog(`Sending GET request to: ${supabaseHealthCheckUrl}`);
+      const response = await fetch(supabaseHealthCheckUrl, {
         method: "GET",
-        headers: {
-          apikey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "",
-        },
+        headers: headers,
         signal: controller.signal,
       });
-      clearTimeout(timeout);
+      clearTimeout(timeoutId);
+      addLog(
+        `Supabase health response status: ${response.status} ${response.statusText}`
+      );
+      addLog(
+        `Supabase health response headers: ${JSON.stringify(
+          Object.fromEntries(response.headers.entries())
+        )}`
+      );
+      const resultText = await response.text();
+      addLog(
+        `Supabase health response body (first 300 chars): ${resultText.substring(
+          0,
+          300
+        )}`
+      );
       setSupabaseStatus({
         status: response.ok ? "Available" : "Error",
         timestamp: new Date().toISOString(),
-        ...(response.ok ? {} : { error: response.statusText }),
+        ...(response.ok
+          ? {}
+          : {
+              error: `${response.status} ${
+                response.statusText
+              } - ${resultText.substring(0, 100)}`,
+            }),
       });
-      addLog(
-        `Supabase API health check: ${response.status} ${response.statusText}`
-      );
     } catch (error) {
-      clearTimeout(timeout);
-      addLog(
-        `Supabase API health check failed: ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      );
-      setSupabaseStatus({
-        status: "Error",
-        timestamp: new Date().toISOString(),
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
+      clearTimeout(timeoutId);
+      if (error instanceof Error && error.name === "AbortError") {
+        addLog(
+          "Supabase API health check failed: Request was aborted (likely due to timeout)."
+        );
+        setSupabaseStatus({
+          status: "Error",
+          timestamp: new Date().toISOString(),
+          error: "Request Aborted (Timeout)",
+        });
+      } else {
+        addLog(
+          `Supabase API health check failed: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
+        if (error instanceof Error && error.stack) {
+          addLog(`Supabase API health check error stack: ${error.stack}`);
+        }
+        setSupabaseStatus({
+          status: "Error",
+          timestamp: new Date().toISOString(),
+          error: error instanceof Error ? error.message : "Unknown fetch error",
+        });
+      }
+      try {
+        const netState = await NetInfo.fetch();
+        addLog(
+          `Network State after Supabase health check error: isConnected=${netState.isConnected}, isInternetReachable=${netState.isInternetReachable}, type=${netState.type}`
+        );
+      } catch (e) {
+        addLog(
+          `Failed to get network state after Supabase health check error: ${
+            e instanceof Error ? e.message : String(e)
+          }`
+        );
+      }
     } finally {
       setIsLoading(false);
+      addLog("--- Finished Supabase API health test ---");
     }
   };
 

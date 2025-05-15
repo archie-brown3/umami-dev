@@ -38,7 +38,15 @@ const Layout: React.FC<LayoutProps> = ({ children, hideHeader = true }) => {
     return (
       <Pressable
         style={styles.addButton}
-        onPress={() => navigate("/add-recipe")}
+        onPress={() => {
+          router.push({
+            pathname: "/add-recipe",
+            params: {
+              tab: "instagram",
+              presentationStyle: "modal",
+            },
+          });
+        }}
         android_ripple={{ color: colors.primaryDark }}
       >
         <Ionicons name="add" size={24} color={colors.white} />
@@ -122,7 +130,15 @@ const Layout: React.FC<LayoutProps> = ({ children, hideHeader = true }) => {
         <View style={styles.centerNavItem}>
           <Pressable
             style={styles.centerButton}
-            onPress={() => navigate("/add-recipe")}
+            onPress={() => {
+              router.push({
+                pathname: "/add-recipe",
+                params: {
+                  tab: "instagram",
+                  presentationStyle: "modal",
+                },
+              });
+            }}
             android_ripple={{ color: colors.primaryDark }}
           >
             <Ionicons name="add" size={32} color={colors.white} />
