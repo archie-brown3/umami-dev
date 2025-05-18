@@ -8,8 +8,16 @@ import {
   ActivityIndicator,
   Platform,
 } from "react-native";
-import { colors, spacing, fontSizes, borderRadius } from "../utils/styleUtils";
-import { getServiceLogs, clearServiceLogs } from "../services/deepseekservice";
+import {
+  colors,
+  spacing,
+  typography,
+  borderRadius,
+} from "../../utils/styleUtils";
+import {
+  getServiceLogs,
+  clearServiceLogs,
+} from "../../services/deepseekservice";
 import NetInfo from "@react-native-community/netinfo";
 import * as Clipboard from "expo-clipboard";
 
@@ -647,40 +655,141 @@ const DebugPage = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.gray[50],
+    backgroundColor: colors.gray[100],
+  },
+  scrollContainer: {
     padding: spacing.md,
   },
   header: {
-    fontSize: fontSizes.xl,
+    fontSize: typography.fontSizes.xl,
     fontWeight: "700",
     color: colors.gray[900],
     marginBottom: spacing.md,
   },
   section: {
+    marginBottom: spacing.lg,
     backgroundColor: colors.white,
     borderRadius: borderRadius.md,
     padding: spacing.md,
-    marginBottom: spacing.md,
     ...Platform.select({
       ios: {
-        shadowColor: colors.gray[900],
+        shadowColor: colors.black,
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
         shadowRadius: 4,
       },
       android: {
-        elevation: 2,
+        elevation: 3,
       },
     }),
   },
   sectionTitle: {
-    fontSize: fontSizes.lg,
+    fontSize: typography.fontSizes.lg,
     fontWeight: "600",
-    color: colors.gray[800],
+    color: colors.dark,
+    marginBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.gray[200],
+    paddingBottom: spacing.sm,
+  },
+  statusContainer: {
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: spacing.sm,
   },
+  statusText: {
+    fontSize: typography.fontSizes.md,
+    color: colors.dark,
+    marginLeft: spacing.sm,
+  },
+  errorText: {
+    fontSize: typography.fontSizes.sm,
+    color: statusColors.error,
+    marginTop: spacing.xs,
+  },
+  successText: {
+    fontSize: typography.fontSizes.sm,
+    color: statusColors.success,
+    marginTop: spacing.xs,
+  },
+  timestampText: {
+    fontSize: typography.fontSizes.xs,
+    color: colors.gray[500],
+    marginTop: spacing.xs,
+  },
+  button: {
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.lg,
+    alignItems: "center",
+    marginBottom: spacing.sm,
+  },
+  clearButton: {
+    backgroundColor: colors.red[500],
+  },
+  buttonText: {
+    color: colors.white,
+    fontSize: typography.fontSizes.md,
+    fontWeight: "600",
+  },
+  logsContainer: {
+    marginTop: spacing.sm,
+    padding: spacing.sm,
+    backgroundColor: colors.gray[50],
+    borderRadius: borderRadius.sm,
+    maxHeight: 300,
+  },
+  logEntry: {
+    fontSize: typography.fontSizes.sm,
+    color: colors.gray[700],
+    marginBottom: spacing.xs,
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+  },
+  responseContainer: {
+    marginTop: spacing.sm,
+    padding: spacing.md,
+    backgroundColor: colors.gray[200],
+    borderRadius: borderRadius.md,
+  },
+  responseText: {
+    fontSize: typography.fontSizes.sm,
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    color: colors.dark,
+  },
+  copyButton: {
+    position: "absolute",
+    top: spacing.sm,
+    right: spacing.sm,
+    backgroundColor: colors.gray[300],
+    padding: spacing.xs,
+    borderRadius: borderRadius.sm,
+  },
+  copyButtonText: {
+    fontSize: typography.fontSizes.xs,
+    color: colors.dark,
+  },
+  copyStatusText: {
+    position: "absolute",
+    top: spacing.sm,
+    right: spacing.sm + 50, // Adjust to not overlap with copy button
+    backgroundColor: colors.green[500],
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    borderRadius: borderRadius.sm,
+    color: colors.white,
+    fontSize: typography.fontSizes.xs,
+  },
+  warningText: {
+    fontSize: typography.fontSizes.md,
+    color: "#FF6B35",
+    fontWeight: "600",
+    marginBottom: spacing.sm,
+    textAlign: "center",
+    padding: spacing.sm,
+  },
   apiUrl: {
-    fontSize: fontSizes.sm,
+    fontSize: typography.fontSizes.sm,
     color: colors.gray[600],
     marginBottom: spacing.sm,
   },
@@ -690,18 +799,8 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.sm,
     marginBottom: spacing.md,
   },
-  statusText: {
-    fontSize: fontSizes.md,
-    color: colors.gray[800],
-    marginBottom: spacing.xs,
-  },
-  errorText: {
-    fontSize: fontSizes.sm,
-    color: statusColors.error,
-    marginTop: spacing.xs,
-  },
   loadingText: {
-    fontSize: fontSizes.md,
+    fontSize: typography.fontSizes.md,
     color: colors.gray[600],
     fontStyle: "italic",
     marginBottom: spacing.md,
@@ -710,47 +809,23 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: spacing.md,
   },
-  button: {
-    backgroundColor: colors.primary,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: borderRadius.md,
-    alignItems: "center",
-    justifyContent: "center",
-    minWidth: 120,
-  },
-  buttonText: {
-    color: colors.white,
-    fontWeight: "600",
-  },
-  responseContainer: {
-    backgroundColor: colors.gray[100],
-    padding: spacing.sm,
-    borderRadius: borderRadius.sm,
-    maxHeight: 200,
-  },
-  responseText: {
-    fontSize: fontSizes.sm,
-    color: colors.gray[800],
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-  },
   logHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: spacing.sm,
   },
-  clearText: {
-    fontSize: fontSizes.sm,
-    color: colors.primary,
-  },
   copyText: {
-    fontSize: fontSizes.sm,
+    fontSize: typography.fontSizes.sm,
     color: colors.primary,
     marginRight: 8,
   },
+  clearText: {
+    fontSize: typography.fontSizes.sm,
+    color: colors.primary,
+  },
   copiedText: {
-    fontSize: fontSizes.xs,
+    fontSize: typography.fontSizes.xs,
     color: colors.primary,
     marginBottom: 4,
     textAlign: "right",
@@ -762,12 +837,12 @@ const styles = StyleSheet.create({
     maxHeight: 200,
   },
   emptyLogText: {
-    fontSize: fontSizes.sm,
+    fontSize: typography.fontSizes.sm,
     color: colors.gray[500],
     fontStyle: "italic",
   },
   logText: {
-    fontSize: fontSizes.xs,
+    fontSize: typography.fontSizes.xs,
     color: colors.gray[200],
     fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
     marginBottom: spacing.xs,
@@ -778,17 +853,9 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.sm,
   },
   envText: {
-    fontSize: fontSizes.sm,
+    fontSize: typography.fontSizes.sm,
     color: colors.gray[700],
     marginBottom: spacing.xs,
-  },
-  warningText: {
-    fontSize: fontSizes.md,
-    color: "#FF6B35",
-    fontWeight: "600",
-    marginBottom: spacing.sm,
-    textAlign: "center",
-    padding: spacing.sm,
   },
 });
 

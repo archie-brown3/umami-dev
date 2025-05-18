@@ -11,11 +11,11 @@ import {
 } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, spacing, fontSizes } from "./utils/styleUtils";
-import { useRecipes } from "./context/RecipeContext";
-import { Recipe, Ingredient } from "./types";
-import { scrapeFromUrl, analyzeRecipeText } from "./services/deepseekservice";
-import { extractRecipeFromUrl } from "./services/recipeExtractor";
+import { colors, spacing, typography } from "../utils/styleUtils";
+import { useRecipes } from "../context/RecipeContext";
+import { Recipe, Ingredient } from "../types/app";
+import { scrapeFromUrl, analyzeRecipeText } from "../services/deepseekservice";
+import { extractRecipeFromUrl } from "../services/recipeExtractor";
 
 type TabType = "manual" | "url" | "ai" | "instagram";
 
@@ -528,7 +528,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.gray[200],
   },
   headerTitle: {
-    fontSize: fontSizes.lg,
+    fontSize: typography.fontSizes.lg,
     fontWeight: "600",
     color: colors.gray[900],
   },
@@ -554,7 +554,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.primary,
   },
   tabLabel: {
-    fontSize: fontSizes.xs,
+    fontSize: typography.fontSizes.xs,
     color: colors.gray[500],
     marginTop: spacing.xs,
   },
@@ -566,7 +566,7 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
   },
   label: {
-    fontSize: fontSizes.sm,
+    fontSize: typography.fontSizes.sm,
     fontWeight: "500",
     color: colors.gray[700],
     marginBottom: spacing.xs,
@@ -577,7 +577,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: spacing.md,
     marginBottom: spacing.md,
-    fontSize: fontSizes.md,
+    fontSize: typography.fontSizes.md,
   },
   row: {
     flexDirection: "row",
@@ -588,7 +588,7 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.xs,
   },
   infoText: {
-    fontSize: fontSizes.sm,
+    fontSize: typography.fontSizes.sm,
     color: colors.gray[600],
     marginBottom: spacing.md,
   },
@@ -602,7 +602,7 @@ const styles = StyleSheet.create({
   buttonText: {
     color: colors.white,
     fontWeight: "600",
-    fontSize: fontSizes.md,
+    fontSize: typography.fontSizes.md,
   },
   uploadButton: {
     borderWidth: 1,
@@ -625,6 +625,11 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: spacing.md,
     color: colors.gray[600],
-    fontSize: fontSizes.sm,
+    fontSize: typography.fontSizes.sm,
+  },
+  debugLog: {
+    marginTop: spacing.md,
+    color: colors.gray[600],
+    fontSize: typography.fontSizes.sm,
   },
 });

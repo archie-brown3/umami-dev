@@ -1,16 +1,28 @@
 import React, { useState } from "react";
-import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
+import {
+  View,
+  Text,
+  Pressable,
+  StyleSheet,
+  Platform,
+  TouchableOpacity,
+} from "react-native";
 import { Tabs, Link, usePathname, router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { colors, spacing, createShadow } from "../utils/styleUtils";
-import useColorScheme from "../hooks/useColorScheme";
-import { NetworkStatusBar } from "../components/layout/NetworkStatusBar";
+import { colors, spacing, createShadow } from "@/utils/styleUtils";
+import { useColorScheme } from "@/hooks/useColorScheme";
+import { NetworkStatusBar } from "@/components/layout/NetworkStatusBar";
+import { useAuth } from "@/context/AuthContext";
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
+  const { user } = useAuth();
+  if (!user) {
+    return null;
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={["bottom"]}>
@@ -31,6 +43,19 @@ export default function TabLayout() {
           name="index"
           options={{
             title: "Home",
+            headerShown: true,
+            headerRight: () => (
+              <TouchableOpacity
+                onPress={() => router.push("/profile")}
+                style={{ marginRight: spacing.md }}
+              >
+                <Ionicons
+                  name="person-circle-outline"
+                  size={28}
+                  color={colors.primary}
+                />
+              </TouchableOpacity>
+            ),
             tabBarIcon: ({ color, focused }) => (
               <Ionicons
                 name={focused ? "home" : "home-outline"}

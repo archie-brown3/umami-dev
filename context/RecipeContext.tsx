@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Recipe, MealPlan, RecipeContextType } from "../../types";
-import { generateId } from "../../lib/utils";
+import { Recipe, MealPlan, RecipeContextType } from "@/types";
+import { generateId } from "@/lib/lib/utils";
 
 // Create a more specific type for daily meal plan structure
 interface DayMeals {

@@ -9,13 +9,14 @@ import {
   ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import EmptyState from "../components/ui/EmptyState";
-import { colors, spacing } from "../utils/styleUtils";
-import { RecipeCard } from "../components/recipes/RecipeCard";
-import { useRecipes } from "../context/RecipeContext";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { Recipe } from "../types";
+
+import EmptyState from "@/components/ui/EmptyState";
+import { RecipeCard } from "@/components/recipes/RecipeCard";
+import { useRecipes } from "@/context/RecipeContext";
+import { colors, spacing, typography } from "@/utils/styleUtils";
+import { Recipe } from "@/types";
 
 export default function RecipesScreen() {
   const { recipes, addRecipe } = useRecipes();
@@ -56,112 +57,6 @@ export default function RecipesScreen() {
             "Garnish with fresh herbs before serving",
           ],
         },
-        {
-          id: "2",
-          title: "Chipotle Chicken Wrap",
-          description: "Spicy chipotle chicken wrap with fresh veggies",
-          prepTime: 15,
-          cookTime: 20,
-          servings: 2,
-          cuisine: "Mexican",
-          difficulty: "Easy",
-          category: "Lunch",
-          tags: ["High Protein", "Everyday"],
-          author: "Chef Alex Ramsey",
-          imageUrl:
-            "https://images.unsplash.com/photo-1626700051175-6818013e1d4f?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
-          ingredients: [
-            { id: "i5", name: "tortilla", amount: 2, unit: "piece" },
-            { id: "i6", name: "chicken breast", amount: 1, unit: "piece" },
-            { id: "i7", name: "chipotle sauce", amount: 2, unit: "tbsp" },
-            { id: "i8", name: "lettuce", amount: 1, unit: "cup" },
-          ],
-          instructions: [
-            "Cook chicken with spices",
-            "Warm tortillas",
-            "Assemble wraps with chicken, sauce and veggies",
-            "Roll and serve",
-          ],
-        },
-        {
-          id: "3",
-          title: "High Protein Breakfast Wrap",
-          description: "Quick and easy high protein breakfast",
-          prepTime: 5,
-          cookTime: 5,
-          servings: 1,
-          difficulty: "Easy",
-          category: "Breakfast",
-          tags: ["High Protein", "Other"],
-          author: "Chef Alex Ramsey",
-          imageUrl:
-            "https://images.unsplash.com/photo-1626268129514-e2fb84a4a367?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
-          ingredients: [
-            { id: "i9", name: "eggs", amount: 2, unit: "piece" },
-            { id: "i10", name: "tortilla", amount: 1, unit: "piece" },
-            { id: "i11", name: "cheese", amount: 30, unit: "g" },
-            { id: "i12", name: "spinach", amount: 1, unit: "handful" },
-          ],
-          instructions: [
-            "Scramble eggs",
-            "Warm tortilla",
-            "Add eggs, cheese and spinach to tortilla",
-            "Roll up and enjoy",
-          ],
-        },
-        {
-          id: "4",
-          title: "Smashed dumpling tacos",
-          description: "Crunchy veggie dumplings in taco format",
-          prepTime: 10,
-          cookTime: 15,
-          servings: 2,
-          difficulty: "Medium",
-          category: "Side",
-          tags: ["High Protein", "Fry", "Spicy"],
-          author: "Chef Alex Ramsey",
-          imageUrl:
-            "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
-          ingredients: [
-            { id: "i13", name: "dumplings", amount: 8, unit: "piece" },
-            { id: "i14", name: "tortillas", amount: 4, unit: "piece" },
-            { id: "i15", name: "soy sauce", amount: 2, unit: "tbsp" },
-            { id: "i16", name: "garlic", amount: 3, unit: "clove" },
-          ],
-          instructions: [
-            "Cook dumplings until crispy",
-            "Heat tortillas",
-            "Assemble dumplings in tortillas",
-            "Add sauce and toppings",
-          ],
-        },
-        {
-          id: "5",
-          title: "Pad Thai",
-          description: "Classic Pad Thai with rice noodles",
-          prepTime: 15,
-          cookTime: 15,
-          servings: 2,
-          cuisine: "Thai",
-          difficulty: "Medium",
-          category: "Main",
-          tags: ["Asian", "Noodles"],
-          author: "Chef Alex Ramsey",
-          imageUrl:
-            "https://images.unsplash.com/photo-1559314809-0d155014e29e?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
-          ingredients: [
-            { id: "i17", name: "rice noodles", amount: 200, unit: "g" },
-            { id: "i18", name: "tofu", amount: 100, unit: "g" },
-            { id: "i19", name: "bean sprouts", amount: 1, unit: "cup" },
-            { id: "i20", name: "peanuts", amount: 2, unit: "tbsp" },
-          ],
-          instructions: [
-            "Soak rice noodles",
-            "Stir fry tofu and vegetables",
-            "Add noodles and sauce",
-            "Top with bean sprouts and crushed peanuts",
-          ],
-        },
       ];
 
       // Add each sample recipe to the context
@@ -170,11 +65,6 @@ export default function RecipesScreen() {
       });
     }
   }, [recipes.length, addRecipe]);
-
-  // Debug output
-  useEffect(() => {
-    console.log("Current recipes:", JSON.stringify(recipes, null, 2));
-  }, [recipes]);
 
   const hasRecipes = recipes.length > 0;
 
@@ -187,12 +77,21 @@ export default function RecipesScreen() {
     </TouchableOpacity>
   );
 
-  // Debug logs for recipe objects
-  useEffect(() => {
-    recipes.forEach((recipe) => {
-      console.log(`Recipe ${recipe.id} title:`, recipe.title);
-    });
-  }, [recipes]);
+  if (recipes.length === 0) {
+    return (
+      <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>My Recipes</Text>
+        </View>
+        <EmptyState
+          title="No Recipes Yet"
+          message="Start by adding your first recipe. You can manually add recipes, or extract them from websites, photos, or Instagram."
+          actionLabel="Add Recipe"
+          iconName="book-outline"
+        />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
@@ -235,9 +134,6 @@ export default function RecipesScreen() {
           </TouchableOpacity>
           <TouchableOpacity style={styles.tagPill}>
             <Text style={styles.tagText}>Difficulty: Easy</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.tagPill}>
-            <Text style={styles.tagText}>Difficulty</Text>
           </TouchableOpacity>
         </ScrollView>
 

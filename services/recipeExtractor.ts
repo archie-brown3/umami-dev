@@ -1,4 +1,10 @@
-import { Recipe, Ingredient } from "../types";
+import { Recipe, Ingredient } from "@/types";
+import { supabase } from "@/lib/supabase";
+import {
+  scrapeFromUrl,
+  analyzeRecipeText as deepseekAnalyzeRecipe,
+  ScrapedContent,
+} from "./deepseekservice";
 
 // Get API key from environment variable
 const DEEPSEEK_API_KEY =
@@ -42,82 +48,201 @@ interface ParsedRecipe {
   nutritional_tags: string[];
 }
 
-export interface ScrapedContent {
-  caption: string;
-  url: string;
-  author?: string;
-  username?: string; // Instagram username
-  profilePictureUrl?: string; // URL to the profile picture
-  imageUrl?: string;
-  mediaUrls?: Array<{
-    url: string;
-    isVideo: boolean;
-    videoUrl?: string;
-  }>; // All media from the post
-  publishDate?: string;
-  title?: string;
-}
-
 // API endpoint for Instagram recipe extraction
 const EXTRACT_API_URL = "https://recipeextractionservice.onrender.com";
 
 /**
- * Extract recipe from an Instagram URL using the extraction API
+ * Extract recipe from URL with proper error handling and response management
  */
-export async function extractRecipeFromUrl(instagramUrl: string) {
+export async function extractRecipeFromUrl(
+  url: string
+): Promise<Partial<Recipe>> {
   try {
-    const response = await fetch(`${EXTRACT_API_URL}/api/extract`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ url: instagramUrl }),
-    });
+    // Create a single extraction tracking ID for logging/debugging
+    const extractionId = `extract_${Date.now()}_${Math.random()
+      .toString(36)
+      .substring(2, 9)}`;
+    console.log(`[${extractionId}] Starting extraction for URL: ${url}`);
 
-    if (!response.ok) {
-      // First try to get the error details as JSON
-      try {
-        const errorData = await response.json();
-        throw new Error(
-          `API Error: ${errorData.message || response.statusText}`
-        );
-      } catch (jsonError) {
-        // If we can't parse the error as JSON, get it as text
-        const errorText = await response.text();
-        throw new Error(
-          `API Error (${response.status}): ${errorText.substring(0, 200)}`
-        );
-      }
+    // Check extraction limits (commented out for now)
+    // await checkExtractionLimits();
+
+    // Start the extraction process
+    console.log(`[${extractionId}] Scraping content from URL`);
+    const scrapedContent = await scrapeFromUrl(url);
+
+    if (!scrapedContent || !scrapedContent.caption) {
+      throw new Error("Failed to extract content from URL");
     }
 
-    // Get the response as text first to check for JSON parsing issues
-    const responseText = await response.text();
+    console.log(
+      `[${extractionId}] Analyzing recipe text (${scrapedContent.caption.length} chars)`
+    );
+    const recipeData = await deepseekAnalyzeRecipe(scrapedContent.caption);
 
-    // Check if the response starts with HTML tags (common error case)
-    if (responseText.trim().startsWith("<")) {
-      throw new Error(
-        `Received HTML instead of JSON. The API might be down or returning an error page.`
-      );
+    if (!recipeData) {
+      throw new Error("Failed to analyze recipe text");
     }
 
-    try {
-      // Try to parse the response as JSON
-      const recipeData = JSON.parse(responseText);
-      return recipeData;
-    } catch (parseError) {
-      console.error("JSON parsing error:", parseError);
-      console.error("Raw response:", responseText.substring(0, 200));
-      throw new Error(
-        `Failed to parse API response as JSON: ${
-          parseError instanceof Error ? parseError.message : "Unknown error"
-        }`
-      );
-    }
+    // Create the recipe object with all available data
+    const recipe: Partial<Recipe> = {
+      title: recipeData.title || recipeData.name || "Untitled Recipe",
+      description: recipeData.description,
+      imageUrl: scrapedContent.imageUrl,
+      prepTime: recipeData.prepTime || 0,
+      cookTime: recipeData.cookTime || 0,
+      servings: recipeData.servings || 2,
+      // Add additional fields as needed
+    };
+
+    // Log success
+    console.log(
+      `[${extractionId}] Successfully extracted recipe: ${recipe.title}`
+    );
+
+    // For future implementation: record successful extraction in user's quota
+    // await recordExtraction(extractionId);
+
+    return recipe;
   } catch (error) {
-    console.error("Failed to extract recipe:", error);
+    // Properly handle and log the error
+    if (error instanceof Error) {
+      console.error("Recipe extraction error:", error.message);
+      console.error("Error stack:", error.stack);
+    } else {
+      console.error("Unknown recipe extraction error:", error);
+    }
+
+    throw error; // Re-throw for the caller to handle
+  }
+}
+
+/**
+ * Extract recipe from Instagram post
+ */
+export async function extractRecipeFromInstagram(
+  username: string,
+  postId: string
+): Promise<Partial<Recipe>> {
+  try {
+    // Create a tracking ID
+    const extractionId = `instagram_${Date.now()}_${Math.random()
+      .toString(36)
+      .substring(2, 9)}`;
+    console.log(
+      `[${extractionId}] Starting Instagram extraction for @${username}, post ID: ${postId}`
+    );
+
+    // Check extraction limits (commented out for now)
+    // await checkExtractionLimits();
+
+    // Build the Instagram post URL
+    const url = `https://www.instagram.com/p/${postId}/`;
+
+    // Use the same extraction flow as regular URLs
+    return await extractRecipeFromUrl(url);
+  } catch (error) {
+    console.error(
+      "Instagram extraction error:",
+      error instanceof Error ? error.message : error
+    );
     throw error;
   }
 }
+
+/**
+ * For future implementation: Check if user has extraction quota available
+ */
+/* 
+async function checkExtractionLimits(): Promise<void> {
+  try {
+    // Get the current user
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Authentication required');
+    
+    // Fetch the user's subscription details
+    const { data: subscription, error } = await supabase
+      .from('subscriptions')
+      .select('*')
+      .eq('user_id', user.id)
+      .single();
+    
+    if (error) throw error;
+    
+    // Check if user has a valid subscription
+    if (!subscription) {
+      // Free tier: Check extraction count
+      const { count, error: countError } = await supabase
+        .from('recipe_extractions')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()); // Last 30 days
+      
+      if (countError) throw countError;
+      
+      // Free tier limit: 5 extractions per month
+      if (count >= 5) {
+        throw new Error('Monthly extraction limit reached. Please upgrade your subscription.');
+      }
+    } else {
+      // Paid tier: Check if within limits
+      if (subscription.extractions_remaining !== null && subscription.extractions_remaining <= 0) {
+        throw new Error('Extraction limit reached on your current plan.');
+      }
+      
+      // Check subscription validity
+      if (subscription.valid_until && new Date(subscription.valid_until) < new Date()) {
+        throw new Error('Your subscription has expired.');
+      }
+    }
+  } catch (error) {
+    console.error('Failed to check extraction limits:', error);
+    throw error;
+  }
+}
+*/
+
+/**
+ * For future implementation: Record a successful extraction
+ */
+/*
+async function recordExtraction(extractionId: string): Promise<void> {
+  try {
+    // Get the current user
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return; // Don't record if not authenticated
+    
+    // Record the extraction
+    const { error } = await supabase
+      .from('recipe_extractions')
+      .insert({
+        id: extractionId,
+        user_id: user.id,
+        extraction_type: 'url',
+        created_at: new Date().toISOString()
+      });
+    
+    if (error) throw error;
+    
+    // Update subscription if needed
+    const { data: subscription } = await supabase
+      .from('subscriptions')
+      .select('id, extractions_remaining')
+      .eq('user_id', user.id)
+      .single();
+    
+    if (subscription && subscription.extractions_remaining !== null) {
+      await supabase
+        .from('subscriptions')
+        .update({ extractions_remaining: subscription.extractions_remaining - 1 })
+        .eq('id', subscription.id);
+    }
+  } catch (error) {
+    // Just log the error but don't fail the extraction
+    console.error('Failed to record extraction:', error);
+  }
+}
+*/
 
 // Generic recipe website scraper
 async function scrapeGenericRecipeWebsite(

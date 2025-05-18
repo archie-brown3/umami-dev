@@ -11,10 +11,11 @@ import {
   ImageBackground,
 } from "react-native";
 import { useLocalSearchParams, router, Stack } from "expo-router";
-import { useRecipes } from "../context/RecipeContext";
-import { colors, spacing } from "../utils/styleUtils";
+import { useRecipes } from "@/context/RecipeContext";
+import { colors, spacing } from "../../utils/styleUtils";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Recipe } from "@/types";
 
 export default function RecipeDetailScreen() {
   const { id } = useLocalSearchParams();
