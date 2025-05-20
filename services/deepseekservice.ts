@@ -94,12 +94,15 @@ export async function scrapeFromUrl(
 
     // For Instagram URLs, use dedicated Instagram API
     if (domain.includes("instagram.com")) {
+      console.log(`[Instagram] Starting extraction for URL: ${url}`);
+
       try {
         // Use dedicated API service for Instagram extraction
         const apiResponse = await extractFromInstagramApi(url);
+        console.log(`[Instagram] API response received:`, apiResponse);
 
         if (apiResponse) {
-          return {
+          const result = {
             caption: apiResponse.caption || apiResponse.ingredients.join("\n"),
             url,
             author: extractInstagramUsername(url),
@@ -111,18 +114,12 @@ export async function scrapeFromUrl(
               })
             ),
           };
+          console.log(`[Instagram] Processed result:`, result);
+          return result;
         }
       } catch (instagramError) {
-        console.error("Error extracting from Instagram API:", instagramError);
-        // Fallback to DeepSeek if API fails
-        const caption = await fetchInstagramCaption(url);
-        if (!caption) return null;
-
-        return {
-          caption,
-          url,
-          author: extractInstagramUsername(url),
-        };
+        console.error("[Instagram] API extraction error:", instagramError);
+        throw instagramError; // Re-throw to handle in the UI
       }
     }
 
@@ -130,8 +127,8 @@ export async function scrapeFromUrl(
     const content = await scrapeGenericRecipeWebsite(url);
     return content;
   } catch (error) {
-    console.error("Error scraping from URL:", error);
-    return null;
+    console.error("[Instagram] Error scraping from URL:", error);
+    throw error; // Re-throw to handle in the UI
   }
 }
 
@@ -166,77 +163,44 @@ async function isExtractApiAvailable(): Promise<boolean> {
  * Extract recipe data from Instagram using the dedicated API
  */
 async function extractFromInstagramApi(instagramUrl: string): Promise<any> {
+  console.log(
+    `[Instagram] Making API request to ${EXTRACT_API_URL}/api/extract`
+  );
+
+  const response = await fetch(`${EXTRACT_API_URL}/api/extract`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ url: instagramUrl }),
+  });
+
+  console.log(`[Instagram] API Response Status: ${response.status}`);
+
+  // Get the response as text first to aid debugging
+  const responseText = await response.text();
+  console.log(
+    `[Instagram] Raw API Response: ${responseText.substring(0, 200)}...`
+  );
+
+  if (!response.ok) {
+    console.error(
+      `[Instagram] API Error: ${response.status} ${response.statusText}`
+    );
+    throw new Error(`API Error: ${response.status} ${response.statusText}`);
+  }
+
   try {
-    // First check if the API is available
-    const isApiAvailable = await isExtractApiAvailable();
-
-    if (!isApiAvailable) {
-      addServiceLog("Recipe extraction service is unavailable");
-      throw new Error("Recipe extraction service is currently unavailable");
-    }
-
-    addServiceLog(`Making extraction request for URL: ${instagramUrl}`);
-    const response = await fetch(`${EXTRACT_API_URL}/api/extract`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ url: instagramUrl }),
-    });
-
-    // Get the response as text first to aid debugging
-    const responseText = await response.text();
-    addServiceLog(`Received raw response (${responseText.length} chars)`);
-
-    // Check if the response starts with HTML tags (common error case)
-    if (responseText.trim().startsWith("<")) {
-      addServiceLog("Error: Received HTML instead of JSON");
-      throw new Error(
-        `API returned HTML instead of JSON. The service might be experiencing issues.`
-      );
-    }
-
-    if (!response.ok) {
-      try {
-        // Try to parse as JSON error
-        const errorObj = JSON.parse(responseText);
-        addServiceLog(`API error: ${errorObj.message || response.statusText}`);
-        throw new Error(
-          `API Error: ${errorObj.message || response.statusText}`
-        );
-      } catch (parseError) {
-        // If we can't parse JSON, use the raw text
-        addServiceLog(`API error (${response.status}): Non-JSON response`);
-        throw new Error(
-          `API Error (${response.status}): ${responseText.substring(0, 100)}...`
-        );
-      }
-    }
-
-    try {
-      // Try to parse the response as JSON
-      const recipeData = JSON.parse(responseText);
-      addServiceLog("Successfully parsed extraction response as JSON");
-      return recipeData;
-    } catch (parseError) {
-      addServiceLog(
-        `JSON parse error: ${
-          parseError instanceof Error ? parseError.message : "Unknown error"
-        }`
-      );
-      throw new Error(
-        `Failed to parse API response as JSON: ${
-          parseError instanceof Error ? parseError.message : "Unknown error"
-        }`
-      );
-    }
-  } catch (error) {
-    addServiceLog(
-      `Instagram API extraction failed: ${
-        error instanceof Error ? error.message : "Unknown error"
+    const recipeData = JSON.parse(responseText);
+    console.log(`[Instagram] Successfully parsed API response`);
+    return recipeData;
+  } catch (parseError) {
+    console.error(`[Instagram] JSON parse error:`, parseError);
+    throw new Error(
+      `Failed to parse API response: ${
+        parseError instanceof Error ? parseError.message : "Unknown error"
       }`
     );
-    throw error;
   }
 }
 

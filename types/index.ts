@@ -1,16 +1,30 @@
 export interface Recipe {
   id: string;
   title: string;
+  name?: string; // For backward compatibility
   description?: string;
-  ingredients: string[];
+  ingredients: Ingredient[];
   instructions: string[];
-  prepTime?: number;
-  cookTime?: number;
-  servings?: number;
+  prepTime: number;
+  cookTime: number;
+  servings: number;
   imageUrl?: string;
-  isFavorite?: boolean;
+  tags?: string[];
+  caption?: string;
+  media?: Array<{
+    url: string;
+    type: string;
+  }>;
   createdAt: string;
   updatedAt: string;
+  isFavorite?: boolean;
+}
+
+export interface Ingredient {
+  id: string;
+  name: string;
+  amount: number;
+  unit: string;
 }
 
 export interface MealPlan {

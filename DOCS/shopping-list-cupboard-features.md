@@ -1,4 +1,3 @@
-
 ## Supabase Integration Status
 
 ### Current Implementation Status

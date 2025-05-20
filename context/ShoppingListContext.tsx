@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { ShoppingList, ShoppingItem, ShoppingListContextType } from "@/types";
+import { ShoppingList, ShoppingItem, ShoppingListContextType } from "../types";
 import { useAuth } from "./AuthContext";
 import * as shoppingListService from "@/services/shoppingListService";
+import NetInfo from "@react-native-community/netinfo";
 
 const ShoppingListContext = createContext<ShoppingListContextType | undefined>(
   undefined
@@ -19,26 +20,41 @@ export function ShoppingListProvider({
   );
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [isNetworkConnected, setIsNetworkConnected] = useState<boolean>(true);
   const { user } = useAuth();
 
-  // Fetch shopping lists when user changes
+  // Monitor network connectivity
   useEffect(() => {
-    if (user) {
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      setIsNetworkConnected(state.isConnected ?? true);
+
+      // Re-fetch data when connection is restored
+      if (state.isConnected && user) {
+        fetchShoppingLists();
+      }
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  // Fetch shopping lists when user changes or network reconnects
+  useEffect(() => {
+    if (user && isNetworkConnected) {
       fetchShoppingLists();
     }
-  }, [user]);
+  }, [user, isNetworkConnected]);
 
   // Fetch items for the current list when it changes
   useEffect(() => {
-    if (currentListId) {
+    if (currentListId && isNetworkConnected) {
       fetchShoppingItems(currentListId);
     } else {
       setCurrentListItems([]);
     }
-  }, [currentListId]);
+  }, [currentListId, isNetworkConnected]);
 
   const fetchShoppingLists = async () => {
-    if (!user) return;
+    if (!user || !isNetworkConnected) return;
 
     setLoading(true);
     setError(null);
@@ -58,15 +74,24 @@ export function ShoppingListProvider({
       if (data && data.length > 0 && !currentListId) {
         setCurrentListId(data[0].id);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error fetching shopping lists:", err);
-      setError("Failed to load shopping lists. Please try again.");
+      setError(
+        "Failed to load shopping lists. Please check your connection and try again."
+      );
+
+      // Check if it's a network error
+      if (err.message && err.message.includes("Network request failed")) {
+        setIsNetworkConnected(false);
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const fetchShoppingItems = async (listId: string) => {
+    if (!isNetworkConnected) return;
+
     setLoading(true);
     setError(null);
 
@@ -80,9 +105,16 @@ export function ShoppingListProvider({
       }
 
       setCurrentListItems(data || []);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error fetching shopping items:", err);
-      setError("Failed to load shopping items. Please try again.");
+      setError(
+        "Failed to load shopping items. Please check your connection and try again."
+      );
+
+      // Check if it's a network error
+      if (err.message && err.message.includes("Network request failed")) {
+        setIsNetworkConnected(false);
+      }
     } finally {
       setLoading(false);
     }

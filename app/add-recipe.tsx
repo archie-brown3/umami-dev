@@ -150,129 +150,73 @@ export default function AddRecipeScreen() {
 
     try {
       setIsLoading(true);
-      addLog(`Extracting recipe from ${instagramUrl}...`);
+      addLog(`[Instagram] Starting extraction for URL: ${instagramUrl}`);
 
-      // Step 1: Extract content from Instagram URL using the API service
+      // Extract content from Instagram URL using the API service
       const extractedData = await extractRecipeFromUrl(instagramUrl);
+      addLog(`[Instagram] Extraction successful`);
 
       // Validate we've received proper data
       if (!extractedData) {
-        Alert.alert(
-          "Error",
-          "Received empty response from extraction service."
-        );
-        setIsLoading(false);
-        return;
+        throw new Error("Received empty response from extraction service");
       }
 
       addLog(
-        `Extraction successful. Received: ${JSON.stringify(
-          extractedData
-        ).substring(0, 100)}...`
+        `[Instagram] Extracted data: ${JSON.stringify(extractedData, null, 2)}`
       );
 
-      // Make sure we have at least ingredients or caption to work with
-      if (
-        !extractedData.ingredients?.length &&
-        !extractedData.caption &&
-        !extractedData.instructions?.length
-      ) {
-        Alert.alert(
-          "Error",
-          "Couldn't extract recipe information from this Instagram post. No ingredients or instructions found."
-        );
-        setIsLoading(false);
-        return;
-      }
+      // Create recipe from extracted data
+      const newRecipe: Recipe = {
+        id: Date.now().toString(),
+        title: extractedData.title || "Instagram Recipe",
+        name: extractedData.title || "Instagram Recipe", // For backward compatibility
+        description: extractedData.caption || "",
+        ingredients: (extractedData.ingredients || []).map(
+          (ing: any, index: number) => ({
+            id: `ing-${index}`,
+            name:
+              typeof ing === "string" ? ing : ing.name || "Unknown ingredient",
+            amount: 1,
+            unit: "item",
+          })
+        ),
+        instructions: extractedData.instructions || [],
+        prepTime: extractedData.prepTime || 0,
+        cookTime: extractedData.cookTime || 0,
+        servings: extractedData.servings || 2,
+        imageUrl: extractedData.media?.[0]?.url,
+        tags: extractedData.tags || [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
 
-      // Prepare the recipe text - using extracted ingredients and instructions if available
-      let recipeText = "";
+      addLog(
+        `[Instagram] Created recipe object: ${JSON.stringify(
+          newRecipe,
+          null,
+          2
+        )}`
+      );
 
-      if (extractedData.caption) {
-        // If caption is available, use it
-        recipeText = extractedData.caption;
-        addLog(`Using caption text (${recipeText.length} chars)`);
-      } else if (
-        extractedData.ingredients &&
-        extractedData.ingredients.length > 0
-      ) {
-        // Otherwise build a recipe text from the structured data
-        addLog(
-          `Building recipe text from ${
-            extractedData.ingredients.length
-          } ingredients and ${
-            extractedData.instructions?.length || 0
-          } instructions`
-        );
-        recipeText = `Recipe\n\nIngredients:\n`;
-        extractedData.ingredients.forEach((ing: string) => {
-          recipeText += `- ${ing}\n`;
-        });
+      // Add the recipe
+      addRecipe(newRecipe);
+      addLog(`[Instagram] Recipe added successfully: ${newRecipe.title}`);
 
-        if (
-          extractedData.instructions &&
-          extractedData.instructions.length > 0
-        ) {
-          recipeText += `\nInstructions:\n`;
-          extractedData.instructions.forEach((step: string, index: number) => {
-            recipeText += `${index + 1}. ${step}\n`;
-          });
-        }
-      } else {
-        Alert.alert(
-          "Error",
-          "Couldn't extract sufficient recipe information from this Instagram post."
-        );
-        setIsLoading(false);
-        return;
-      }
-
-      // Step 2: Analyze the recipe text to structure it with DeepSeek
-      addLog("Analyzing recipe text with DeepSeek...");
-      const recipeData = await analyzeRecipeText(recipeText);
-
-      if (recipeData) {
-        addLog("Recipe analysis successful");
-        // Step 3: Create a valid Recipe object with both the parsed data and images
-        const newRecipe: Recipe = {
-          id: Date.now().toString(),
-          name: recipeData.name || "Untitled Recipe",
-          description: recipeData.description,
-          ingredients: recipeData.ingredients || [],
-          instructions: recipeData.instructions || [],
-          prepTime: recipeData.prepTime || 0,
-          cookTime: recipeData.cookTime || 0,
-          servings: recipeData.servings || 2,
-          imageUrl: extractedData.media?.[0]?.url, // Use the first image from extraction
-          tags: recipeData.tags,
-        };
-
-        // Step 4: Add the complete recipe to the user's collection
-        addRecipe(newRecipe);
-        addLog(`Recipe added: ${newRecipe.name}`);
-
-        // Step 5: Return to the previous screen
-        Alert.alert(
-          "Success",
-          `Recipe "${newRecipe.name}" has been successfully added to your collection.`,
-          [
-            {
-              text: "OK",
-              onPress: navigateAfterSuccess,
-            },
-          ]
-        );
-      } else {
-        Alert.alert(
-          "Error",
-          "Failed to analyze the recipe. Please try again or add manually."
-        );
-      }
+      Alert.alert(
+        "Success",
+        `Recipe "${newRecipe.title}" has been successfully added to your collection.`,
+        [
+          {
+            text: "OK",
+            onPress: navigateAfterSuccess,
+          },
+        ]
+      );
     } catch (error) {
-      console.error("Instagram extraction error:", error);
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
-      addLog(`Error: ${errorMessage}`);
+      addLog(`[Instagram] Error: ${errorMessage}`);
+      console.error("[Instagram] Extraction error:", error);
       Alert.alert("Error", `Failed to extract recipe: ${errorMessage}`);
     } finally {
       setIsLoading(false);

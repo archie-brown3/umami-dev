@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { InventoryItem, InventoryContextType } from "@/types";
+import { InventoryItem, InventoryContextType } from "../types";
 import { useAuth } from "./AuthContext";
 import * as inventoryService from "@/services/inventoryService";
+import NetInfo from "@react-native-community/netinfo";
 
 const CupboardContext = createContext<InventoryContextType | undefined>(
   undefined
@@ -11,17 +12,32 @@ export function CupboardProvider({ children }: { children: React.ReactNode }) {
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [isNetworkConnected, setIsNetworkConnected] = useState<boolean>(true);
   const { user } = useAuth();
 
-  // Fetch items when user changes
+  // Monitor network connectivity
   useEffect(() => {
-    if (user) {
-      fetchInventoryItems();
-    }
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      setIsNetworkConnected(state.isConnected ?? true);
+
+      // Re-fetch data when connection is restored
+      if (state.isConnected && user) {
+        fetchInventoryItems();
+      }
+    });
+
+    return () => unsubscribe();
   }, [user]);
 
+  // Fetch items when user changes or network reconnects
+  useEffect(() => {
+    if (user && isNetworkConnected) {
+      fetchInventoryItems();
+    }
+  }, [user, isNetworkConnected]);
+
   const fetchInventoryItems = async () => {
-    if (!user) return;
+    if (!user || !isNetworkConnected) return;
 
     setLoading(true);
     setError(null);
@@ -34,16 +50,23 @@ export function CupboardProvider({ children }: { children: React.ReactNode }) {
       }
 
       setInventoryItems(data || []);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error fetching inventory items:", err);
-      setError("Failed to load inventory items. Please try again.");
+      setError(
+        "Failed to load inventory items. Please check your connection and try again."
+      );
+
+      // Check if it's a network error
+      if (err.message && err.message.includes("Network request failed")) {
+        setIsNetworkConnected(false);
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const addItem = async (item: Partial<InventoryItem>) => {
-    if (!user) return;
+    if (!user || !isNetworkConnected) return;
 
     setLoading(true);
     setError(null);
@@ -65,9 +88,16 @@ export function CupboardProvider({ children }: { children: React.ReactNode }) {
       if (data) {
         setInventoryItems((prev) => [...prev, data]);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error adding inventory item:", err);
-      setError("Failed to add item. Please try again.");
+      setError(
+        "Failed to add item. Please check your connection and try again."
+      );
+
+      // Check if it's a network error
+      if (err.message && err.message.includes("Network request failed")) {
+        setIsNetworkConnected(false);
+      }
     } finally {
       setLoading(false);
     }
@@ -77,6 +107,8 @@ export function CupboardProvider({ children }: { children: React.ReactNode }) {
     itemId: string,
     updates: Partial<InventoryItem>
   ) => {
+    if (!isNetworkConnected) return;
+
     setLoading(true);
     setError(null);
 
@@ -96,15 +128,24 @@ export function CupboardProvider({ children }: { children: React.ReactNode }) {
           prev.map((item) => (item.id === itemId ? { ...item, ...data } : item))
         );
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error updating inventory item:", err);
-      setError("Failed to update item. Please try again.");
+      setError(
+        "Failed to update item. Please check your connection and try again."
+      );
+
+      // Check if it's a network error
+      if (err.message && err.message.includes("Network request failed")) {
+        setIsNetworkConnected(false);
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const deleteItem = async (itemId: string) => {
+    if (!isNetworkConnected) return;
+
     setLoading(true);
     setError(null);
 
@@ -117,9 +158,16 @@ export function CupboardProvider({ children }: { children: React.ReactNode }) {
 
       // Update local state
       setInventoryItems((prev) => prev.filter((item) => item.id !== itemId));
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error deleting inventory item:", err);
-      setError("Failed to delete item. Please try again.");
+      setError(
+        "Failed to delete item. Please check your connection and try again."
+      );
+
+      // Check if it's a network error
+      if (err.message && err.message.includes("Network request failed")) {
+        setIsNetworkConnected(false);
+      }
     } finally {
       setLoading(false);
     }
@@ -128,7 +176,7 @@ export function CupboardProvider({ children }: { children: React.ReactNode }) {
   const getExpiringItems = async (
     daysUntilExpiration = 7
   ): Promise<InventoryItem[]> => {
-    if (!user) return [];
+    if (!user || !isNetworkConnected) return [];
 
     try {
       const { data, error } = await inventoryService.getExpiringItems(
@@ -141,8 +189,14 @@ export function CupboardProvider({ children }: { children: React.ReactNode }) {
       }
 
       return data || [];
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error fetching expiring items:", err);
+
+      // Check if it's a network error
+      if (err.message && err.message.includes("Network request failed")) {
+        setIsNetworkConnected(false);
+      }
+
       return [];
     }
   };

@@ -20,12 +20,16 @@ import {
 } from "../../services/deepseekservice";
 import NetInfo from "@react-native-community/netinfo";
 import * as Clipboard from "expo-clipboard";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+import ConnectionDiagnostic from "@/components/ConnectionDiagnostic";
 
 const EXTRACT_API_URL = "https://recipeextractionservice.onrender.com";
 const DEEPSEEK_API_KEY =
   process.env.DEEPSEEK_API_KEY || "sk-b168886219d34d939d0b7c6f760b4123";
 const DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions";
 const SUPABASE_API_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
+const RECIPE_API_URL = "https://recipeextractionservice.onrender.com";
 
 // Custom color definitions for error and success states
 const statusColors = {
@@ -50,6 +54,11 @@ const DebugPage = () => {
   const [serviceLogs, setServiceLogs] = useState<string[]>([]);
   const [copyStatus, setCopyStatus] = useState<string | null>(null);
   const [supabaseStatus, setSupabaseStatus] = useState<{
+    status: string;
+    timestamp: string;
+    error?: string;
+  } | null>(null);
+  const [recipeApiStatus, setRecipeApiStatus] = useState<{
     status: string;
     timestamp: string;
     error?: string;
@@ -352,6 +361,52 @@ const DebugPage = () => {
     }
   };
 
+  const checkRecipeApiHealth = async () => {
+    setIsLoading(true);
+    addLog("Testing Recipe Extraction Service API health...");
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
+    try {
+      const response = await fetch(`${RECIPE_API_URL}/health`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      const result = await response.json();
+      setRecipeApiStatus({
+        status: response.ok ? "Available" : "Error",
+        timestamp: new Date().toISOString(),
+        ...(response.ok ? {} : { error: result.message || "Unknown error" }),
+      });
+      addLog(
+        `Recipe Extraction Service API health: ${
+          response.ok ? "Available" : "Error"
+        }`
+      );
+    } catch (error) {
+      clearTimeout(timeout);
+      console.error(
+        "Recipe Extraction Service API health check failed:",
+        error
+      );
+      setRecipeApiStatus({
+        status: "Error",
+        timestamp: new Date().toISOString(),
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+      addLog(
+        `Recipe Extraction Service API health check failed: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const addLog = (message: string) => {
     setLogs((prev) => [...prev, `[${new Date().toISOString()}] ${message}`]);
   };
@@ -395,260 +450,48 @@ const DebugPage = () => {
       );
     });
 
+    checkRecipeApiHealth();
+
     return () => {
       clearInterval(logsInterval);
     };
   }, []);
 
   return (
-    <ScrollView style={styles.container}>
-      <Text style={styles.header}>API Debug Information</Text>
-
-      <View style={styles.section}>
-        <Text style={styles.warningText}>
-          ⚠️ VPN Required: API connections in iOS simulators require an active
-          VPN. No VPN is needed on actual devices.
-        </Text>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Recipe Extraction API Status</Text>
-        <Text style={styles.apiUrl}>{EXTRACT_API_URL}</Text>
-
-        {apiStatus ? (
-          <View style={styles.statusCard}>
-            <Text style={styles.statusText}>
-              Status:{" "}
-              <Text
-                style={{
-                  color:
-                    apiStatus.status === "Available"
-                      ? statusColors.success
-                      : statusColors.error,
-                }}
-              >
-                {apiStatus.status}
-              </Text>
+    <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ConnectionDiagnostic />
+        {/* Recipe Extraction Service API Health Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>
+            Recipe Extraction Service API Health
+          </Text>
+          <View style={styles.statusContainer}>
+            <Text
+              style={
+                recipeApiStatus?.status === "Available"
+                  ? styles.successText
+                  : styles.errorText
+              }
+            >
+              {recipeApiStatus
+                ? `${recipeApiStatus.status} (${recipeApiStatus.timestamp})`
+                : "Unknown"}
             </Text>
-            <Text style={styles.statusText}>
-              Checked: {new Date(apiStatus.timestamp).toLocaleTimeString()}
-            </Text>
-            {apiStatus.error && (
-              <Text style={styles.errorText}>Error: {apiStatus.error}</Text>
-            )}
           </View>
-        ) : (
-          <Text style={styles.loadingText}>Checking API status...</Text>
-        )}
-
-        <View style={styles.buttonRow}>
+          {recipeApiStatus?.error && (
+            <Text style={styles.errorText}>{recipeApiStatus.error}</Text>
+          )}
           <TouchableOpacity
             style={styles.button}
-            onPress={checkApiHealth}
+            onPress={checkRecipeApiHealth}
             disabled={isLoading}
           >
-            {isLoading ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <Text style={styles.buttonText}>Check Health</Text>
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.button, { backgroundColor: colors.secondary }]}
-            onPress={testExtractApi}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <Text style={styles.buttonText}>Test Extraction</Text>
-            )}
+            <Text style={styles.buttonText}>Test Recipe API Health</Text>
           </TouchableOpacity>
         </View>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>DeepSeek API Status</Text>
-        <Text style={styles.apiUrl}>{DEEPSEEK_API_URL}</Text>
-
-        {deepSeekStatus ? (
-          <View style={styles.statusCard}>
-            <Text style={styles.statusText}>
-              Status:{" "}
-              <Text
-                style={{
-                  color:
-                    deepSeekStatus.status === "Available"
-                      ? statusColors.success
-                      : statusColors.error,
-                }}
-              >
-                {deepSeekStatus.status}
-              </Text>
-            </Text>
-            <Text style={styles.statusText}>
-              Checked: {new Date(deepSeekStatus.timestamp).toLocaleTimeString()}
-            </Text>
-            {deepSeekStatus.error && (
-              <Text style={styles.errorText}>
-                Error: {deepSeekStatus.error}
-              </Text>
-            )}
-          </View>
-        ) : (
-          <Text style={styles.loadingText}>
-            DeepSeek API status not checked
-          </Text>
-        )}
-
-        <TouchableOpacity
-          style={styles.button}
-          onPress={checkDeepSeekApi}
-          disabled={isLoading}
-        >
-          {isLoading ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <Text style={styles.buttonText}>Check DeepSeek</Text>
-          )}
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Supabase API Status</Text>
-        <Text style={styles.apiUrl}>{SUPABASE_API_URL}/rest/v1/</Text>
-        {supabaseStatus ? (
-          <View style={styles.statusCard}>
-            <Text style={styles.statusText}>
-              Status:{" "}
-              <Text
-                style={{
-                  color:
-                    supabaseStatus.status === "Available"
-                      ? statusColors.success
-                      : statusColors.error,
-                }}
-              >
-                {supabaseStatus.status}
-              </Text>
-            </Text>
-            <Text style={styles.statusText}>
-              Checked: {new Date(supabaseStatus.timestamp).toLocaleTimeString()}
-            </Text>
-            {supabaseStatus.error && (
-              <Text style={styles.errorText}>
-                Error: {supabaseStatus.error}
-              </Text>
-            )}
-          </View>
-        ) : (
-          <Text style={styles.loadingText}>
-            Supabase API status not checked
-          </Text>
-        )}
-        <TouchableOpacity
-          style={styles.button}
-          onPress={checkSupabaseApi}
-          disabled={isLoading}
-        >
-          {isLoading ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <Text style={styles.buttonText}>Check Supabase</Text>
-          )}
-        </TouchableOpacity>
-      </View>
-
-      {apiTestResponse && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>API Test Result</Text>
-          <ScrollView style={styles.responseContainer}>
-            <Text style={styles.responseText}>
-              {apiTestResponse.error
-                ? `Error: ${apiTestResponse.error}\n\nRaw Response: ${apiTestResponse.rawResponse}`
-                : JSON.stringify(apiTestResponse, null, 2)}
-            </Text>
-          </ScrollView>
-        </View>
-      )}
-
-      <View style={styles.section}>
-        <View style={styles.logHeader}>
-          <Text style={styles.sectionTitle}>Debug Logs</Text>
-          <View style={{ flexDirection: "row", alignItems: "center" }}>
-            <TouchableOpacity
-              onPress={handleCopyLogs}
-              style={{ marginRight: 12 }}
-            >
-              <Text style={styles.copyText}>Copy</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={clearLogs}>
-              <Text style={styles.clearText}>Clear</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-        {copyStatus && <Text style={styles.copiedText}>{copyStatus}</Text>}
-        <ScrollView style={styles.logContainer}>
-          {logs.length === 0 ? (
-            <Text style={styles.emptyLogText}>No logs yet.</Text>
-          ) : (
-            logs.map((log, index) => (
-              <Text key={index} style={styles.logText}>
-                {log}
-              </Text>
-            ))
-          )}
-        </ScrollView>
-      </View>
-
-      <View style={styles.section}>
-        <View style={styles.logHeader}>
-          <Text style={styles.sectionTitle}>Service Logs</Text>
-          <TouchableOpacity
-            onPress={() => {
-              clearServiceLogs();
-              setServiceLogs([]);
-            }}
-          >
-            <Text style={styles.clearText}>Clear</Text>
-          </TouchableOpacity>
-        </View>
-
-        <ScrollView style={styles.logContainer}>
-          {serviceLogs.length === 0 ? (
-            <Text style={styles.emptyLogText}>No service logs available.</Text>
-          ) : (
-            serviceLogs.map((log, index) => (
-              <Text key={index} style={styles.logText}>
-                {log}
-              </Text>
-            ))
-          )}
-        </ScrollView>
-
-        <TouchableOpacity
-          style={[styles.button, { marginTop: spacing.md }]}
-          onPress={refreshServiceLogs}
-        >
-          <Text style={styles.buttonText}>Refresh Service Logs</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Environment Information</Text>
-        <View style={styles.envCard}>
-          <Text style={styles.envText}>API URL: {EXTRACT_API_URL}</Text>
-          <Text style={styles.envText}>
-            DeepSeek API URL: {DEEPSEEK_API_URL}
-          </Text>
-          <Text style={styles.envText}>
-            DeepSeek API Key:{" "}
-            {DEEPSEEK_API_KEY ? "***" + DEEPSEEK_API_KEY.substr(-4) : "Not set"}
-          </Text>
-        </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 
@@ -657,8 +500,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.gray[100],
   },
-  scrollContainer: {
-    padding: spacing.md,
+  scrollContent: {
+    flexGrow: 1,
   },
   header: {
     fontSize: typography.fontSizes.xl,
