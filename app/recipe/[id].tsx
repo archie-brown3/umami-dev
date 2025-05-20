@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,22 +9,67 @@ import {
   Pressable,
   useWindowDimensions,
   ImageBackground,
+  Modal,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
 import { useLocalSearchParams, router, Stack } from "expo-router";
-import { useRecipes } from "@/context/RecipeContext";
 import { colors, spacing } from "../../utils/styleUtils";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Recipe } from "@/types";
+import { RecipeWithDetails } from "@/types/database.types";
+import { getRecipeWithDetails } from "@/services/recipeService";
+import { supabase } from "@/lib/supabase";
 
 export default function RecipeDetailScreen() {
   const { id } = useLocalSearchParams();
-  const { getRecipeById } = useRecipes();
   const { width } = useWindowDimensions();
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
-  // Get recipe details by ID
+  const [recipe, setRecipe] = useState<RecipeWithDetails | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const recipeId = Array.isArray(id) ? id[0] : id;
-  const recipe = getRecipeById(recipeId as string);
+
+  useEffect(() => {
+    if (recipeId) {
+      const fetchRecipeDetails = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+          console.log(
+            `[RecipeDetailScreen] Fetching details for recipeId: ${recipeId}`
+          );
+          const details = await getRecipeWithDetails(recipeId as string);
+          if (details) {
+            setRecipe(details);
+            console.log(
+              "[RecipeDetailScreen] Recipe details fetched:",
+              JSON.stringify(details, null, 2).substring(0, 500) + "..."
+            );
+          } else {
+            setError("Recipe not found.");
+            console.log(
+              `[RecipeDetailScreen] No details found for recipeId: ${recipeId}`
+            );
+          }
+        } catch (e) {
+          const errorMessage =
+            e instanceof Error ? e.message : "An unknown error occurred";
+          setError(`Failed to load recipe: ${errorMessage}`);
+          console.error(
+            "[RecipeDetailScreen] Error fetching recipe details:",
+            e
+          );
+        } finally {
+          setLoading(false);
+        }
+      };
+      fetchRecipeDetails();
+    }
+  }, [recipeId]);
 
   // Get icon name for ingredient
   const getIconForIngredient = (ingredientName: string) => {
@@ -54,17 +99,120 @@ export default function RecipeDetailScreen() {
     return "restaurant-outline";
   };
 
-  // If recipe not found
-  if (!recipe) {
+  if (loading) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.errorText}>Recipe not found</Text>
-      </View>
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.back()}
+          >
+            <Ionicons name="chevron-back" size={24} color="#000" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Details</Text>
+          <View style={{ width: 24 }} />
+        </View>
+        <View style={styles.centeredMessageContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>Loading recipe details...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // If recipe not found or error
+  if (error || !recipe) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.back()}
+          >
+            <Ionicons name="chevron-back" size={24} color="#000" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Details</Text>
+          <View style={{ width: 24 }} />
+        </View>
+        <View style={styles.centeredMessageContainer}>
+          <Text style={styles.errorText}>{error || "Recipe not found"}</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   // Calculate total time
   const totalTime = (recipe.prepTime || 0) + (recipe.cookTime || 0);
+
+  // Edit handler
+  const handleEdit = () => {
+    setMenuVisible(false);
+    router.push({
+      pathname: `/edit-recipe/${recipeId}`,
+    });
+  };
+
+  // Delete handler
+  const handleDelete = async () => {
+    setMenuVisible(false);
+    Alert.alert(
+      "Delete Recipe",
+      "Are you sure you want to delete this recipe?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            setDeleting(true);
+            try {
+              const { error: deleteError } = await supabase
+                .from("recipes")
+                .delete()
+                .eq("id", recipeId);
+
+              if (deleteError) {
+                throw deleteError;
+              }
+              Alert.alert("Success", "Recipe deleted successfully.");
+              router.replace("/recipes");
+            } catch (e) {
+              const msg =
+                e instanceof Error ? e.message : "Could not delete recipe.";
+              Alert.alert("Error", msg);
+              console.error("Error deleting recipe:", msg);
+            } finally {
+              setDeleting(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  if (deleting) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.back()}
+          >
+            <Ionicons name="chevron-back" size={24} color="#000" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Details</Text>
+          <View style={{ width: 24 }} />
+        </View>
+        <View style={styles.centeredMessageContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>Deleting recipe...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
@@ -84,10 +232,81 @@ export default function RecipeDetailScreen() {
           <Ionicons name="chevron-back" size={24} color="#000" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Details</Text>
-        <TouchableOpacity style={styles.favoriteButton}>
-          <Ionicons name="heart-outline" size={24} color="#000" />
-        </TouchableOpacity>
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
+          <TouchableOpacity style={styles.favoriteButton}>
+            <Ionicons
+              name={recipe.isFavorite ? "heart" : "heart-outline"}
+              size={24}
+              color={recipe.isFavorite ? colors.red[500] : "#000"}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={{ marginLeft: 12, padding: 4 }}
+            onPress={() => setMenuVisible(true)}
+            accessibilityLabel="More options"
+          >
+            <Ionicons name="ellipsis-horizontal" size={24} color="#000" />
+          </TouchableOpacity>
+        </View>
       </View>
+
+      {/* Modal for menu */}
+      <Modal
+        visible={menuVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMenuVisible(false)}
+      >
+        <Pressable
+          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.2)" }}
+          onPress={() => setMenuVisible(false)}
+        >
+          <View
+            style={{
+              position: "absolute",
+              top: 60,
+              right: 24,
+              backgroundColor: "#fff",
+              borderRadius: 12,
+              shadowColor: "#000",
+              shadowOpacity: 0.15,
+              shadowRadius: 8,
+              elevation: 6,
+              minWidth: 160,
+              paddingVertical: 8,
+            }}
+          >
+            <Pressable
+              onPress={handleEdit}
+              style={({ pressed }) => [
+                {
+                  paddingVertical: 12,
+                  paddingHorizontal: 20,
+                  backgroundColor: pressed ? colors.gray[100] : "#fff",
+                },
+              ]}
+            >
+              <Text style={{ fontSize: 16, color: colors.dark }}>
+                Edit Recipe
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={handleDelete}
+              style={({ pressed }) => [
+                {
+                  paddingVertical: 12,
+                  paddingHorizontal: 20,
+                  backgroundColor: pressed ? colors.gray[100] : "#fff",
+                },
+              ]}
+            >
+              <Text style={{ fontSize: 16, color: colors.red[500] }}>
+                Delete Recipe
+              </Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
 
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         {/* Recipe Image with overlay text */}
@@ -96,7 +315,13 @@ export default function RecipeDetailScreen() {
             source={{ uri: recipe.imageUrl }}
             style={styles.recipeImage}
             resizeMode="cover"
-          ></ImageBackground>
+          >
+            {/* Optional: You can add an overlay for text directly on the image if desired */}
+            {/* <View style={styles.imageOverlay}>
+              <Text style={styles.imageOverlaySubtitle}>{recipe.category || 'Recipe'}</Text>
+              <Text style={styles.imageOverlayTitle}>{recipe.title}</Text>
+            </View> */}
+          </ImageBackground>
         ) : (
           <View style={[styles.recipeImage, styles.imagePlaceholder]}>
             <Ionicons
@@ -109,11 +334,10 @@ export default function RecipeDetailScreen() {
 
         {/* Recipe Title and Meta */}
         <View style={styles.titleContainer}>
-          <Text style={styles.title}>
-            {recipe.title || recipe.name || "Untitled Recipe"}
-          </Text>
+          <Text style={styles.title}>{recipe.title || "Untitled Recipe"}</Text>
           <Text style={styles.metaText}>
-            {totalTime} Mins | {recipe.servings || 1} serving
+            {totalTime > 0 ? `${totalTime} Mins | ` : ""} {recipe.servings || 1}{" "}
+            serving{recipe.servings === 1 ? "" : "s"}
           </Text>
         </View>
 
@@ -121,7 +345,12 @@ export default function RecipeDetailScreen() {
         {recipe.author && (
           <View style={styles.authorSection}>
             <View style={styles.authorAvatar}>
-              <Ionicons name="person" size={24} color={colors.gray[400]} />
+              {/* You might want to use an Image component here if author has an avatar URL */}
+              <Ionicons
+                name="person-circle-outline"
+                size={32}
+                color={colors.gray[500]}
+              />
             </View>
             <View>
               <Text style={styles.recipeByText}>Recipe by</Text>
@@ -140,49 +369,49 @@ export default function RecipeDetailScreen() {
         {/* Ingredients */}
         <View style={styles.ingredientsSection}>
           <Text style={styles.sectionTitle}>Ingredients</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.ingredientsScrollContent}
-          >
-            {recipe.ingredients && recipe.ingredients.length > 0 ? (
-              recipe.ingredients.map((ingredient, index) => (
-                <View key={index} style={styles.ingredientCard}>
-                  <View style={styles.ingredientIconContainer}>
-                    <Ionicons
-                      name={getIconForIngredient(ingredient.name)}
-                      size={24}
-                      color={colors.gray[600]}
-                    />
-                  </View>
-                  <View style={styles.ingredientTextContainer}>
-                    <Text style={styles.ingredientName} numberOfLines={1}>
-                      {ingredient.name}
-                    </Text>
-                    <Text style={styles.ingredientAmount} numberOfLines={1}>
-                      {ingredient.amount} {ingredient.unit}
-                    </Text>
-                  </View>
+          {recipe.ingredients && recipe.ingredients.length > 0 ? (
+            recipe.ingredients.map((ingredient, index) => (
+              <View
+                key={ingredient.id || index.toString()}
+                style={styles.ingredientRow}
+              >
+                <View style={styles.ingredientCircleIcon}>
+                  <Ionicons
+                    name={getIconForIngredient(ingredient.name)}
+                    size={20}
+                    color="#F87171"
+                  />
                 </View>
-              ))
-            ) : (
-              <View style={styles.noDataContainer}>
-                <Text style={styles.noDataText}>No ingredients found</Text>
+                <View style={styles.ingredientTextWrap}>
+                  <Text style={styles.ingredientAmountText}>
+                    {ingredient.quantity} {ingredient.unit}
+                  </Text>
+                  <Text> </Text>
+                  <Text style={styles.ingredientNameText}>
+                    {ingredient.name}
+                  </Text>
+                </View>
               </View>
-            )}
-          </ScrollView>
+            ))
+          ) : (
+            <View style={styles.noDataContainer}>
+              <Text style={styles.noDataText}>No ingredients found</Text>
+            </View>
+          )}
         </View>
 
         {/* Instructions */}
         <View style={styles.instructionsSection}>
           <Text style={styles.sectionTitle}>Instructions</Text>
-          {recipe.instructions && recipe.instructions.length > 0 ? (
-            recipe.instructions.map((instruction, index) => (
+          {recipe.steps && recipe.steps.length > 0 ? (
+            recipe.steps.map((step, index) => (
               <View key={index} style={styles.instructionItem}>
                 <View style={styles.instructionNumber}>
-                  <Text style={styles.instructionNumberText}>{index + 1}</Text>
+                  <Text style={styles.instructionNumberText}>
+                    {step.orderIndex || index + 1}
+                  </Text>
                 </View>
-                <Text style={styles.instructionText}>{instruction}</Text>
+                <Text style={styles.instructionText}>{step.description}</Text>
               </View>
             ))
           ) : (
@@ -198,10 +427,14 @@ export default function RecipeDetailScreen() {
 
       {/* Get Cooking Button */}
       <View style={styles.buttonContainer}>
-        <TouchableOpacity style={styles.getCookingButton}>
+        <TouchableOpacity
+          style={styles.getCookingButton}
+          onPress={() =>
+            Alert.alert("Get Cooking", "This feature is coming soon!")
+          }
+        >
           <Text style={styles.buttonText}>Get Cooking</Text>
         </TouchableOpacity>
-        <View style={styles.bottomIndicator} />
       </View>
     </SafeAreaView>
   );
@@ -236,17 +469,18 @@ const styles = StyleSheet.create({
   },
   recipeImage: {
     width: "100%",
-    height: 330, // Taller image as shown in the screenshot
+    height: 300,
     justifyContent: "flex-end",
   },
   imagePlaceholder: {
-    backgroundColor: colors.gray[200],
+    backgroundColor: colors.gray[100],
     justifyContent: "center",
     alignItems: "center",
   },
   imageOverlay: {
-    backgroundColor: "rgba(0,0,0,0.3)",
-    padding: spacing.lg,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
   },
   imageOverlaySubtitle: {
     color: colors.white,
@@ -260,99 +494,66 @@ const styles = StyleSheet.create({
   },
   titleContainer: {
     padding: spacing.lg,
-    paddingBottom: spacing.md,
+    paddingBottom: spacing.sm,
   },
   title: {
-    fontSize: 30,
+    fontSize: 28,
     fontWeight: "bold",
     color: colors.dark,
     marginBottom: spacing.xs,
   },
   metaText: {
-    fontSize: 16,
-    color: colors.gray[500],
+    fontSize: 15,
+    color: colors.gray[600],
   },
   authorSection: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-  },
-  authorAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: colors.gray[200],
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: spacing.md,
-  },
-  recipeByText: {
-    fontSize: 14,
-    color: colors.gray[500],
-  },
-  authorName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: colors.dark,
-  },
-  descriptionContainer: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-  },
-  description: {
-    fontSize: 16,
-    color: colors.gray[700],
-    lineHeight: 24,
-  },
-  ingredientsSection: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
-  },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: "600",
-    color: colors.dark,
-    marginBottom: spacing.md,
-  },
-  ingredientsScrollContent: {
     paddingBottom: spacing.md,
   },
-  ingredientCard: {
-    flexDirection: "row",
-    alignItems: "center",
+  authorAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: colors.gray[100],
-    borderRadius: 12,
-    padding: spacing.md,
-    marginRight: spacing.md,
-    minWidth: 160,
-    maxWidth: 220,
-  },
-  ingredientIconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.white,
     justifyContent: "center",
     alignItems: "center",
     marginRight: spacing.sm,
   },
-  ingredientTextContainer: {
-    flex: 1,
-  },
-  ingredientName: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: colors.dark,
-  },
-  ingredientAmount: {
+  recipeByText: {
     fontSize: 13,
     color: colors.gray[500],
-    marginTop: 2,
+  },
+  authorName: {
+    fontSize: 15,
+    fontWeight: "500",
+    color: colors.dark,
+  },
+  descriptionContainer: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
+  description: {
+    fontSize: 15,
+    color: colors.gray[700],
+    lineHeight: 22,
+  },
+  ingredientsSection: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
+  },
+  sectionTitle: {
+    fontSize: 22,
+    fontWeight: "600",
+    color: colors.dark,
+    marginBottom: spacing.md,
   },
   instructionsSection: {
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.lg,
   },
   instructionItem: {
     flexDirection: "row",
@@ -360,72 +561,111 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
   },
   instructionNumber: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: colors.primary,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.gray[100],
     justifyContent: "center",
     alignItems: "center",
-    marginRight: spacing.md,
-    marginTop: 2,
+    marginRight: spacing.sm,
   },
   instructionNumberText: {
-    color: colors.white,
+    color: colors.primary,
     fontWeight: "bold",
-    fontSize: 14,
+    fontSize: 13,
   },
   instructionText: {
     flex: 1,
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: 15,
+    lineHeight: 22,
     color: colors.gray[700],
   },
   noDataContainer: {
-    padding: spacing.md,
-    backgroundColor: colors.gray[100],
-    borderRadius: 8,
+    paddingVertical: spacing.lg,
     alignItems: "center",
   },
   noDataText: {
-    color: colors.gray[500],
-    fontSize: 14,
+    color: colors.gray[400],
+    fontSize: 15,
+    fontStyle: "italic",
   },
   buttonSpacer: {
-    height: 100,
+    height: 120,
   },
   buttonContainer: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    padding: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.lg,
     backgroundColor: colors.white,
     borderTopWidth: 1,
-    borderTopColor: colors.gray[200],
+    borderTopColor: colors.gray[100],
   },
   getCookingButton: {
-    backgroundColor: "#1F2937",
-    borderRadius: 8,
-    padding: spacing.md,
+    backgroundColor: colors.primary[600],
+    borderRadius: 12,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
     alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   buttonText: {
     color: colors.white,
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "600",
   },
-  bottomIndicator: {
-    width: 60,
-    height: 5,
-    backgroundColor: colors.gray[300],
-    borderRadius: 5,
-    alignSelf: "center",
-    marginTop: spacing.md,
-  },
   errorText: {
-    fontSize: 18,
+    fontSize: 16,
     textAlign: "center",
-    marginTop: 50,
-    color: colors.gray[500],
+    color: colors.red[500],
+  },
+  centeredMessageContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: spacing.lg,
+  },
+  loadingText: {
+    marginTop: spacing.sm,
+    fontSize: 15,
+    color: colors.gray[600],
+  },
+  ingredientRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: spacing.sm,
+  },
+  ingredientCircleIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.gray[100],
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: spacing.sm,
+  },
+  ingredientTextWrap: {
+    flex: 1,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+  },
+  ingredientAmountText: {
+    fontWeight: "500",
+    color: colors.dark,
+    fontSize: 15,
+  },
+  ingredientNameText: {
+    fontWeight: "normal",
+    color: colors.gray[800],
+    fontSize: 15,
+    marginLeft: spacing.xs,
   },
 });

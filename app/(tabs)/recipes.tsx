@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   TextInput,
   ScrollView,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -14,57 +15,62 @@ import { router } from "expo-router";
 
 import EmptyState from "@/components/ui/EmptyState";
 import { RecipeCard } from "@/components/recipes/RecipeCard";
-import { useRecipes } from "@/context/RecipeContext";
+import { useAuth } from "@/context/AuthContext";
+import { getUserRecipes } from "@/services/recipeService";
 import { colors, spacing, typography } from "@/utils/styleUtils";
 import { Recipe } from "@/types";
 
 export default function RecipesScreen() {
-  const { recipes, addRecipe } = useRecipes();
+  const [recipes, setRecipes] = React.useState<Recipe[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const { user } = useAuth();
   const filtersScrollRef = useRef<ScrollView>(null);
 
-  // Add sample recipes for demo purposes
   useEffect(() => {
-    if (recipes.length === 0) {
-      // Sample recipes to show on initial load
-      const sampleRecipes = [
-        {
-          id: "1",
-          title: "Crispy Parmesan Sweet Potatoes",
-          description:
-            "A delicious and crispy twist on sweet potatoes, perfect as a side dish for eggs, chicken, fish, or veggie bowls.",
-          prepTime: 15,
-          cookTime: 35,
-          servings: 4,
-          difficulty: "Easy",
-          category: "Side",
-          tags: ["Vegetarian", "Gluten Free"],
-          author: "Chef Alex Ramsey",
-          imageUrl:
-            "https://images.unsplash.com/photo-1598373182133-52452f7691ef?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
-          ingredients: [
-            { id: "i1", name: "sweet potatoes", amount: 4, unit: "large" },
-            { id: "i2", name: "parmesan cheese", amount: 1, unit: "cup" },
-            { id: "i3", name: "olive oil", amount: 2, unit: "tbsp" },
-            { id: "i4", name: "garlic", amount: 2, unit: "cloves" },
-            { id: "i5", name: "fresh herbs", amount: 2, unit: "tbsp" },
-          ],
-          instructions: [
-            "Preheat oven to 425°F (220°C)",
-            "Cut sweet potatoes into wedges",
-            "Toss with olive oil, garlic, and seasonings",
-            "Sprinkle with parmesan cheese",
-            "Bake for 25-30 minutes until crispy and golden",
-            "Garnish with fresh herbs before serving",
-          ],
-        },
-      ];
+    const fetchRecipes = async () => {
+      if (user?.id) {
+        console.log(
+          `[RecipesScreen] Attempting to fetch recipes for user: ${user.id}`
+        );
+        setIsLoading(true);
+        try {
+          const fetchedRecipesFromService = await getUserRecipes(user.id);
+          const conformingRecipes: Recipe[] = fetchedRecipesFromService.map(
+            (r) => ({
+              ...r,
+              id: r.id,
+              title: r.title,
+              ingredients: r.ingredients || [],
+              instructions: r.instructions || [],
+              prepTime: r.prepTime || 0,
+              cookTime: r.cookTime || 0,
+              servings: r.servings || 0,
+              createdAt: r.createdAt,
+              updatedAt: r.updatedAt,
+            })
+          );
+          setRecipes(conformingRecipes);
+          console.log(
+            "[RecipesScreen] Successfully set recipes state:",
+            JSON.stringify(conformingRecipes, null, 2)
+          );
+        } catch (error) {
+          console.error("[RecipesScreen] Error fetching recipes:", error);
+          // Optionally, set an error state here to show to the user
+        } finally {
+          setIsLoading(false);
+        }
+      } else {
+        console.log(
+          "[RecipesScreen] No user found, clearing recipes and not fetching."
+        );
+        setRecipes([]); // Clear recipes if no user
+        setIsLoading(false);
+      }
+    };
 
-      // Add each sample recipe to the context
-      sampleRecipes.forEach((recipe) => {
-        addRecipe(recipe);
-      });
-    }
-  }, [recipes.length, addRecipe]);
+    fetchRecipes();
+  }, [user]);
 
   const hasRecipes = recipes.length > 0;
 
@@ -77,7 +83,25 @@ export default function RecipesScreen() {
     </TouchableOpacity>
   );
 
-  if (recipes.length === 0) {
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>My Recipes</Text>
+        </View>
+        <View
+          style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
+        >
+          <ActivityIndicator size="large" color={colors.primary[500]} />
+          <Text style={{ marginTop: 10, color: colors.gray[600] }}>
+            Loading recipes...
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!isLoading && recipes.length === 0) {
     return (
       <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
         <View style={styles.header}>

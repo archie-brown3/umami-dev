@@ -49,7 +49,7 @@ interface ParsedRecipe {
 }
 
 // API endpoint for Instagram recipe extraction
-const EXTRACT_API_URL = "https://recipeextractionservice.onrender.com";
+const EXTRACT_API_URL = process.env.EXPO_PUBLIC_RECIPE_EXTRACTION_SERVICE_URL;
 
 /**
  * Extract recipe from URL with proper error handling and response management
@@ -86,13 +86,15 @@ export async function extractRecipeFromUrl(
 
     // Create the recipe object with all available data
     const recipe: Partial<Recipe> = {
-      title: recipeData.title || recipeData.name || "Untitled Recipe",
+      title: recipeData.name,
       description: recipeData.description,
+      ingredients: recipeData.ingredients,
+      instructions: recipeData.instructions,
+      prepTime: recipeData.prepTime,
+      cookTime: recipeData.cookTime,
+      servings: recipeData.servings,
+      tags: recipeData.tags,
       imageUrl: scrapedContent.imageUrl,
-      prepTime: recipeData.prepTime || 0,
-      cookTime: recipeData.cookTime || 0,
-      servings: recipeData.servings || 2,
-      // Add additional fields as needed
     };
 
     // Log success

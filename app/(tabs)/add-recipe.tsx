@@ -17,6 +17,8 @@ import { useRecipes } from "@/context/RecipeContext";
 import { Recipe, Ingredient } from "@/types";
 import { scrapeFromUrl, analyzeRecipeText } from "@/services/deepseekservice";
 import { extractRecipeFromUrl } from "@/services/recipeExtractor";
+import { addRecipeToSupabase } from "@/services/recipeService";
+import { supabase } from "@/lib/supabase";
 
 type TabType = "manual" | "url" | "ai" | "instagram";
 
@@ -88,7 +90,7 @@ export default function AddRecipeScreen() {
         // Step 3: Create a valid Recipe object from the analyzed data
         const newRecipe: Recipe = {
           id: Date.now().toString(),
-          name: recipeData.name || "Untitled Recipe",
+          title: recipeData.name || "Untitled Recipe",
           description: recipeData.description,
           ingredients: recipeData.ingredients || [],
           instructions: recipeData.instructions || [],
@@ -97,16 +99,18 @@ export default function AddRecipeScreen() {
           servings: recipeData.servings || 2,
           imageUrl: scrapedContent.imageUrl,
           tags: recipeData.tags,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         };
 
         // Step 4: Add the recipe to the user's collection
         addRecipe(newRecipe);
-        addLog(`Recipe added: ${newRecipe.name}`);
+        addLog(`Recipe added: ${newRecipe.title}`);
 
         // Step 5: Return to the previous screen with success message
         Alert.alert(
           "Success",
-          `Recipe "${newRecipe.name}" has been successfully added to your collection.`,
+          `Recipe "${newRecipe.title}" has been successfully added to your collection.`,
           [
             {
               text: "OK",
@@ -156,94 +160,66 @@ export default function AddRecipeScreen() {
 
       addLog(
         `Extraction successful. Received: ${JSON.stringify(
-          extractedData
-        ).substring(0, 100)}...`
+          extractedData,
+          null,
+          2
+        ).substring(0, 300)}...`
       );
 
-      // Make sure we have at least ingredients or caption to work with
+      // Updated validation: Check for essential recipe components
       if (
-        !extractedData.ingredients?.length &&
-        !extractedData.caption &&
-        !extractedData.instructions?.length
+        !extractedData.title ||
+        (!extractedData.ingredients?.length &&
+          !extractedData.instructions?.length)
       ) {
-        Alert.alert(
-          "Error",
-          "Couldn't extract recipe information from this Instagram post. No ingredients or instructions found."
-        );
-        setIsLoading(false);
-        return;
-      }
-
-      // Prepare the recipe text - using extracted ingredients and instructions if available
-      let recipeText = "";
-
-      if (extractedData.caption) {
-        // If caption is available, use it
-        recipeText = extractedData.caption;
-        addLog(`Using caption text (${recipeText.length} chars)`);
-      } else if (
-        extractedData.ingredients &&
-        extractedData.ingredients.length > 0
-      ) {
-        // Otherwise build a recipe text from the structured data
         addLog(
-          `Building recipe text from ${
-            extractedData.ingredients.length
-          } ingredients and ${
-            extractedData.instructions?.length || 0
-          } instructions`
+          `Post-extraction validation failed. Name: ${extractedData.title}, Ingredients: ${extractedData.ingredients?.length}, Instructions: ${extractedData.instructions?.length}`
         );
-        recipeText = `Recipe\n\nIngredients:\n`;
-        extractedData.ingredients.forEach((ing: string) => {
-          recipeText += `- ${ing}\n`;
-        });
-
-        if (
-          extractedData.instructions &&
-          extractedData.instructions.length > 0
-        ) {
-          recipeText += `\nInstructions:\n`;
-          extractedData.instructions.forEach((step: string, index: number) => {
-            recipeText += `${index + 1}. ${step}\n`;
-          });
-        }
-      } else {
         Alert.alert(
           "Error",
-          "Couldn't extract sufficient recipe information from this Instagram post."
+          "The extracted content does not appear to be a complete recipe (e.g., missing name, and both ingredients and instructions). Please try another URL or add manually."
         );
         setIsLoading(false);
         return;
       }
 
-      // Step 2: Analyze the recipe text to structure it with DeepSeek
-      addLog("Analyzing recipe text with DeepSeek...");
-      const recipeData = await analyzeRecipeText(recipeText);
+      // The data from extractRecipeFromUrl is already analyzed.
+      // No need to build recipeText or call analyzeRecipeText again.
+      addLog(
+        "Recipe data from extractRecipeFromUrl is structured and validated."
+      );
 
-      if (recipeData) {
-        addLog("Recipe analysis successful");
-        // Step 3: Create a valid Recipe object with both the parsed data and images
-        const newRecipe: Recipe = {
-          id: Date.now().toString(),
-          name: recipeData.name || "Untitled Recipe",
-          description: recipeData.description,
-          ingredients: recipeData.ingredients || [],
-          instructions: recipeData.instructions || [],
-          prepTime: recipeData.prepTime || 0,
-          cookTime: recipeData.cookTime || 0,
-          servings: recipeData.servings || 2,
-          imageUrl: extractedData.media?.[0]?.url, // Use the first image from extraction
-          tags: recipeData.tags,
-        };
+      // Step 3: Create a valid Recipe object using the data from extractRecipeFromUrl
+      const newRecipe: Recipe = {
+        id: Date.now().toString(),
+        title: extractedData.title || "Untitled Extracted Recipe",
+        description: extractedData.description || "",
+        ingredients: extractedData.ingredients || [],
+        instructions: extractedData.instructions || [],
+        prepTime: extractedData.prepTime || 0,
+        cookTime: extractedData.cookTime || 0,
+        servings: extractedData.servings || 2,
+        imageUrl: extractedData.imageUrl,
+        tags: extractedData.tags || [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
 
-        // Step 4: Add the complete recipe to the user's collection
-        addRecipe(newRecipe);
-        addLog(`Recipe added: ${newRecipe.name}`);
+      // Step 4: Get current user and attempt to save to Supabase
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      const savedRecipe = await addRecipeToSupabase(newRecipe, user?.id);
 
-        // Step 5: Return to the previous screen
+      if (savedRecipe) {
+        // Optionally, if your RecipeContext's addRecipe updates UI and potentially local state:
+        // addRecipe(savedRecipe); // Pass the recipe returned from Supabase (with DB ID)
+        addLog(
+          `Recipe saved to Supabase and added to context: ${savedRecipe.title}`
+        );
         Alert.alert(
           "Success",
-          `Recipe "${newRecipe.name}" has been successfully added to your collection.`,
+          `Recipe "${savedRecipe.title}" has been successfully saved.`,
           [
             {
               text: "OK",
@@ -252,10 +228,8 @@ export default function AddRecipeScreen() {
           ]
         );
       } else {
-        Alert.alert(
-          "Error",
-          "Failed to analyze the recipe. Please try again or add manually."
-        );
+        addLog(`Failed to save recipe to Supabase.`);
+        // Error alert is already handled in addRecipeToSupabase
       }
     } catch (error) {
       console.error("Instagram extraction error:", error);
@@ -269,17 +243,17 @@ export default function AddRecipeScreen() {
   };
 
   // Add a recipe manually
-  const handleAddRecipe = () => {
+  const handleAddRecipe = async () => {
     // Very basic validation
     if (!title) {
-      alert("Please enter a title");
+      Alert.alert("Error", "Please enter a title");
       return;
     }
 
     // Create a recipe object that matches Recipe type
     const newRecipe: Recipe = {
       id: Date.now().toString(),
-      name: title,
+      title: title,
       ingredients: [
         {
           id: "ing-1",
@@ -292,22 +266,34 @@ export default function AddRecipeScreen() {
       prepTime: parseInt(prepTime) || 0,
       cookTime: parseInt(cookTime) || 0,
       servings: parseInt(servings) || 1,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
 
-    // Add the recipe to context
-    addRecipe(newRecipe);
+    // Get current user and attempt to save to Supabase
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const savedRecipe = await addRecipeToSupabase(newRecipe, user?.id);
 
-    // Show success message and navigate to previous screen
-    Alert.alert(
-      "Success",
-      `Recipe "${newRecipe.name}" has been successfully added to your collection.`,
-      [
-        {
-          text: "OK",
-          onPress: () => router.push("/recipes"),
-        },
-      ]
-    );
+    if (savedRecipe) {
+      // Optionally, update local state/context if needed
+      // addRecipe(savedRecipe); // Pass the recipe returned from Supabase
+      addLog(`Manual recipe saved to Supabase: ${savedRecipe.title}`);
+      Alert.alert(
+        "Success",
+        `Recipe "${savedRecipe.title}" has been successfully saved.`,
+        [
+          {
+            text: "OK",
+            onPress: () => router.push("/recipes"),
+          },
+        ]
+      );
+    } else {
+      addLog(`Failed to save manual recipe to Supabase.`);
+      // Error alert is handled in addRecipeToSupabase
+    }
   };
 
   // Render a tab button
