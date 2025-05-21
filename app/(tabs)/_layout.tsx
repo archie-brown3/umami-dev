@@ -101,12 +101,12 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
-          name="shopping"
+          name="groceries"
           options={{
-            title: "Shopping",
+            title: "Groceries",
             tabBarIcon: ({ color, focused }) => (
               <Ionicons
-                name={focused ? "cart" : "cart-outline"}
+                name={focused ? "basket" : "basket-outline"}
                 size={24}
                 color={color}
               />

@@ -1,3 +1,174 @@
+# Shopping List & Cupboard Features
+
+## UI/UX Implementation Guidelines
+
+### Tab Structure & Navigation
+
+- Implement as a single tab "Groceries" in the main navigation
+- Use a horizontal slider/swiper component for switching between Shopping List and Cupboard views
+- Add tab indicators at the top of the screen for visual feedback
+- Maintain state when switching between views
+
+```typescript
+// Example Component Structure
+// app/(tabs)/groceries.tsx
+
+import { View } from "react-native";
+import { createMaterialTopTabNavigator } from "@react-navigation/material-top-tabs";
+import ShoppingListScreen from "../components/groceries/ShoppingListScreen";
+import CupboardScreen from "../components/groceries/CupboardScreen";
+
+const Tab = createMaterialTopTabNavigator();
+
+export default function GroceriesTab() {
+  return (
+    <Tab.Navigator>
+      <Tab.Screen name="Shopping List" component={ShoppingListScreen} />
+      <Tab.Screen name="Cupboard" component={CupboardScreen} />
+    </Tab.Navigator>
+  );
+}
+```
+
+### Component Organization
+
+```
+components/groceries/
+├── ShoppingListScreen.tsx      # Main shopping list view
+├── CupboardScreen.tsx         # Main cupboard view
+├── shared/
+│   ├── ItemCard.tsx          # Reusable item card component
+│   ├── CategorySection.tsx   # Grouping component for items
+│   └── AddItemModal.tsx      # Shared modal for adding items
+├── shopping/
+│   ├── ListHeader.tsx        # Shopping list specific header
+│   └── CheckableItem.tsx     # Shopping item with checkbox
+└── cupboard/
+    ├── CupboardHeader.tsx    # Cupboard specific header
+    └── InventoryItem.tsx     # Cupboard item with quantity
+```
+
+### State Management
+
+- Create dedicated contexts for shopping list and cupboard data:
+
+  ```typescript
+  // context/GroceriesContext.tsx
+
+  interface GroceriesContextType {
+    shoppingList: ShoppingItem[];
+    cupboardItems: CupboardItem[];
+    activeView: "shopping" | "cupboard";
+    // ... other state and methods
+  }
+  ```
+
+### Shared Features
+
+1. **Item Management**:
+
+   - Common add/edit/delete functionality
+   - Shared search and filtering
+   - Category organization
+   - Quantity and unit handling
+
+2. **Data Persistence**:
+
+   - Initially use local storage (AsyncStorage)
+   - Prepare for Supabase migration as specified in integration plan
+   - Implement offline support
+
+3. **UI Components**:
+   - Use consistent styling from `utils/styleUtils.ts`
+   - Implement smooth animations for transitions
+   - Support dark/light mode
+
+## Implementation Recommendations
+
+1. **Phase 1: Local Storage Implementation**
+
+   - Create base UI components
+   - Implement local storage logic
+   - Set up context providers
+   - Add basic CRUD operations
+
+2. **Phase 2: Enhanced Features**
+
+   - Add categories and sorting
+   - Implement search functionality
+   - Add item suggestions
+   - Integrate with recipe ingredients
+
+3. **Phase 3: Supabase Migration**
+   - Follow the database schema defined above
+   - Implement sync logic
+   - Add offline support
+   - Handle data migration
+
+### Code Guidelines
+
+1. **Use TypeScript Interfaces**:
+
+   ```typescript
+   interface GroceryItem {
+     id: string;
+     name: string;
+     quantity?: number;
+     unit?: string;
+     category?: string;
+     createdAt: Date;
+     updatedAt: Date;
+   }
+
+   interface ShoppingItem extends GroceryItem {
+     checked: boolean;
+     recipeId?: string;
+   }
+
+   interface CupboardItem extends GroceryItem {
+     expirationDate?: Date;
+   }
+   ```
+
+2. **Custom Hooks**:
+
+   ```typescript
+   // hooks/useGroceries.ts
+   export const useGroceries = () => {
+     // Shopping list operations
+     const addToShoppingList = () => {};
+     const removeFromShoppingList = () => {};
+
+     // Cupboard operations
+     const addToCupboard = () => {};
+     const removeFromCupboard = () => {};
+
+     // Shared operations
+     const searchItems = () => {};
+     const filterByCategory = () => {};
+
+     return {
+       addToShoppingList,
+       removeFromShoppingList,
+       addToCupboard,
+       removeFromCupboard,
+       searchItems,
+       filterByCategory,
+     };
+   };
+   ```
+
+3. **Error Handling**:
+
+   - Implement proper error boundaries
+   - Handle offline scenarios gracefully
+   - Provide user feedback for actions
+
+4. **Performance Considerations**:
+   - Implement virtualized lists for large datasets
+   - Optimize state updates
+   - Use proper memoization
+
 ## Supabase Integration Status
 
 ### Current Implementation Status

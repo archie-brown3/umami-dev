@@ -2,26 +2,33 @@ export interface Recipe {
   id: string;
   user_id: string;
   title: string;
-  description: string | null;
-  image_url: string | null;
-  prep_time: number | null;
-  cook_time: number | null;
-  servings: number | null;
-  category: string | null;
-  source: string | null;
-  source_url: string | null;
-  author: string | null;
+  description?: string;
+  image_url?: string;
+  prep_time?: number;
+  cook_time?: number;
+  category?: string;
+  source?: string;
+  source_url?: string;
+  author?: string;
+  total_cost?: number;
+  cost_per_serving?: number;
+  price_confidence?: number;
+  instagram_username?: string;
+  instagram_profile_pic?: string;
+  servings: number;
   is_favorite: boolean;
   is_saved: boolean;
   created_at: string;
   updated_at: string;
 }
 
-export interface Ingredient {
+export interface RecipeStep {
   id: string;
-  name: string;
-  category: string | null;
-  emoji: string | null;
+  recipe_id: string;
+  step_number: number;
+  instruction: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface RecipeIngredient {
@@ -30,14 +37,23 @@ export interface RecipeIngredient {
   ingredient_id: string;
   quantity: string;
   unit: string;
+  cost?: number;
+  package_size?: string;
+  package_price?: number;
+  portion_used?: number;
+  price_confidence?: number;
+  created_at: string;
+  updated_at: string;
   ingredient?: Ingredient;
 }
 
-export interface Step {
+export interface Ingredient {
   id: string;
-  recipe_id: string;
-  description: string;
-  order_index: number;
+  name: string;
+  category?: string;
+  emoji?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Tag {
@@ -52,34 +68,8 @@ export interface RecipeTag {
 }
 
 // Frontend representation
-export interface RecipeWithDetails {
-  id: string;
-  userId: string;
-  title: string;
-  description: string | null;
-  imageUrl: string | null;
-  prepTime: number | null;
-  cookTime: number | null;
-  servings: number | null;
-  category: string | null;
-  source: string | null;
-  sourceUrl: string | null;
-  author: string | null;
-  isFavorite: boolean;
-  isSaved: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-  ingredients: Array<{
-    id: string;
-    name: string;
-    quantity: string;
-    unit: string;
-    category?: string;
-    emoji?: string;
-  }>;
-  steps: Array<{
-    description: string;
-    orderIndex: number;
-  }>;
+export interface RecipeWithDetails extends Recipe {
+  steps: RecipeStep[];
+  ingredients: (RecipeIngredient & { ingredient: Ingredient })[];
   tags: string[];
 }

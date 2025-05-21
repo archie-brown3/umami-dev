@@ -12,8 +12,7 @@ import { RecipeProvider } from "@/context/RecipeContext";
 import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
-import { CupboardProvider } from "@/context/CupboardContext";
-import { ShoppingListProvider } from "@/context/ShoppingListContext";
+import { GroceriesProvider } from "@/context/GroceriesContext";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -126,11 +125,9 @@ export default function RootLayout() {
       <GestureHandlerRootView style={{ flex: 1 }}>
         <AuthProvider>
           <RecipeProvider>
-            <ShoppingListProvider>
-              <CupboardProvider>
-                <RootLayoutNav />
-              </CupboardProvider>
-            </ShoppingListProvider>
+            <GroceriesProvider>
+              <RootLayoutNav />
+            </GroceriesProvider>
           </RecipeProvider>
         </AuthProvider>
       </GestureHandlerRootView>

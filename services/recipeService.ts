@@ -3,13 +3,15 @@ import {
   Recipe as DbRecipe,
   RecipeWithDetails,
   RecipeIngredient as DbRecipeIngredient,
-  Step as DbStep,
+  RecipeStep as DbStep,
   RecipeTag as DbRecipeTag,
   Ingredient as DbIngredient,
   Tag as DbTag,
 } from "../types/database.types";
 import { Recipe, Ingredient } from "../types";
 import { Alert } from "react-native";
+import { recipeQueries } from "./queries/recipeQueries";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // Simpler transformation for recipe list items
 function transformRecipeListItem(dbRecipe: Partial<DbRecipe>): Recipe {
@@ -80,136 +82,252 @@ export async function getUserRecipes(userId: string): Promise<Recipe[]> {
   }
 }
 
-// Get a single recipe with all related data
-export async function getRecipeWithDetails(
-  recipeId: string
-): Promise<RecipeWithDetails | null> {
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 1000; // 1 second
+
+async function retryOperation<T>(
+  operation: () => Promise<T>,
+  retries = MAX_RETRIES,
+  delay = RETRY_DELAY
+): Promise<T> {
   try {
-    const { data: recipe, error: recipeError } = await supabase
-      .from("recipes")
-      .select("*")
-      .eq("id", recipeId)
-      .single();
-
-    if (recipeError) throw recipeError;
-    if (!recipe) return null;
-
-    const { data: recipeIngredients, error: ingredientsError } = await supabase
-      .from("recipe_ingredients")
-      .select(
-        `
-        *,
-        ingredient:ingredients(*)
-      `
-      )
-      .eq("recipe_id", recipeId);
-
-    if (ingredientsError) throw ingredientsError;
-
-    const { data: steps, error: stepsError } = await supabase
-      .from("steps")
-      .select("*")
-      .eq("recipe_id", recipeId)
-      .order("order_index", { ascending: true });
-
-    if (stepsError) throw stepsError;
-
-    const { data: recipeTags, error: tagsError } = await supabase
-      .from("recipe_tags")
-      .select(
-        `
-        *,
-        tag:tags(*)
-      `
-      )
-      .eq("recipe_id", recipeId);
-
-    if (tagsError) throw tagsError;
-
-    return transformRecipeToDetails(
-      recipe,
-      recipeIngredients as Array<
-        DbRecipeIngredient & { ingredient: DbIngredient | null }
-      >,
-      steps as DbStep[],
-      recipeTags as Array<DbRecipeTag & { tag: DbTag | null }>
-    );
+    return await operation();
   } catch (error) {
-    console.error("Error fetching recipe details:", error);
+    if (retries > 0) {
+      console.log(`Retrying operation. Attempts remaining: ${retries - 1}`);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      return retryOperation(operation, retries - 1, delay);
+    }
     throw error;
   }
 }
 
-// Transform database model to RecipeWithDetails (from database.types.ts)
-function transformRecipeToDetails(
-  recipe: DbRecipe,
-  recipeIngredients: Array<
-    DbRecipeIngredient & { ingredient: DbIngredient | null }
-  >,
-  steps: DbStep[],
-  recipeTags: Array<DbRecipeTag & { tag: DbTag | null }>
-): RecipeWithDetails {
+const CACHE_KEY = "recipe_cache_";
+const CACHE_TIME = 5 * 60 * 1000; // 5 minutes
+
+// Transform database recipe to app recipe
+function transformRecipeToAppFormat(dbRecipe: DbRecipe): Recipe {
   return {
-    id: recipe.id,
-    userId: recipe.user_id,
-    title: recipe.title,
-    description: recipe.description,
-    imageUrl: recipe.image_url,
-    prepTime: recipe.prep_time,
-    cookTime: recipe.cook_time,
-    servings: recipe.servings,
-    category: recipe.category,
-    source: recipe.source,
-    sourceUrl: recipe.source_url,
-    author: recipe.author,
-    isFavorite: recipe.is_favorite || false,
-    isSaved: recipe.is_saved || false,
-    createdAt: new Date(recipe.created_at),
-    updatedAt: new Date(recipe.updated_at),
-    ingredients: recipeIngredients.map((ri) => ({
-      id: ri.id,
-      name: ri.ingredient?.name || "Unknown Ingredient",
-      quantity: ri.quantity,
-      unit: ri.unit,
-      category: ri.ingredient?.category || undefined,
-      emoji: ri.ingredient?.emoji || undefined,
-    })),
-    steps: steps.map((step) => ({
-      id: step.id,
-      recipe_id: step.recipe_id,
-      description: step.description,
-      order_index: step.order_index,
-    })),
-    tags: recipeTags.map((rt) => ({
-      recipe_id: rt.recipe_id,
-      tag_id: rt.tag_id,
-      tag: rt.tag
-        ? {
-            id: rt.tag.id,
-            name: rt.tag.name,
-            created_at: rt.tag.created_at,
-            updated_at: rt.tag.updated_at,
-          }
-        : undefined,
-    })),
+    id: dbRecipe.id,
+    title: dbRecipe.title,
+    description: dbRecipe.description || "",
+    imageUrl: dbRecipe.image_url || "",
+    prepTime: dbRecipe.prep_time || 0,
+    cookTime: dbRecipe.cook_time || 0,
+    servings: dbRecipe.servings || 0,
+    ingredients: [], // Will be populated later if needed
+    instructions: [], // Will be populated later if needed
+    createdAt: dbRecipe.created_at,
+    updatedAt: dbRecipe.updated_at,
+    isFavorite: dbRecipe.is_favorite || false,
+    tags: [], // Will be populated later if needed
+    author: dbRecipe.author || undefined,
   };
 }
 
-// Create a new recipe
-export async function createRecipe(
-  recipe: Partial<RecipeWithDetails>,
-  userId: string
-) {
-  // Implementation needs to be careful about type conversions if it uses main Recipe type
+// Transform database recipe with details to app recipe with details
+function transformRecipeWithDetailsToAppFormat(
+  data: DbRecipe & {
+    recipe_steps?: Partial<DbStep>[];
+    recipe_ingredients?: (DbRecipeIngredient & {
+      ingredients: DbIngredient[];
+    })[];
+    recipe_tags?: (DbRecipeTag & { tag: DbTag })[];
+  }
+): Recipe {
+  const recipe = transformRecipeToAppFormat(data);
+
+  recipe.ingredients =
+    data.recipe_ingredients?.map((ri) => {
+      const firstIngredient = ri.ingredients?.[0];
+      return {
+        id: firstIngredient?.id || ri.id,
+        name: firstIngredient?.name || "Unknown ingredient",
+        amount: parseFloat(ri.quantity) || 1,
+        unit: ri.unit || "",
+      };
+    }) || [];
+
+  recipe.instructions =
+    data.recipe_steps
+      ?.sort((a, b) => (a.step_number || 0) - (b.step_number || 0))
+      .map((step) => step.instruction)
+      .filter((instruction): instruction is string => !!instruction) || [];
+
+  recipe.tags =
+    data.recipe_tags?.map((rt) => rt.tag?.name || "").filter(Boolean) || [];
+
+  return recipe;
 }
 
-// Update a recipe
-export async function updateRecipe(recipe: Partial<RecipeWithDetails>) {
-  // Implementation needs to be careful about type conversions
-}
+export class RecipeService {
+  // Get basic recipe info (lightweight)
+  static async getBasicRecipe(recipeId: string): Promise<Recipe | null> {
+    try {
+      // Check cache first
+      const cached = await this.getCachedRecipe(recipeId);
+      if (cached) return cached;
 
-// Delete a recipe
-export async function deleteRecipe(recipeId: string) {}
+      const { data, error } = await recipeQueries.getBasicRecipe(recipeId);
+      if (error) throw error;
+      if (!data) return null;
+      const recipe = transformRecipeToAppFormat(data as DbRecipe);
+      await this.cacheRecipe(recipeId, recipe);
+      return recipe;
+    } catch (error) {
+      console.error("Error fetching basic recipe:", error);
+      return null;
+    }
+  }
+
+  // Get full recipe details with caching
+  static async getRecipeWithDetails(recipeId: string): Promise<Recipe | null> {
+    try {
+      // Check cache
+      const cached = await this.getCachedRecipe(recipeId);
+      if (cached) return cached;
+
+      // Fetch fresh data
+      const { data: rawData, error } = await recipeQueries.getRecipeWithDetails(
+        recipeId
+      );
+      if (error) throw error;
+      if (!rawData) return null;
+
+      // Assert the shape of the fetched data for transformation
+      const recipeDataForTransform = rawData as DbRecipe & {
+        recipe_steps?: Partial<DbStep>[];
+        recipe_ingredients?: (DbRecipeIngredient & {
+          ingredients: DbIngredient[];
+        })[];
+      };
+
+      // Transform and cache the data
+      const recipe = transformRecipeWithDetailsToAppFormat(
+        recipeDataForTransform
+      );
+      await this.cacheRecipe(recipeId, recipe);
+      return recipe;
+    } catch (error) {
+      console.error("Error fetching recipe details:", error);
+      return null;
+    }
+  }
+
+  // Get recipe list for browsing
+  static async getRecipeList(): Promise<Recipe[]> {
+    try {
+      const { data, error } = await recipeQueries.getRecipeList();
+      if (error) throw error;
+      if (!data) return [];
+      return (data as DbRecipe[]).map(transformRecipeToAppFormat);
+    } catch (error) {
+      console.error("Error fetching recipe list:", error);
+      return [];
+    }
+  }
+
+  // Progressive loading helpers
+  static async loadRecipeSteps(recipeId: string): Promise<DbStep[]> {
+    try {
+      const { data, error } = await recipeQueries.getRecipeSteps(recipeId);
+      if (error) throw error;
+      return data?.sort((a, b) => a.step_number - b.step_number) ?? [];
+    } catch (error) {
+      console.error("Error fetching recipe steps:", error);
+      return [];
+    }
+  }
+
+  static async loadRecipeIngredients(recipeId: string): Promise<
+    {
+      id: string;
+      quantity: string;
+      unit: string;
+      ingredients: {
+        id: string;
+        name: string;
+        emoji?: string;
+      }[];
+    }[]
+  > {
+    try {
+      const { data, error } = await recipeQueries.getRecipeIngredients(
+        recipeId
+      );
+      if (error) throw error;
+      return data ?? [];
+    } catch (error) {
+      console.error("Error fetching recipe ingredients:", error);
+      return [];
+    }
+  }
+
+  // Cache helpers
+  private static async getCachedRecipe(id: string): Promise<Recipe | null> {
+    try {
+      const cached = await AsyncStorage.getItem(`${CACHE_KEY}${id}`);
+      if (cached) {
+        const { data, timestamp } = JSON.parse(cached);
+        if (Date.now() - timestamp < CACHE_TIME) {
+          return data as Recipe;
+        }
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  private static async cacheRecipe(id: string, recipe: Recipe): Promise<void> {
+    try {
+      await AsyncStorage.setItem(
+        `${CACHE_KEY}${id}`,
+        JSON.stringify({
+          data: recipe,
+          timestamp: Date.now(),
+        })
+      );
+    } catch (error) {
+      console.error("Error caching recipe:", error);
+    }
+  }
+
+  static async clearCache(recipeId?: string): Promise<void> {
+    try {
+      if (recipeId) {
+        await AsyncStorage.removeItem(`${CACHE_KEY}${recipeId}`);
+      } else {
+        const keys = await AsyncStorage.getAllKeys();
+        const recipeCacheKeys = keys.filter((key) => key.startsWith(CACHE_KEY));
+        await AsyncStorage.multiRemove(recipeCacheKeys);
+      }
+    } catch (error) {
+      console.error("Error clearing recipe cache:", error);
+      throw new Error("Failed to clear recipe cache");
+    }
+  }
+
+  // Remove standalone functions that are now part of the RecipeService class
+  static async createRecipe(
+    recipe: Partial<RecipeWithDetails>,
+    userId: string
+  ): Promise<DbRecipe | null> {
+    // Implementation needs to be careful about type conversions if it uses main Recipe type
+    return null;
+  }
+
+  static async updateRecipe(
+    recipe: Partial<RecipeWithDetails>
+  ): Promise<DbRecipe | null> {
+    // Implementation needs to be careful about type conversions
+    return null;
+  }
+
+  static async deleteRecipe(recipeId: string): Promise<void> {
+    // Implementation needs to be careful about type conversions
+  }
+}
 
 /**
  * Saves a new recipe to the Supabase database.
@@ -270,3 +388,6 @@ export const addRecipeToSupabase = async (
   console.log("Recipe saved successfully to Supabase:", data);
   return data;
 };
+
+// Export the getRecipeWithDetails function directly
+export const getRecipeWithDetails = RecipeService.getRecipeWithDetails;

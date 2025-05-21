@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { View, Text, StyleSheet } from "react-native";
 import NetInfo from "@react-native-community/netinfo";
 import {
@@ -6,100 +6,137 @@ import {
   testNetworkConnectivity,
 } from "@/lib/supabase";
 
+const LONG_CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutes
+const NETINFO_DEBOUNCE_TIME = 3000; // 3 seconds
+
 export const NetworkStatusBar = () => {
-  const [isConnected, setIsConnected] = useState(true);
+  const [isNetInfoConnected, setIsNetInfoConnected] = useState(true);
   const [supabaseConnected, setSupabaseConnected] = useState(true);
-  const [checkingConnection, setCheckingConnection] = useState(false);
+  const [checkingSupabase, setCheckingSupabase] = useState(false);
   const [debugInfo, setDebugInfo] = useState<string | null>(null);
+  const netInfoDebounceTimer = useRef<number | null>(null);
 
+  const performFullCheck = useCallback(
+    async (source: string) => {
+      if (checkingSupabase) {
+        console.log(
+          `[NetworkStatusBar] Check skipped (already in progress), triggered by: ${source}`
+        );
+        return;
+      }
+      console.log(
+        `[NetworkStatusBar] Performing full connection check, triggered by: ${source}`
+      );
+      setCheckingSupabase(true);
+      setDebugInfo("Checking connections...");
+
+      try {
+        const generalNetworkOk = await testNetworkConnectivity();
+        if (!generalNetworkOk) {
+          setSupabaseConnected(false);
+          setDebugInfo("General internet connectivity test failed.");
+          // No early return here, finally will setCheckingSupabase(false)
+        } else {
+          const isSupabaseOk = await checkSupabaseConnection();
+          setSupabaseConnected(isSupabaseOk);
+          if (!isSupabaseOk) {
+            setDebugInfo("Supabase connection failed (internet seems OK).");
+          } else {
+            setDebugInfo("Connections healthy.");
+          }
+        }
+      } catch (error) {
+        console.error("[NetworkStatusBar] Error during full check:", error);
+        setSupabaseConnected(false);
+        setDebugInfo(
+          `Connection check error: ${
+            error instanceof Error ? error.message : "Unknown error"
+          }`
+        );
+      } finally {
+        setCheckingSupabase(false);
+      }
+    },
+    [checkingSupabase]
+  );
+
+  // Effect for NetInfo (local network status)
   useEffect(() => {
-    // Subscribe to network state updates
     const unsubscribe = NetInfo.addEventListener((state) => {
-      const connected = state.isConnected ?? true;
-      setIsConnected(connected);
+      const currentlyConnected = state.isConnected ?? false;
+      setIsNetInfoConnected(currentlyConnected);
+      setDebugInfo(
+        `NetInfo: type=${state.type}, connected=${currentlyConnected} (from listener)`
+      );
 
-      // Show debug info about the type of connection
-      setDebugInfo(`Network type: ${state.type}, isConnected: ${connected}`);
+      if (netInfoDebounceTimer.current) {
+        clearTimeout(netInfoDebounceTimer.current);
+      }
 
-      // Check Supabase connection when network status changes
-      if (connected && !checkingConnection) {
-        checkConnection();
+      if (currentlyConnected) {
+        netInfoDebounceTimer.current = setTimeout(() => {
+          performFullCheck("NetInfo listener - connected");
+        }, NETINFO_DEBOUNCE_TIME);
+      } else {
+        setSupabaseConnected(false); // If NetInfo says disconnected, Supabase is also out
       }
     });
 
-    // Initial checks
+    // Initial check with NetInfo
     NetInfo.fetch().then((state) => {
-      const connected = state.isConnected ?? true;
-      setIsConnected(connected);
-      if (connected) {
-        checkConnection();
+      const initiallyConnected = state.isConnected ?? false;
+      setIsNetInfoConnected(initiallyConnected);
+      setDebugInfo(
+        `NetInfo: type=${state.type}, connected=${initiallyConnected} (initial fetch)`
+      );
+      if (initiallyConnected) {
+        performFullCheck("Initial NetInfo fetch - connected");
+      } else {
+        setSupabaseConnected(false);
       }
     });
-
-    // Periodic connection check
-    const intervalId = setInterval(() => {
-      if (isConnected) {
-        checkConnection();
-      }
-    }, 30000); // Check every 30 seconds
 
     return () => {
       unsubscribe();
-      clearInterval(intervalId);
-    };
-  }, [isConnected]);
-
-  const checkConnection = async () => {
-    if (checkingConnection) return;
-
-    setCheckingConnection(true);
-    try {
-      // First test general network connectivity
-      const networkConnected = await testNetworkConnectivity();
-
-      if (!networkConnected) {
-        setIsConnected(false);
-        setSupabaseConnected(false);
-        setDebugInfo("General network connectivity test failed");
-      } else {
-        setIsConnected(true);
-
-        // Then test Supabase connection specifically
-        const isSupabaseConnected = await checkSupabaseConnection();
-        setSupabaseConnected(isSupabaseConnected);
-
-        if (!isSupabaseConnected) {
-          setDebugInfo(
-            "Supabase connection failed but general network is available"
-          );
-        } else {
-          setDebugInfo(null);
-        }
+      if (netInfoDebounceTimer.current) {
+        clearTimeout(netInfoDebounceTimer.current);
       }
-    } catch (error) {
-      console.error("Error checking connections:", error);
-      setSupabaseConnected(false);
-      setDebugInfo(
-        `Connection error: ${
-          error instanceof Error ? error.message : "Unknown error"
-        }`
-      );
-    } finally {
-      setCheckingConnection(false);
-    }
-  };
+    };
+  }, [performFullCheck]);
 
-  // Only show when either offline or Supabase is disconnected
-  if (isConnected && supabaseConnected) {
+  // Effect for periodic checks
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      if (isNetInfoConnected) {
+        performFullCheck("Periodic interval");
+      }
+    }, LONG_CHECK_INTERVAL);
+
+    return () => clearInterval(intervalId);
+  }, [isNetInfoConnected, performFullCheck]);
+
+  const effectivelyOffline = !isNetInfoConnected || !supabaseConnected;
+
+  if (!effectivelyOffline && !__DEV__) {
+    return null;
+  }
+  if (!effectivelyOffline && __DEV__ && debugInfo === "Connections healthy.") {
     return null;
   }
 
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: effectivelyOffline ? "#f44336" : "#4caf50" },
+      ]}
+    >
       <Text style={styles.text}>
-        {!isConnected
-          ? "You are offline. Some features may be unavailable."
-          : "Unable to connect to the server. Please try again later."}
+        {!isNetInfoConnected
+          ? "Offline (No network connection)"
+          : !supabaseConnected
+          ? "Online, but server connection issue"
+          : "Connected"}
       </Text>
       {__DEV__ && debugInfo && (
         <Text style={styles.debugText}>{debugInfo}</Text>
@@ -110,24 +147,28 @@ export const NetworkStatusBar = () => {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: "#f44336",
+    // backgroundColor is now dynamic
     padding: 8,
     width: "100%",
     alignItems: "center",
     justifyContent: "center",
+    position: "absolute",
+    bottom: 0, // Example: position at the bottom
+    zIndex: 1000, // Ensure it's on top
   },
   text: {
     color: "white",
     fontSize: 12,
     fontWeight: "500",
+    textAlign: "center",
   },
   debugText: {
     color: "white",
     fontSize: 10,
     opacity: 0.8,
     marginTop: 2,
+    textAlign: "center",
   },
 });
 
-// Export as default for Expo Router compatibility
 export default NetworkStatusBar;

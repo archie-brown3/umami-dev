@@ -94,101 +94,8 @@ const Layout: React.FC<LayoutProps> = ({ children, hideHeader = true }) => {
         {children}
       </View>
 
-      {/* Bottom Navigation */}
-      <SafeAreaView edges={["bottom"]} style={styles.safeAreaNavBar}>
-        <View style={styles.navBar}>
-          <Pressable style={styles.navItem} onPress={() => navigate("/")}>
-            <Ionicons
-              name={isActive("/") ? "home" : "home-outline"}
-              size={22}
-              color={isActive("/") ? colors.primary : colors.gray[500]}
-            />
-            <Text
-              style={[styles.navLabel, isActive("/") && styles.activeNavLabel]}
-            >
-              Home
-            </Text>
-          </Pressable>
-
-          <Pressable
-            style={styles.navItem}
-            onPress={() => navigate("/recipes")}
-          >
-            <Ionicons
-              name={isActive("/recipes") ? "book" : "book-outline"}
-              size={22}
-              color={isActive("/recipes") ? colors.primary : colors.gray[500]}
-            />
-            <Text
-              style={[
-                styles.navLabel,
-                isActive("/recipes") && styles.activeNavLabel,
-              ]}
-            >
-              Recipes
-            </Text>
-          </Pressable>
-
-          {/* Center Plus Button */}
-          <View style={styles.centerNavItem} pointerEvents="box-none">
-            <Pressable
-              style={styles.centerButton}
-              onPress={() => {
-                router.push({
-                  pathname: "/add-recipe",
-                  params: {
-                    tab: "instagram",
-                    presentationStyle: "modal",
-                  },
-                });
-              }}
-              android_ripple={{ color: colors.primary }}
-            >
-              <Ionicons name="add" size={32} color={colors.white} />
-            </Pressable>
-          </View>
-
-          <Pressable
-            style={styles.navItem}
-            onPress={() => navigate("/meal-plan")}
-          >
-            <Ionicons
-              name={isActive("/meal-plan") ? "calendar" : "calendar-outline"}
-              size={22}
-              color={isActive("/meal-plan") ? colors.primary : colors.gray[500]}
-            />
-            <Text
-              style={[
-                styles.navLabel,
-                isActive("/meal-plan") && styles.activeNavLabel,
-              ]}
-            >
-              Plan
-            </Text>
-          </Pressable>
-
-          <Pressable
-            style={styles.navItem}
-            onPress={() => navigate("/shopping-list")}
-          >
-            <Ionicons
-              name={isActive("/shopping-list") ? "cart" : "cart-outline"}
-              size={22}
-              color={
-                isActive("/shopping-list") ? colors.primary : colors.gray[500]
-              }
-            />
-            <Text
-              style={[
-                styles.navLabel,
-                isActive("/shopping-list") && styles.activeNavLabel,
-              ]}
-            >
-              Shopping
-            </Text>
-          </Pressable>
-        </View>
-      </SafeAreaView>
+      {/* Add Button (FAB) */}
+      {shouldShowFab && <AddButton />}
     </View>
   );
 };
@@ -234,78 +141,21 @@ const styles = StyleSheet.create({
   mainWithHeader: {
     paddingTop: 8,
   },
-  safeAreaNavBar: {
-    backgroundColor: colors.white,
-  },
-  navBar: {
-    flexDirection: "row",
-    backgroundColor: colors.white,
-    borderTopLeftRadius: 18,
-    borderTopRightRadius: 18,
-    borderTopWidth: 1,
-    borderTopColor: colors.gray[200],
-    paddingTop: 8,
-    paddingBottom: 0,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 10,
-    alignItems: "flex-end",
-  },
-  navItem: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 4,
-  },
-  navLabel: {
-    fontSize: 12,
-    color: colors.gray[500],
-    marginTop: 4,
-  },
-  activeNavLabel: {
-    color: colors.primary,
-    fontWeight: "500",
-  },
-  centerNavItem: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: -28,
-    zIndex: 10,
-    position: "relative",
-  },
-  centerButton: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    elevation: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    borderWidth: 4,
-    borderColor: colors.white,
-  },
   addButton: {
     position: "absolute",
-    bottom: 80,
-    right: 20,
+    bottom: 24,
+    right: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: colors.primary,
-    width: 50,
-    height: 50,
-    borderRadius: 25,
     justifyContent: "center",
     alignItems: "center",
-    elevation: 5,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
+    elevation: 5,
   },
 });
 

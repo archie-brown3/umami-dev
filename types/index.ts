@@ -18,6 +18,7 @@ export interface Recipe {
   createdAt: string;
   updatedAt: string;
   isFavorite?: boolean;
+  author?: string;
 }
 
 export interface Ingredient {

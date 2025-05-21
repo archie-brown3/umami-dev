@@ -14,59 +14,69 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useLocalSearchParams, router, Stack } from "expo-router";
-import { colors, spacing } from "../../utils/styleUtils";
+import { colors, spacing, typography, borderRadius } from "@/utils/styleUtils";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { RecipeWithDetails } from "@/types/database.types";
+import { Recipe } from "@/types";
 import { getRecipeWithDetails } from "@/services/recipeService";
 import { supabase } from "@/lib/supabase";
+
+const RETRY_DELAY = 2000; // 2 seconds
 
 export default function RecipeDetailScreen() {
   const { id } = useLocalSearchParams();
   const { width } = useWindowDimensions();
   const [menuVisible, setMenuVisible] = useState(false);
   const [deleting, setDeleting] = useState(false);
-
-  const [recipe, setRecipe] = useState<RecipeWithDetails | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const recipeId = Array.isArray(id) ? id[0] : id;
 
+  const fetchRecipeDetails = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      console.log(
+        `[RecipeDetailScreen] Fetching details for recipeId: ${recipeId}`
+      );
+      const details = await getRecipeWithDetails(recipeId as string);
+      if (details) {
+        setRecipe(details);
+        setRetryCount(0); // Reset retry count on success
+        console.log(
+          "[RecipeDetailScreen] Recipe details fetched:",
+          JSON.stringify(details, null, 2).substring(0, 500) + "..."
+        );
+      } else {
+        setError("Recipe not found.");
+        console.log(
+          `[RecipeDetailScreen] No details found for recipeId: ${recipeId}`
+        );
+      }
+    } catch (e) {
+      const errorMessage =
+        e instanceof Error ? e.message : "An unknown error occurred";
+      setError(`Failed to load recipe: ${errorMessage}`);
+      console.error("[RecipeDetailScreen] Error fetching recipe details:", e);
+
+      // If it's a network error and we haven't exceeded retries, try again
+      if (errorMessage.includes("Network") && retryCount < 3) {
+        console.log(`[RecipeDetailScreen] Retrying in ${RETRY_DELAY}ms...`);
+        setTimeout(() => {
+          setRetryCount((prev) => prev + 1);
+          fetchRecipeDetails();
+        }, RETRY_DELAY);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (recipeId) {
-      const fetchRecipeDetails = async () => {
-        setLoading(true);
-        setError(null);
-        try {
-          console.log(
-            `[RecipeDetailScreen] Fetching details for recipeId: ${recipeId}`
-          );
-          const details = await getRecipeWithDetails(recipeId as string);
-          if (details) {
-            setRecipe(details);
-            console.log(
-              "[RecipeDetailScreen] Recipe details fetched:",
-              JSON.stringify(details, null, 2).substring(0, 500) + "..."
-            );
-          } else {
-            setError("Recipe not found.");
-            console.log(
-              `[RecipeDetailScreen] No details found for recipeId: ${recipeId}`
-            );
-          }
-        } catch (e) {
-          const errorMessage =
-            e instanceof Error ? e.message : "An unknown error occurred";
-          setError(`Failed to load recipe: ${errorMessage}`);
-          console.error(
-            "[RecipeDetailScreen] Error fetching recipe details:",
-            e
-          );
-        } finally {
-          setLoading(false);
-        }
-      };
       fetchRecipeDetails();
     }
   }, [recipeId]);
@@ -99,6 +109,7 @@ export default function RecipeDetailScreen() {
     return "restaurant-outline";
   };
 
+  // Loading state with retry information
   if (loading) {
     return (
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
@@ -115,13 +126,16 @@ export default function RecipeDetailScreen() {
         </View>
         <View style={styles.centeredMessageContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>Loading recipe details...</Text>
+          <Text style={styles.loadingText}>
+            Loading recipe details...
+            {retryCount > 0 && `\nRetry attempt ${retryCount}/3`}
+          </Text>
         </View>
       </SafeAreaView>
     );
   }
 
-  // If recipe not found or error
+  // Error state with retry button
   if (error || !recipe) {
     return (
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
@@ -138,6 +152,14 @@ export default function RecipeDetailScreen() {
         </View>
         <View style={styles.centeredMessageContainer}>
           <Text style={styles.errorText}>{error || "Recipe not found"}</Text>
+          {retryCount < 3 && (
+            <TouchableOpacity
+              style={styles.retryButton}
+              onPress={fetchRecipeDetails}
+            >
+              <Text style={styles.retryButtonText}>Try Again</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </SafeAreaView>
     );
@@ -150,7 +172,8 @@ export default function RecipeDetailScreen() {
   const handleEdit = () => {
     setMenuVisible(false);
     router.push({
-      pathname: `/edit-recipe/${recipeId}`,
+      pathname: "/recipe/[id]" as const,
+      params: { id: recipeId },
     });
   };
 
@@ -369,7 +392,7 @@ export default function RecipeDetailScreen() {
         {/* Ingredients */}
         <View style={styles.ingredientsSection}>
           <Text style={styles.sectionTitle}>Ingredients</Text>
-          {recipe.ingredients && recipe.ingredients.length > 0 ? (
+          {recipe?.ingredients && recipe.ingredients.length > 0 ? (
             recipe.ingredients.map((ingredient, index) => (
               <View
                 key={ingredient.id || index.toString()}
@@ -384,7 +407,7 @@ export default function RecipeDetailScreen() {
                 </View>
                 <View style={styles.ingredientTextWrap}>
                   <Text style={styles.ingredientAmountText}>
-                    {ingredient.quantity} {ingredient.unit}
+                    {ingredient.amount} {ingredient.unit}
                   </Text>
                   <Text> </Text>
                   <Text style={styles.ingredientNameText}>
@@ -403,15 +426,13 @@ export default function RecipeDetailScreen() {
         {/* Instructions */}
         <View style={styles.instructionsSection}>
           <Text style={styles.sectionTitle}>Instructions</Text>
-          {recipe.steps && recipe.steps.length > 0 ? (
-            recipe.steps.map((step, index) => (
+          {recipe?.instructions && recipe.instructions.length > 0 ? (
+            recipe.instructions.map((instruction, index) => (
               <View key={index} style={styles.instructionItem}>
                 <View style={styles.instructionNumber}>
-                  <Text style={styles.instructionNumberText}>
-                    {step.orderIndex || index + 1}
-                  </Text>
+                  <Text style={styles.instructionNumberText}>{index + 1}</Text>
                 </View>
-                <Text style={styles.instructionText}>{step.description}</Text>
+                <Text style={styles.instructionText}>{instruction}</Text>
               </View>
             ))
           ) : (
@@ -667,5 +688,17 @@ const styles = StyleSheet.create({
     color: colors.gray[800],
     fontSize: 15,
     marginLeft: spacing.xs,
+  },
+  retryButton: {
+    marginTop: spacing.md,
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.md,
+  },
+  retryButtonText: {
+    color: colors.white,
+    fontSize: typography.fontSizes.md,
+    fontWeight: "600",
   },
 });

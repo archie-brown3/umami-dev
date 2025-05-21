@@ -1,6 +1,8 @@
 import "react-native-url-polyfill/auto";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { createClient } from "@supabase/supabase-js";
+// AsyncStorage will be conditionally assigned later.
+// import AsyncStorage from "@react-native-async-storage/async-storage"; // REMOVED TOP-LEVEL IMPORT
+import { createClient, SupportedStorage } from "@supabase/supabase-js";
+import { Platform } from "react-native";
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
@@ -22,13 +24,35 @@ if (!supabaseUrl || !supabaseAnonKey) {
   }
 }
 
+let storageAdapter: SupportedStorage;
+
+if (Platform.OS === "web" && typeof window !== "undefined") {
+  console.log("Using localStorage for web.");
+  storageAdapter = {
+    setItem: (key: string, value: string) => {
+      window.localStorage.setItem(key, value);
+    },
+    getItem: (key: string) => {
+      return window.localStorage.getItem(key);
+    },
+    removeItem: (key: string) => {
+      window.localStorage.removeItem(key);
+    },
+  };
+} else {
+  console.log("Using AsyncStorage for native.");
+  // Dynamically require/import and assign AsyncStorage only for native
+  const AsyncStoragePackage = require("@react-native-async-storage/async-storage");
+  storageAdapter = AsyncStoragePackage.default || AsyncStoragePackage; // Handle both CJS and ESM default exports
+}
+
 // Configure client with more detailed error handling and retries
 export const supabase = createClient(supabaseUrl ?? "", supabaseAnonKey ?? "", {
   auth: {
-    storage: AsyncStorage,
+    storage: storageAdapter,
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: false,
+    detectSessionInUrl: false, // Important for web OAuth redirects
   },
   global: {
     headers: {
