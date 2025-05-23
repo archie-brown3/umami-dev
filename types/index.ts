@@ -10,15 +10,28 @@ export interface Recipe {
   servings: number;
   imageUrl?: string;
   tags?: string[];
-  caption?: string;
-  media?: Array<{
-    url: string;
-    type: string;
-  }>;
+  category?: string;
+  cuisine?: string;
+  difficulty?: string;
+  nutrition?: {
+    calories?: number;
+    protein?: string;
+    carbs?: string;
+    fat?: string;
+    fiber?: string;
+  };
+  dietaryCategories?: string[];
+  cookingMethod?: string;
+  occasion?: string;
+  flavors?: string[];
+  mainIngredient?: string;
+  sourceUrl?: string;
+  author?: string;
+  originalText?: string;
   createdAt: string;
   updatedAt: string;
   isFavorite?: boolean;
-  author?: string;
+  userId?: string;
 }
 
 export interface Ingredient {
@@ -26,6 +39,8 @@ export interface Ingredient {
   name: string;
   amount: number;
   unit: string;
+  category?: string;
+  emoji?: string;
 }
 
 export interface MealPlan {

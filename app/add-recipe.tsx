@@ -15,7 +15,11 @@ import { colors, spacing, typography } from "../utils/styleUtils";
 import { useRecipes } from "../context/RecipeContext";
 import { Recipe, Ingredient } from "../types/app";
 import { scrapeFromUrl, analyzeRecipeText } from "../services/deepseekservice";
-import { extractRecipeFromUrl } from "../services/recipeExtractor";
+import {
+  extractRecipeFromUrl,
+  validateRecipe,
+  normalizeRecipe,
+} from "../services/recipeExtractor";
 
 type TabType = "manual" | "url" | "ai" | "instagram";
 
@@ -135,7 +139,48 @@ export default function AddRecipeScreen() {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
       addLog(`Error: ${errorMessage}`);
-      Alert.alert("Error", `Failed to extract recipe: ${errorMessage}`);
+
+      // Provide more helpful messages for specific error types
+      if (
+        errorMessage.includes("Network request failed") ||
+        errorMessage.includes("Unable to connect") ||
+        errorMessage.includes("Failed to fetch")
+      ) {
+        Alert.alert(
+          "Network Error",
+          "Unable to connect to the recipe extraction service. This could be due to your internet connection or the service being temporarily unavailable.",
+          [
+            {
+              text: "Try Again",
+              onPress: () => handleUrlExtraction(),
+            },
+            {
+              text: "Cancel",
+              style: "cancel",
+            },
+          ]
+        );
+      } else if (
+        errorMessage.includes("timed out") ||
+        errorMessage.includes("timeout")
+      ) {
+        Alert.alert(
+          "Request Timeout",
+          "The extraction service took too long to respond. This could be due to server load or your internet connection.",
+          [
+            {
+              text: "Try Again",
+              onPress: () => handleUrlExtraction(),
+            },
+            {
+              text: "Cancel",
+              style: "cancel",
+            },
+          ]
+        );
+      } else {
+        Alert.alert("Error", `Failed to extract recipe: ${errorMessage}`);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -200,11 +245,14 @@ export default function AddRecipeScreen() {
 
       // Add the recipe
       addRecipe(newRecipe);
-      addLog(`[Instagram] Recipe added successfully: ${newRecipe.title}`);
+      addLog(`[Instagram] Recipe added: ${newRecipe.name}`);
 
+      // Return to the previous screen with success message
       Alert.alert(
         "Success",
-        `Recipe "${newRecipe.title}" has been successfully added to your collection.`,
+        `Recipe "${
+          newRecipe.title || newRecipe.name
+        }" has been successfully added from Instagram.`,
         [
           {
             text: "OK",
@@ -213,11 +261,55 @@ export default function AddRecipeScreen() {
         ]
       );
     } catch (error) {
+      console.error("[Instagram] Extraction error:", error);
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
       addLog(`[Instagram] Error: ${errorMessage}`);
-      console.error("[Instagram] Extraction error:", error);
-      Alert.alert("Error", `Failed to extract recipe: ${errorMessage}`);
+
+      // Provide more helpful messages for specific error types
+      if (
+        errorMessage.includes("Network request failed") ||
+        errorMessage.includes("Unable to connect") ||
+        errorMessage.includes("Failed to fetch")
+      ) {
+        Alert.alert(
+          "Network Error",
+          "Unable to connect to the Instagram extraction service. This could be due to your internet connection or the service being temporarily unavailable.",
+          [
+            {
+              text: "Try Again",
+              onPress: () => handleInstagramExtraction(),
+            },
+            {
+              text: "Cancel",
+              style: "cancel",
+            },
+          ]
+        );
+      } else if (
+        errorMessage.includes("timed out") ||
+        errorMessage.includes("timeout")
+      ) {
+        Alert.alert(
+          "Request Timeout",
+          "The extraction service took too long to respond. This could be due to server load or your internet connection.",
+          [
+            {
+              text: "Try Again",
+              onPress: () => handleInstagramExtraction(),
+            },
+            {
+              text: "Cancel",
+              style: "cancel",
+            },
+          ]
+        );
+      } else {
+        Alert.alert(
+          "Instagram Extraction Error",
+          `Failed to extract recipe: ${errorMessage}`
+        );
+      }
     } finally {
       setIsLoading(false);
     }

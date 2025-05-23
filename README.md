@@ -1,50 +1,103 @@
-# Welcome to your Expo app 👋
+# Umami Recipe App
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A mobile app for finding, saving, and sharing recipes.
 
-## Get started
+## Development Setup
 
-1. Install dependencies
+### Prerequisites
 
-   ```bash
-   npm install
-   ```
+- Node.js (v18+)
+- npm or yarn
+- Expo CLI
 
-2. Start the app
+### Installation
 
-   ```bash
-    npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+1. Clone the repository:
 
 ```bash
-npm run reset-project
+git clone https://github.com/yourusername/umami-dev.git
+cd umami-dev
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+2. Install dependencies:
 
-## Learn more
+```bash
+npm install
+```
 
-To learn more about developing your project with Expo, look at the following resources:
+3. Set up environment variables:
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+```bash
+cp .env.example .env.local
+```
 
-## Join the community
+Then edit `.env.local` to include your API keys.
 
-Join our community of developers creating universal apps.
+### Running the App
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+#### Standard Development Mode
+
+```bash
+npm start
+```
+
+#### Tunnel Mode (Recommended for API Connectivity Issues)
+
+If you're experiencing API connectivity issues when testing on a physical device, use tunnel mode:
+
+```bash
+npm run dev-tunnel
+```
+
+This creates a tunnel that bypasses local network restrictions and allows your device to communicate with the development server regardless of network configuration.
+
+#### Tunnel Mode with Debugging
+
+For more verbose logging to diagnose connectivity issues:
+
+```bash
+npm run tunnel-debug
+```
+
+### API Connection Diagnostics
+
+When running in tunnel mode, you'll see:
+
+1. A floating "API Test" button on the main screen
+2. A connection diagnostics tool in the bottom left corner
+
+Use these tools to:
+
+- Check connectivity to all APIs (Supabase, DeepSeek, etc.)
+- Diagnose network issues
+- Verify environment variables are correctly loaded
+
+## API Dependencies
+
+This app relies on several external APIs:
+
+1. **Supabase** - For database and authentication
+2. **DeepSeek API** - For recipe analysis and AI processing
+3. **Recipe Extraction Service** - For extracting recipes from websites and Instagram
+
+All API keys must be correctly configured in `.env.local` for proper functionality.
+
+## Troubleshooting Common Issues
+
+### "Network request failed" Errors
+
+- Make sure you're running in tunnel mode (`npm run dev-tunnel`)
+- Check that your API keys are properly set in `.env.local`
+- Verify that the APIs are accessible from your network
+- Try using a different network (switching from WiFi to cellular data)
+
+### DeepSeek API Issues
+
+- Verify your DeepSeek API key in `.env.local`
+- The app has a fallback API key, but it may be rate-limited
+
+### Recipe Extraction Service Issues
+
+- The extraction service is hosted on Render which may have cold starts
+- The first request might take longer to process
+- The app will automatically retry failed requests

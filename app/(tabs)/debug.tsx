@@ -4,7 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { APIHealthCheck } from "@/components/debug/APIHealthCheck";
 import { useAPIHealth } from "@/hooks/useAPIHealth";
 import { API_ENDPOINTS } from "@/constants/api";
-import ConnectionDiagnostic from "@/components/ConnectionDiagnostic";
+import { ConnectionDiagnostic } from "@/components/ConnectionDiagnostic";
 import { colors } from "@/utils/styleUtils";
 
 const DebugPage = () => {
@@ -14,9 +14,20 @@ const DebugPage = () => {
 
   const deepseekAPI = useAPIHealth({
     endpoint: API_ENDPOINTS.DEEPSEEK_API_URL,
+    method: "POST",
     headers: {
-      Authorization: `Bearer ${process.env.DEEPSEEK_API_KEY || ""}`,
+      Authorization: `Bearer ${
+        process.env.EXPO_PUBLIC_DEEPSEEK_API_KEY ||
+        API_ENDPOINTS.DEEPSEEK_API_KEY
+      }`,
+      "Content-Type": "application/json",
     },
+    body: JSON.stringify({
+      model: "deepseek-chat",
+      messages: [{ role: "user", content: "Health check" }],
+      max_tokens: 1,
+    }),
+    path: "",
   });
 
   const supabaseAPI = useAPIHealth({

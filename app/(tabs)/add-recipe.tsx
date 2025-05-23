@@ -16,9 +16,15 @@ import { colors, spacing, typography } from "@/utils/styleUtils";
 import { useRecipes } from "@/context/RecipeContext";
 import { Recipe, Ingredient } from "@/types";
 import { scrapeFromUrl, analyzeRecipeText } from "@/services/deepseekservice";
-import { extractRecipeFromUrl } from "@/services/recipeExtractor";
+import {
+  extractRecipeFromUrl,
+  validateRecipe,
+  normalizeRecipe,
+} from "@/services/recipeExtractor";
 import { addRecipeToSupabase } from "@/services/recipeService";
 import { supabase } from "@/lib/supabase";
+import { RecipeCamera } from "@/components/RecipeCamera";
+import { extractTextFromImage } from "@/services/textRecognition";
 
 type TabType = "manual" | "url" | "ai" | "instagram";
 
@@ -40,10 +46,12 @@ export default function AddRecipeScreen() {
   // States for URL and Instagram
   const [urlInput, setUrlInput] = useState("");
   const [instagramUrl, setInstagramUrl] = useState("");
+  const [recipeText, setRecipeText] = useState("");
+  const [showCamera, setShowCamera] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [debugLogs, setDebugLogs] = useState<string[]>([]);
 
-  // Add a debug log entry
+  // Add a log function
   const addLog = (message: string) => {
     console.log(`[Debug] ${message}`);
     setDebugLogs((prev) => [
@@ -55,50 +63,62 @@ export default function AddRecipeScreen() {
   // Extract recipe from URL
   const handleUrlExtraction = async () => {
     if (!urlInput.trim()) {
-      Alert.alert("Error", "Please enter a valid URL");
+      Alert.alert("Error", "Please enter a recipe URL");
       return;
     }
 
     try {
       setIsLoading(true);
-      addLog(`Extracting content from ${urlInput}...`);
+      addLog(`Extracting recipe from ${urlInput}...`);
 
-      // Step 1: Scrape content from the URL
+      // Step 1: Scrape the content from the URL
       const scrapedContent = await scrapeFromUrl(urlInput);
 
       if (!scrapedContent || !scrapedContent.caption) {
-        const errorMsg = "Couldn't extract content from this URL";
+        const errorMsg = "Failed to extract content from the URL";
         addLog(errorMsg);
-        Alert.alert(
-          "Error",
-          `${errorMsg}. Please try another one or add the recipe manually.`
-        );
+        Alert.alert("Error", errorMsg);
         setIsLoading(false);
         return;
       }
 
-      addLog(
-        `Content extracted successfully (${scrapedContent.caption.length} chars)`
-      );
+      addLog(`Scraped content: ${scrapedContent.caption.substring(0, 100)}...`);
 
-      // Step 2: Analyze the recipe text to structure it
-      addLog("Analyzing recipe text with DeepSeek...");
+      // Step 2: Analyze the scraped text
       const recipeData = await analyzeRecipeText(scrapedContent.caption);
 
       if (recipeData) {
-        addLog("Recipe analysis successful");
-        // Step 3: Create a valid Recipe object from the analyzed data
+        addLog("Recipe analysis successful!");
+
+        // Normalize the recipe data
+        const normalizedData = normalizeRecipe(recipeData);
+
+        // Validate the recipe
+        const validationErrors = validateRecipe(normalizedData);
+        if (validationErrors.length > 0) {
+          addLog(`Validation failed: ${validationErrors.join(", ")}`);
+          Alert.alert(
+            "Error",
+            `Recipe is incomplete: ${validationErrors.join(", ")}`
+          );
+          setIsLoading(false);
+          return;
+        }
+
+        addLog("Recipe data is normalized and validated.");
+
+        // Step 3: Create a valid Recipe object
         const newRecipe: Recipe = {
           id: Date.now().toString(),
-          title: recipeData.name || "Untitled Recipe",
-          description: recipeData.description,
-          ingredients: recipeData.ingredients || [],
-          instructions: recipeData.instructions || [],
-          prepTime: recipeData.prepTime || 0,
-          cookTime: recipeData.cookTime || 0,
-          servings: recipeData.servings || 2,
+          title: normalizedData.title || "Untitled Recipe",
+          description: normalizedData.description || "",
+          ingredients: normalizedData.ingredients || [],
+          instructions: normalizedData.instructions || [],
+          prepTime: normalizedData.prepTime || 0,
+          cookTime: normalizedData.cookTime || 0,
+          servings: normalizedData.servings || 2,
           imageUrl: scrapedContent.imageUrl,
-          tags: recipeData.tags,
+          tags: normalizedData.tags,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
@@ -160,66 +180,180 @@ export default function AddRecipeScreen() {
 
       addLog(
         `Extraction successful. Received: ${JSON.stringify(
-          extractedData,
+          {
+            title: extractedData.title,
+            ingredientsCount: extractedData.ingredients?.length || 0,
+            instructionsCount: extractedData.instructions?.length || 0,
+          },
           null,
           2
-        ).substring(0, 300)}...`
+        )}`
       );
 
-      // Updated validation: Check for essential recipe components
+      // Check if we have ingredients and instructions before proceeding
       if (
-        !extractedData.title ||
-        (!extractedData.ingredients?.length &&
-          !extractedData.instructions?.length)
+        !extractedData.ingredients ||
+        extractedData.ingredients.length === 0
       ) {
-        addLog(
-          `Post-extraction validation failed. Name: ${extractedData.title}, Ingredients: ${extractedData.ingredients?.length}, Instructions: ${extractedData.instructions?.length}`
-        );
-        Alert.alert(
-          "Error",
-          "The extracted content does not appear to be a complete recipe (e.g., missing name, and both ingredients and instructions). Please try another URL or add manually."
-        );
-        setIsLoading(false);
-        return;
+        addLog(`Warning: No ingredients found in extracted data.`);
+
+        // If we have the original text, we can retry with manual analysis
+        if (extractedData.originalText) {
+          addLog(`Attempting to extract ingredients from original text...`);
+          try {
+            // Try again with direct text analysis
+            const reanalyzedData = await analyzeRecipeText(
+              extractedData.originalText
+            );
+            if (
+              reanalyzedData.ingredients &&
+              reanalyzedData.ingredients.length > 0
+            ) {
+              addLog(
+                `Successfully extracted ${reanalyzedData.ingredients.length} ingredients from text.`
+              );
+              extractedData.ingredients = reanalyzedData.ingredients;
+            }
+          } catch (reanalysisError) {
+            addLog(
+              `Failed to extract ingredients from text: ${reanalysisError}`
+            );
+          }
+        }
       }
 
-      // The data from extractRecipeFromUrl is already analyzed.
-      // No need to build recipeText or call analyzeRecipeText again.
-      addLog(
-        "Recipe data from extractRecipeFromUrl is structured and validated."
-      );
+      // Normalize the recipe data
+      const normalizedData = normalizeRecipe(extractedData);
 
-      // Step 3: Create a valid Recipe object using the data from extractRecipeFromUrl
+      // Validate the recipe
+      const validationErrors = validateRecipe(normalizedData);
+      if (validationErrors.length > 0) {
+        addLog(`Validation failed: ${validationErrors.join(", ")}`);
+
+        // If the only validation error is about ingredients or instructions, offer to proceed anyway
+        if (
+          validationErrors.length === 1 &&
+          (validationErrors[0].includes("ingredient") ||
+            validationErrors[0].includes("instruction"))
+        ) {
+          Alert.alert(
+            "Incomplete Recipe",
+            `${validationErrors[0]}. Would you like to add them manually later?`,
+            [
+              {
+                text: "Cancel",
+                style: "cancel",
+                onPress: () => {
+                  setIsLoading(false);
+                },
+              },
+              {
+                text: "Continue Anyway",
+                onPress: async () => {
+                  // If missing ingredients, add a placeholder
+                  if (validationErrors[0].includes("ingredient")) {
+                    normalizedData.ingredients = [
+                      {
+                        id: `placeholder-${Date.now()}`,
+                        name: "Add ingredients manually",
+                        amount: 1,
+                        unit: "item",
+                      },
+                    ];
+                  }
+
+                  // If missing instructions, add a placeholder
+                  if (validationErrors[0].includes("instruction")) {
+                    normalizedData.instructions = [
+                      "Add cooking instructions manually",
+                    ];
+                  }
+
+                  // Continue with recipe creation
+                  await processValidRecipe(normalizedData);
+                },
+              },
+            ]
+          );
+          return;
+        } else {
+          // For other validation errors, show the standard error
+          Alert.alert(
+            "Error",
+            `Recipe is incomplete: ${validationErrors.join(", ")}`
+          );
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      // Process the valid recipe
+      await processValidRecipe(normalizedData);
+    } catch (error) {
+      console.error("Instagram extraction error:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      addLog(`Error: ${errorMessage}`);
+      Alert.alert("Error", `Failed to extract recipe: ${errorMessage}`);
+      setIsLoading(false);
+    }
+  };
+
+  // Helper function to process a valid recipe
+  const processValidRecipe = async (validatedRecipe: Partial<Recipe>) => {
+    try {
+      addLog("Recipe data is normalized and validated.");
+
+      // Get the current user
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      // Prepare the recipe for saving
       const newRecipe: Recipe = {
         id: Date.now().toString(),
-        title: extractedData.title || "Untitled Extracted Recipe",
-        description: extractedData.description || "",
-        ingredients: extractedData.ingredients || [],
-        instructions: extractedData.instructions || [],
-        prepTime: extractedData.prepTime || 0,
-        cookTime: extractedData.cookTime || 0,
-        servings: extractedData.servings || 2,
-        imageUrl: extractedData.imageUrl,
-        tags: extractedData.tags || [],
+        title: validatedRecipe.title || "Untitled Recipe",
+        description: validatedRecipe.description || "",
+        ingredients: validatedRecipe.ingredients || [],
+        instructions: validatedRecipe.instructions || [],
+        prepTime: validatedRecipe.prepTime || 0,
+        cookTime: validatedRecipe.cookTime || 0,
+        servings: validatedRecipe.servings || 2,
+        imageUrl: validatedRecipe.imageUrl,
+        tags: validatedRecipe.tags || [],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
 
-      // Step 4: Get current user and attempt to save to Supabase
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      const savedRecipe = await addRecipeToSupabase(newRecipe, user?.id);
+      // Save to Supabase if user is logged in
+      if (user) {
+        const savedRecipe = await addRecipeToSupabase(newRecipe, user.id);
+        if (savedRecipe) {
+          addLog(`Recipe saved to Supabase: ${savedRecipe.title}`);
 
-      if (savedRecipe) {
-        // Optionally, if your RecipeContext's addRecipe updates UI and potentially local state:
-        // addRecipe(savedRecipe); // Pass the recipe returned from Supabase (with DB ID)
-        addLog(
-          `Recipe saved to Supabase and added to context: ${savedRecipe.title}`
-        );
+          // Navigate back to recipes screen
+          Alert.alert(
+            "Success",
+            `Recipe "${savedRecipe.title}" has been successfully saved.`,
+            [
+              {
+                text: "OK",
+                onPress: () => router.push("/recipes"),
+              },
+            ]
+          );
+        } else {
+          // Error alert is handled in addRecipeToSupabase
+          setIsLoading(false);
+        }
+      } else {
+        // If no user, just add to local state
+        addRecipe(newRecipe);
+        addLog(`Recipe added to local state: ${newRecipe.title}`);
+
         Alert.alert(
           "Success",
-          `Recipe "${savedRecipe.title}" has been successfully saved.`,
+          `Recipe "${newRecipe.title}" has been added to your collection.`,
           [
             {
               text: "OK",
@@ -227,17 +361,131 @@ export default function AddRecipeScreen() {
             },
           ]
         );
-      } else {
-        addLog(`Failed to save recipe to Supabase.`);
-        // Error alert is already handled in addRecipeToSupabase
       }
     } catch (error) {
-      console.error("Instagram extraction error:", error);
+      console.error("Error processing recipe:", error);
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
-      addLog(`Error: ${errorMessage}`);
-      Alert.alert("Error", `Failed to extract recipe: ${errorMessage}`);
+      addLog(`Error processing recipe: ${errorMessage}`);
+      Alert.alert("Error", `Failed to save recipe: ${errorMessage}`);
     } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle recipe text analysis
+  const handleRecipeTextAnalysis = async () => {
+    if (!recipeText.trim()) {
+      Alert.alert("Error", "Please enter your recipe text");
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      addLog("Analyzing recipe text...");
+
+      const recipeData = await analyzeRecipeText(recipeText);
+
+      if (!recipeData) {
+        const errorMsg = "Failed to analyze the recipe text";
+        addLog(errorMsg);
+        Alert.alert("Error", errorMsg);
+        return;
+      }
+
+      addLog("Recipe analyzed successfully!");
+      Alert.alert("Success", "Recipe has been analyzed and saved!");
+      setRecipeText("");
+    } catch (error) {
+      const errorMsg =
+        error instanceof Error ? error.message : "An error occurred";
+      addLog(`Error: ${errorMsg}`);
+      Alert.alert("Error", errorMsg);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle text extracted from camera
+  const handleCameraTextExtracted = async (extractedText: string) => {
+    setShowCamera(false);
+    setRecipeText(extractedText);
+
+    try {
+      setIsLoading(true);
+      addLog("Analyzing extracted text...");
+
+      const recipeData = await analyzeRecipeText(extractedText);
+
+      if (!recipeData) {
+        const errorMsg = "Failed to analyze the recipe text";
+        addLog(errorMsg);
+        Alert.alert("Error", errorMsg);
+        setIsLoading(false);
+        return;
+      }
+
+      // Normalize the recipe data
+      const normalizedData = normalizeRecipe(recipeData);
+
+      // Validate the recipe
+      const validationErrors = validateRecipe(normalizedData);
+      if (validationErrors.length > 0) {
+        addLog(`Validation failed: ${validationErrors.join(", ")}`);
+
+        // If the only validation error is about ingredients, offer to proceed anyway
+        if (
+          validationErrors.length === 1 &&
+          validationErrors[0].includes("ingredient")
+        ) {
+          Alert.alert(
+            "Incomplete Recipe",
+            "No ingredients were found in this recipe. Would you like to add them manually later?",
+            [
+              {
+                text: "Cancel",
+                style: "cancel",
+                onPress: () => {
+                  setIsLoading(false);
+                },
+              },
+              {
+                text: "Continue Anyway",
+                onPress: async () => {
+                  // Add a placeholder ingredient
+                  normalizedData.ingredients = [
+                    {
+                      id: `placeholder-${Date.now()}`,
+                      name: "Add ingredients manually",
+                      amount: 1,
+                      unit: "item",
+                    },
+                  ];
+
+                  // Continue with recipe creation
+                  await processValidRecipe(normalizedData);
+                },
+              },
+            ]
+          );
+          return;
+        } else {
+          Alert.alert(
+            "Error",
+            `Recipe is incomplete: ${validationErrors.join(", ")}`
+          );
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      // Process the valid recipe
+      await processValidRecipe(normalizedData);
+    } catch (error) {
+      const errorMsg =
+        error instanceof Error ? error.message : "An error occurred";
+      addLog(`Error: ${errorMsg}`);
+      Alert.alert("Error", errorMsg);
       setIsLoading(false);
     }
   };
@@ -402,20 +650,63 @@ export default function AddRecipeScreen() {
 
       case "ai":
         return (
-          <View style={styles.tabContent}>
-            <Text style={styles.infoText}>
-              Upload a photo of a recipe or describe it in text, and we'll
-              extract the details.
-            </Text>
-            <Pressable style={styles.uploadButton}>
-              <Ionicons
-                name="camera-outline"
-                size={24}
-                color={colors.primary}
+          <>
+            {showCamera ? (
+              <RecipeCamera
+                onTextExtracted={handleCameraTextExtracted}
+                onClose={() => setShowCamera(false)}
               />
-              <Text style={styles.uploadButtonText}>Take a Photo</Text>
-            </Pressable>
-          </View>
+            ) : (
+              <View style={styles.tabContent}>
+                <Text style={styles.infoText}>
+                  Upload a photo of a recipe or paste your recipe text below,
+                  and we'll extract the details.
+                </Text>
+
+                <TextInput
+                  style={[styles.input, styles.multilineInput]}
+                  placeholder="Paste your recipe text here..."
+                  value={recipeText}
+                  onChangeText={setRecipeText}
+                  multiline
+                  numberOfLines={6}
+                  textAlignVertical="top"
+                />
+
+                {isLoading ? (
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color={colors.primary} />
+                    <Text style={styles.loadingText}>Analyzing recipe...</Text>
+                  </View>
+                ) : (
+                  <Pressable
+                    style={styles.button}
+                    onPress={handleRecipeTextAnalysis}
+                  >
+                    <Text style={styles.buttonText}>Analyze Recipe Text</Text>
+                  </Pressable>
+                )}
+
+                <View style={styles.divider}>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.dividerText}>OR</Text>
+                  <View style={styles.dividerLine} />
+                </View>
+
+                <Pressable
+                  style={styles.uploadButton}
+                  onPress={() => setShowCamera(true)}
+                >
+                  <Ionicons
+                    name="camera-outline"
+                    size={24}
+                    color={colors.primary}
+                  />
+                  <Text style={styles.uploadButtonText}>Take a Photo</Text>
+                </Pressable>
+              </View>
+            )}
+          </>
         );
 
       case "instagram":
@@ -582,5 +873,26 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     color: colors.gray[600],
     fontSize: typography.fontSizes.sm,
+  },
+  multilineInput: {
+    height: 120,
+    paddingTop: 12,
+    paddingBottom: 12,
+    textAlignVertical: "top",
+  },
+  divider: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: 20,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.gray[300],
+  },
+  dividerText: {
+    marginHorizontal: 10,
+    color: colors.gray[500],
+    fontSize: 14,
   },
 });

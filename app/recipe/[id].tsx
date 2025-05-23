@@ -127,9 +127,22 @@ export default function RecipeDetailScreen() {
         <View style={styles.centeredMessageContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>
-            Loading recipe details...
-            {retryCount > 0 && `\nRetry attempt ${retryCount}/3`}
+            {retryCount > 0
+              ? "Still trying to connect..."
+              : "Loading recipe details..."}
           </Text>
+          {retryCount > 0 && (
+            <Text style={styles.loadingSubText}>
+              {`Retry attempt ${retryCount}/3`}
+              {retryCount === 3 && "\nLast attempt..."}
+            </Text>
+          )}
+          {retryCount > 1 && (
+            <Text style={styles.loadingHelpText}>
+              Connectivity issues detected. If this continues, check your
+              internet connection or try again later.
+            </Text>
+          )}
         </View>
       </SafeAreaView>
     );
@@ -137,6 +150,12 @@ export default function RecipeDetailScreen() {
 
   // Error state with retry button
   if (error || !recipe) {
+    // Special case for network errors
+    const isNetworkError =
+      error?.includes("Network") ||
+      error?.includes("connection") ||
+      error?.includes("Unable to connect");
+
     return (
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <Stack.Screen options={{ headerShown: false }} />
@@ -151,13 +170,32 @@ export default function RecipeDetailScreen() {
           <View style={{ width: 24 }} />
         </View>
         <View style={styles.centeredMessageContainer}>
+          <Ionicons
+            name={
+              isNetworkError ? "cloud-offline-outline" : "alert-circle-outline"
+            }
+            size={48}
+            color={colors.red[500]}
+          />
           <Text style={styles.errorText}>{error || "Recipe not found"}</Text>
-          {retryCount < 3 && (
+          {isNetworkError && (
+            <Text style={styles.errorSubText}>
+              This could be due to poor internet connection or the extraction
+              service being temporarily unavailable.
+            </Text>
+          )}
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={fetchRecipeDetails}
+          >
+            <Text style={styles.retryButtonText}>Try Again</Text>
+          </TouchableOpacity>
+          {isNetworkError && (
             <TouchableOpacity
-              style={styles.retryButton}
-              onPress={fetchRecipeDetails}
+              style={styles.secondaryButton}
+              onPress={() => router.back()}
             >
-              <Text style={styles.retryButtonText}>Try Again</Text>
+              <Text style={styles.secondaryButtonText}>Go Back</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -643,9 +681,18 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   errorText: {
-    fontSize: 16,
+    marginTop: spacing.md,
+    fontSize: typography.fontSizes.lg,
     textAlign: "center",
     color: colors.red[500],
+    marginBottom: spacing.md,
+  },
+  errorSubText: {
+    fontSize: typography.fontSizes.sm,
+    textAlign: "center",
+    color: colors.gray[600],
+    marginBottom: spacing.md,
+    paddingHorizontal: spacing.lg,
   },
   centeredMessageContainer: {
     flex: 1,
@@ -654,9 +701,23 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
   },
   loadingText: {
+    marginTop: spacing.md,
+    fontSize: typography.fontSizes.lg,
+    textAlign: "center",
+    color: colors.gray[700],
+  },
+  loadingSubText: {
     marginTop: spacing.sm,
-    fontSize: 15,
+    fontSize: typography.fontSizes.sm,
+    textAlign: "center",
     color: colors.gray[600],
+  },
+  loadingHelpText: {
+    marginTop: spacing.lg,
+    fontSize: typography.fontSizes.sm,
+    textAlign: "center",
+    color: colors.gray[600],
+    paddingHorizontal: spacing.lg,
   },
   ingredientRow: {
     flexDirection: "row",
@@ -698,6 +759,18 @@ const styles = StyleSheet.create({
   },
   retryButtonText: {
     color: colors.white,
+    fontSize: typography.fontSizes.md,
+    fontWeight: "600",
+  },
+  secondaryButton: {
+    marginTop: spacing.md,
+    backgroundColor: colors.gray[200],
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.md,
+  },
+  secondaryButtonText: {
+    color: colors.dark,
     fontSize: typography.fontSizes.md,
     fontWeight: "600",
   },

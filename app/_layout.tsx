@@ -13,9 +13,16 @@ import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { GroceriesProvider } from "@/context/GroceriesContext";
+import { ConnectionDiagnostic } from "@/components/ConnectionDiagnostic";
+import Constants from "expo-constants";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
+
+// Check if we're in tunnel mode (exp.direct domain)
+const isTunnelMode =
+  Constants.expoConfig?.hostUri?.includes("exp.direct") ||
+  Constants.experienceUrl?.includes("exp.direct");
 
 // Root navigation component with auth protection
 function RootLayoutNav() {
@@ -77,8 +84,18 @@ function RootLayoutNav() {
             animation: "slide_from_bottom",
           }}
         />
+        <Stack.Screen
+          name="api-test"
+          options={{
+            headerShown: true,
+            headerTitle: "API Connectivity Test",
+            presentation: "card",
+          }}
+        />
       </Stack>
       <StatusBar style="auto" />
+      {/* Show the connection diagnostic tool when in tunnel mode */}
+      {isTunnelMode && <ConnectionDiagnostic />}
     </ThemeProvider>
   );
 }

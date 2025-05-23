@@ -1,6 +1,15 @@
 export const API_ENDPOINTS = {
-  EXTRACT_API_URL: process.env.EXPO_PUBLIC_RECIPE_EXTRACTION_SERVICE_URL || "",
+  EXTRACT_API_URL:
+    process.env.EXPO_PUBLIC_RECIPE_EXTRACTION_SERVICE_URL ||
+    "https://recipeextractionservice.onrender.com",
+  RECIPE_EXTRACTION_SERVICE_URL:
+    process.env.EXPO_PUBLIC_RECIPE_EXTRACTION_SERVICE_URL ||
+    "https://recipeextractionservice.onrender.com",
   DEEPSEEK_API_URL: "https://api.deepseek.com/v1/chat/completions",
+  DEEPSEEK_API_KEY:
+    process.env.EXPO_PUBLIC_DEEPSEEK_API_KEY ||
+    process.env.DEEPSEEK_API_KEY ||
+    "sk-b168886219d34d939d0b7c6f760b4123", // Use the original fallback
   SUPABASE_API_URL: process.env.EXPO_PUBLIC_SUPABASE_URL || "",
   SUPABASE_ANON_KEY: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "",
 } as const;

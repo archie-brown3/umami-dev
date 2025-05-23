@@ -6,12 +6,16 @@ interface UseAPIHealthProps {
   endpoint: string;
   headers?: Record<string, string>;
   path?: string;
+  method?: "GET" | "POST";
+  body?: string | null;
 }
 
 export const useAPIHealth = ({
   endpoint,
   headers = {},
   path = "/health",
+  method = "GET",
+  body = null,
 }: UseAPIHealthProps) => {
   const [status, setStatus] = useState<APIStatus | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
@@ -34,12 +38,13 @@ export const useAPIHealth = ({
 
     try {
       const response = await fetch(`${endpoint}${path}`, {
-        method: "GET",
+        method: method,
         headers: {
           "Content-Type": "application/json",
           ...headers,
         },
         signal: controller.signal,
+        body: body,
       });
 
       addLog(`Response status: ${response.status} ${response.statusText}`);

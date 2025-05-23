@@ -1,16 +1,22 @@
 import React, { useState } from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { View, Text, Pressable, StyleSheet, ScrollView } from "react-native";
 import { usePathname, router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { NetworkStatusBar } from "./NetworkStatusBar";
 import { colors } from "../../utils/styleUtils";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
+import Constants from "expo-constants";
 
 interface LayoutProps {
   children: React.ReactNode;
   hideHeader?: boolean;
 }
+
+// Check if we're in tunnel mode (exp.direct domain)
+const isTunnelMode =
+  Constants.expoConfig?.hostUri?.includes("exp.direct") ||
+  Constants.experienceUrl?.includes("exp.direct");
 
 const Layout: React.FC<LayoutProps> = ({ children, hideHeader = true }) => {
   const pathname = usePathname();
@@ -56,47 +62,23 @@ const Layout: React.FC<LayoutProps> = ({ children, hideHeader = true }) => {
   };
 
   return (
-    <View style={styles.container}>
-      {/* Network Status Bar - visible when offline */}
-      <NetworkStatusBar />
-
-      {!hideHeader && (
-        <View style={styles.header}>
-          <View style={styles.headerContent}>
-            <Pressable
-              onPress={() => navigate("/")}
-              style={styles.titleContainer}
-            >
-              <Text style={styles.title}>Recipe Saver</Text>
-            </Pressable>
-
-            <View style={styles.headerActions}>
-              <Pressable
-                style={styles.headerButton}
-                onPress={() => navigate("/search")}
-              >
-                <Ionicons name="search" size={20} color={colors.dark} />
-              </Pressable>
-
-              <Pressable
-                style={styles.headerButton}
-                onPress={() => navigate("/profile")}
-              >
-                <Ionicons name="person-circle" size={20} color={colors.dark} />
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      )}
-
-      {/* Main Content */}
-      <View style={[styles.main, !hideHeader && styles.mainWithHeader]}>
-        {children}
+    <>
+      <View style={[styles.container, { backgroundColor: colors.white }]}>
+        <ScrollView contentContainerStyle={styles.scrollView}>
+          {children}
+        </ScrollView>
+        {isTunnelMode && pathname === "/(tabs)" && (
+          <Pressable
+            style={styles.apiTestButton}
+            onPress={() => router.push("/api-test")}
+          >
+            <Ionicons name="wifi" size={16} color={colors.white} />
+            <Text style={styles.apiTestButtonText}>API Test</Text>
+          </Pressable>
+        )}
       </View>
-
-      {/* Add Button (FAB) */}
-      {shouldShowFab && <AddButton />}
-    </View>
+      <StatusBar style="auto" />
+    </>
   );
 };
 
@@ -156,6 +138,25 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 5,
+  },
+  scrollView: {
+    flexGrow: 1,
+  },
+  apiTestButton: {
+    position: "absolute",
+    bottom: 24,
+    left: 24,
+    padding: 12,
+    borderRadius: 20,
+    backgroundColor: colors.primary,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  apiTestButtonText: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: colors.white,
+    marginLeft: 8,
   },
 });
 

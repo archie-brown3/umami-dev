@@ -9,25 +9,19 @@ const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
 // Check for missing environment variables
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error(
-    "Missing Supabase environment variables. Check your .env file.",
-    { supabaseUrl: !!supabaseUrl, supabaseAnonKey: !!supabaseAnonKey }
+  throw new Error(
+    "Missing Supabase environment variables. Check your .env file and ensure the app is rebuilt after any changes."
   );
-} else {
-  console.log("Supabase URL configured:", !!supabaseUrl);
-  console.log("Supabase Key configured:", !!supabaseAnonKey);
-
-  // For debugging purposes, log a masked version of the URL (not the key)
-  if (supabaseUrl) {
-    const maskedUrl = supabaseUrl.replace(/^(https?:\/\/[^.]+)(.*)$/, "$1...");
-    console.log("Connecting to Supabase URL:", maskedUrl);
-  }
 }
+
+// For debugging purposes, log a masked version of the URL (not the key)
+const maskedUrl = supabaseUrl.replace(/^(https?:\/\/[^.]+)(.*)$/, "$1...");
+console.log("[Supabase] Connecting to URL:", maskedUrl);
 
 let storageAdapter: SupportedStorage;
 
 if (Platform.OS === "web" && typeof window !== "undefined") {
-  console.log("Using localStorage for web.");
+  console.log("[Supabase] Using localStorage for web platform");
   storageAdapter = {
     setItem: (key: string, value: string) => {
       window.localStorage.setItem(key, value);
@@ -40,32 +34,29 @@ if (Platform.OS === "web" && typeof window !== "undefined") {
     },
   };
 } else {
-  console.log("Using AsyncStorage for native.");
-  // Dynamically require/import and assign AsyncStorage only for native
+  console.log("[Supabase] Using AsyncStorage for native platform");
   const AsyncStoragePackage = require("@react-native-async-storage/async-storage");
-  storageAdapter = AsyncStoragePackage.default || AsyncStoragePackage; // Handle both CJS and ESM default exports
+  storageAdapter = AsyncStoragePackage.default || AsyncStoragePackage;
 }
 
 // Configure client with more detailed error handling and retries
-export const supabase = createClient(supabaseUrl ?? "", supabaseAnonKey ?? "", {
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     storage: storageAdapter,
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: false, // Important for web OAuth redirects
+    detectSessionInUrl: false,
   },
   global: {
     headers: {
       "X-Client-Info": "expo-react-native",
     },
   },
-  // Add more extensive retry logic
   db: {
     schema: "public",
   },
-  // Increase timeout for better reliability on unstable networks
   realtime: {
-    timeout: 20000,
+    timeout: 30000,
   },
 });
 
@@ -73,11 +64,21 @@ export const supabase = createClient(supabaseUrl ?? "", supabaseAnonKey ?? "", {
 export const checkSupabaseConnection = async () => {
   try {
     console.log("Testing Supabase connection...");
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      console.log("No authenticated user found");
+      return false;
+    }
+
     // Simple query to check connection
     const startTime = Date.now();
     const { data, error } = await supabase
-      .from("shopping_lists")
-      .select("count", { count: "exact", head: true });
+      .from("recipes")
+      .select("count", { count: "exact", head: true })
+      .eq("user_id", user.id);
 
     const duration = Date.now() - startTime;
     if (error) {
@@ -90,6 +91,24 @@ export const checkSupabaseConnection = async () => {
   } catch (e) {
     console.error("Supabase connection check exception:", e);
     return false;
+  }
+};
+
+// Add a function to get the current session
+export const getCurrentSession = async () => {
+  try {
+    const {
+      data: { session },
+      error,
+    } = await supabase.auth.getSession();
+    if (error) {
+      console.error("Error getting session:", error.message);
+      return null;
+    }
+    return session;
+  } catch (e) {
+    console.error("Exception getting session:", e);
+    return null;
   }
 };
 

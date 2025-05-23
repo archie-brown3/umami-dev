@@ -1,190 +1,161 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
+  TouchableOpacity,
   ScrollView,
-  Button,
-  ActivityIndicator,
+  Platform,
 } from "react-native";
-import NetInfo from "@react-native-community/netinfo";
-import {
-  checkSupabaseConnection,
-  testNetworkConnectivity,
-} from "@/lib/supabase";
 import { colors, spacing, typography } from "@/utils/styleUtils";
+import {
+  testNetworkConnectivity,
+  checkSupabaseConnection,
+} from "@/lib/supabase";
+import { Ionicons } from "@expo/vector-icons";
+import NetInfo, { NetInfoState } from "@react-native-community/netinfo";
 
-export const ConnectionDiagnostic = () => {
-  const [diagnosticResults, setDiagnosticResults] = useState<{
-    timestamp: string;
-    generalNetwork: boolean | null;
-    netInfo: any;
-    supabaseConnection: boolean | null;
-    pingTime: number | null;
-  }>({
-    timestamp: new Date().toISOString(),
-    generalNetwork: null,
-    netInfo: null,
-    supabaseConnection: null,
-    pingTime: null,
+interface ConnectionStatus {
+  network: boolean | null;
+  supabase: boolean | null;
+  timestamp: Date;
+  ping: number | null;
+  details: NetInfoState | null;
+}
+
+export function ConnectionDiagnostic() {
+  const [isVisible, setIsVisible] = useState(false);
+  const [status, setStatus] = useState<ConnectionStatus>({
+    network: null,
+    supabase: null,
+    timestamp: new Date(),
+    ping: null,
+    details: null,
   });
-  const [isRunning, setIsRunning] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
 
   const addLog = (message: string) => {
-    setLogs((prev) => [
-      `[${new Date().toLocaleTimeString()}] ${message}`,
-      ...prev.slice(0, 19), // Keep last 20 logs
-    ]);
+    const timeString = new Date().toTimeString().split(" ")[0];
+    setLogs((prev) => [`[${timeString}] ${message}`, ...prev.slice(0, 19)]);
   };
 
   const runDiagnostics = async () => {
-    setIsRunning(true);
+    setStatus((prev) => ({
+      ...prev,
+      network: null,
+      supabase: null,
+      ping: null,
+    }));
     addLog("Starting connection diagnostics...");
 
-    try {
-      // 1. Check general network
-      addLog("Testing general network connectivity...");
-      const startTime = Date.now();
-      const networkConnected = await testNetworkConnectivity();
-      const pingTime = Date.now() - startTime;
-      addLog(
-        `Network test ${
-          networkConnected ? "succeeded" : "failed"
-        } in ${pingTime}ms`
-      );
+    // Test general network connectivity
+    addLog("Testing general network connectivity...");
+    const startTime = Date.now();
+    const isNetworkConnected = await testNetworkConnectivity();
+    const networkTime = Date.now() - startTime;
+    addLog(
+      `Network test ${
+        isNetworkConnected ? "succeeded" : "failed"
+      } in ${networkTime}ms`
+    );
 
-      // 2. Get NetInfo details
-      addLog("Getting network info details...");
-      const netInfoState = await NetInfo.fetch();
-      addLog(
-        `Network type: ${netInfoState.type}, connected: ${netInfoState.isConnected}`
-      );
+    // Get network info details
+    addLog("Getting network info details...");
+    const netInfo = await NetInfo.fetch();
+    addLog(`Network type: ${netInfo.type}, connected: ${netInfo.isConnected}`);
 
-      // 3. Test Supabase connection
-      addLog("Testing Supabase connection...");
-      const supabaseConnected = await checkSupabaseConnection();
-      addLog(
-        `Supabase connection ${supabaseConnected ? "succeeded" : "failed"}`
-      );
+    // Test Supabase connection
+    addLog("Testing Supabase connection...");
+    const isSupabaseConnected = await checkSupabaseConnection();
+    addLog(
+      `Supabase connection ${isSupabaseConnected ? "succeeded" : "failed"}`
+    );
 
-      // Update state with results
-      setDiagnosticResults({
-        timestamp: new Date().toISOString(),
-        generalNetwork: networkConnected,
-        netInfo: netInfoState,
-        supabaseConnection: supabaseConnected,
-        pingTime: pingTime,
-      });
-    } catch (error) {
-      addLog(
-        `Diagnostic error: ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      );
-    } finally {
-      setIsRunning(false);
-    }
+    setStatus({
+      network: isNetworkConnected,
+      supabase: isSupabaseConnected,
+      timestamp: new Date(),
+      ping: networkTime,
+      details: netInfo,
+    });
   };
 
-  // Run diagnostics on first mount
   useEffect(() => {
+    // Run diagnostics on first render
     runDiagnostics();
   }, []);
 
+  if (!isVisible) {
+    return (
+      <TouchableOpacity
+        style={styles.floatingButton}
+        onPress={() => setIsVisible(true)}
+      >
+        <Ionicons
+          name={status.supabase === false ? "alert-circle" : "analytics"}
+          size={24}
+          color={status.supabase === false ? colors.red[500] : "white"}
+        />
+      </TouchableOpacity>
+    );
+  }
+
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Connection Diagnostics</Text>
+      <View style={styles.header}>
+        <Text style={styles.title}>Connection Diagnostics</Text>
+        <TouchableOpacity onPress={() => setIsVisible(false)}>
+          <Ionicons name="close" size={24} color="black" />
+        </TouchableOpacity>
+      </View>
 
-      <View style={styles.resultsContainer}>
+      <View style={styles.card}>
         <Text style={styles.sectionTitle}>Results</Text>
-        <Text style={styles.resultItem}>
-          Last Run: {new Date(diagnosticResults.timestamp).toLocaleString()}
+        <Text style={styles.label}>
+          Last Run: {status.timestamp.toLocaleString()}
         </Text>
         <Text
           style={[
-            styles.resultItem,
-            {
-              color:
-                diagnosticResults.generalNetwork === null
-                  ? colors.gray[500]
-                  : diagnosticResults.generalNetwork
-                  ? colors.green[500]
-                  : colors.red[500],
-            },
+            styles.statusText,
+            { color: status.network ? colors.green[500] : colors.red[500] },
           ]}
         >
           Internet Connectivity:{" "}
-          {diagnosticResults.generalNetwork === null
-            ? "Testing..."
-            : diagnosticResults.generalNetwork
-            ? "Connected"
-            : "Failed"}
-          {diagnosticResults.pingTime !== null &&
-            ` (${diagnosticResults.pingTime}ms)`}
+          {status.network ? `Connected (${status.ping}ms)` : "Failed"}
         </Text>
-
         <Text
           style={[
-            styles.resultItem,
-            {
-              color:
-                diagnosticResults.supabaseConnection === null
-                  ? colors.gray[500]
-                  : diagnosticResults.supabaseConnection
-                  ? colors.green[500]
-                  : colors.red[500],
-            },
+            styles.statusText,
+            { color: status.supabase ? colors.green[500] : colors.red[500] },
           ]}
         >
-          Supabase API:{" "}
-          {diagnosticResults.supabaseConnection === null
-            ? "Testing..."
-            : diagnosticResults.supabaseConnection
-            ? "Connected"
-            : "Failed"}
+          Supabase API: {status.supabase ? "Connected" : "Failed"}
         </Text>
 
-        {diagnosticResults.netInfo && (
-          <View style={styles.netInfoContainer}>
-            <Text style={styles.resultItem}>
-              Network Type: {diagnosticResults.netInfo.type}
-            </Text>
-            <Text style={styles.resultItem}>
-              Is Connected: {String(diagnosticResults.netInfo.isConnected)}
-            </Text>
-            <Text style={styles.resultItem}>
-              Is WiFi Enabled: {String(diagnosticResults.netInfo.isWifiEnabled)}
-            </Text>
-            {diagnosticResults.netInfo.details && (
-              <Text style={styles.resultItem}>
-                Details:{" "}
-                {JSON.stringify(diagnosticResults.netInfo.details).substring(
-                  0,
-                  100
-                )}
-                ...
-              </Text>
-            )}
-          </View>
-        )}
+        <View style={styles.divider} />
+
+        <Text style={styles.label}>Network Type: {status.details?.type}</Text>
+        <Text style={styles.label}>
+          Is Connected: {String(status.details?.isConnected)}
+        </Text>
+        <Text style={styles.label}>
+          Is WiFi Enabled: {String(status.details?.isWifiEnabled)}
+        </Text>
+        <Text style={styles.label}>Details:</Text>
+        <Text style={styles.details}>
+          {JSON.stringify(status.details, null, 2)}
+        </Text>
       </View>
 
-      <View style={styles.actionContainer}>
-        <Button
-          title={isRunning ? "Running..." : "Run Diagnostics"}
-          onPress={runDiagnostics}
-          disabled={isRunning}
-          color={colors.primary}
-        />
-      </View>
+      <TouchableOpacity style={styles.button} onPress={runDiagnostics}>
+        <Text style={styles.buttonText}>Run Diagnostics</Text>
+      </TouchableOpacity>
 
-      <View style={styles.logsContainer}>
+      <View style={styles.logContainer}>
         <Text style={styles.sectionTitle}>Logs</Text>
-        {isRunning && <ActivityIndicator color={colors.primary} />}
         <ScrollView style={styles.logs}>
           {logs.map((log, index) => (
-            <Text key={index} style={styles.logItem}>
+            <Text key={index} style={styles.logEntry}>
               {log}
             </Text>
           ))}
@@ -192,62 +163,104 @@ export const ConnectionDiagnostic = () => {
       </View>
     </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
   container: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: colors.gray[100],
     padding: spacing.md,
-    flex: 1,
+    paddingTop: Platform.OS === "ios" ? 50 : 20,
+    zIndex: 9999,
+  },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: spacing.md,
   },
   title: {
     fontSize: typography.fontSizes.xl,
     fontWeight: "bold",
-    marginBottom: spacing.md,
     color: colors.dark,
+  },
+  card: {
+    backgroundColor: colors.white,
+    borderRadius: 12,
+    padding: spacing.md,
+    marginBottom: spacing.md,
   },
   sectionTitle: {
     fontSize: typography.fontSizes.lg,
     fontWeight: "bold",
     marginBottom: spacing.sm,
-    color: colors.dark,
   },
-  resultsContainer: {
-    backgroundColor: colors.white,
+  label: {
+    fontSize: typography.fontSizes.md,
+    color: colors.gray[700],
+    marginBottom: spacing.xs,
+  },
+  statusText: {
+    fontSize: typography.fontSizes.lg,
+    fontWeight: "500",
+    marginBottom: spacing.sm,
+  },
+  details: {
+    fontSize: typography.fontSizes.sm,
+    color: colors.gray[600],
+    marginTop: spacing.xs,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colors.gray[200],
+    marginVertical: spacing.md,
+  },
+  button: {
+    backgroundColor: colors.primary,
     borderRadius: 8,
     padding: spacing.md,
+    alignItems: "center",
     marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.gray[200],
   },
-  resultItem: {
+  buttonText: {
+    color: colors.white,
     fontSize: typography.fontSizes.md,
-    marginBottom: spacing.xs,
-    color: colors.gray[700],
+    fontWeight: "bold",
   },
-  netInfoContainer: {
-    marginTop: spacing.sm,
-    paddingTop: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.gray[200],
-  },
-  actionContainer: {
-    marginBottom: spacing.md,
-  },
-  logsContainer: {
+  logContainer: {
     flex: 1,
-    backgroundColor: colors.gray[900],
-    borderRadius: 8,
+    backgroundColor: colors.dark,
+    borderRadius: 12,
     padding: spacing.md,
   },
   logs: {
     flex: 1,
   },
-  logItem: {
+  logEntry: {
+    color: colors.gray[300],
     fontSize: typography.fontSizes.sm,
-    color: colors.gray[200],
-    fontFamily: "monospace",
-    marginBottom: 2,
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    marginBottom: spacing.xs,
+  },
+  floatingButton: {
+    position: "absolute",
+    bottom: 20,
+    left: 20,
+    backgroundColor: colors.dark,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+    zIndex: 9999,
   },
 });
-
-export default ConnectionDiagnostic;

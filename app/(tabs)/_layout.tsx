@@ -14,7 +14,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { colors, spacing, createShadow } from "@/utils/styleUtils";
 import { useColorScheme } from "@/hooks/useColorScheme";
-import { NetworkStatusBar } from "@/components/layout/NetworkStatusBar";
 import { useAuth } from "@/context/AuthContext";
 
 export default function TabLayout() {
@@ -26,7 +25,6 @@ export default function TabLayout() {
 
   return (
     <SafeAreaView style={styles.container} edges={["bottom"]}>
-      <NetworkStatusBar />
       <Tabs
         screenOptions={{
           headerShown: false,

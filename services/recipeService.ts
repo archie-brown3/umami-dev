@@ -165,14 +165,14 @@ export class RecipeService {
   static async getBasicRecipe(recipeId: string): Promise<Recipe | null> {
     try {
       // Check cache first
-      const cached = await this.getCachedRecipe(recipeId);
+      const cached = await RecipeService.getCachedRecipe(recipeId);
       if (cached) return cached;
 
       const { data, error } = await recipeQueries.getBasicRecipe(recipeId);
       if (error) throw error;
       if (!data) return null;
       const recipe = transformRecipeToAppFormat(data as DbRecipe);
-      await this.cacheRecipe(recipeId, recipe);
+      await RecipeService.cacheRecipe(recipeId, recipe);
       return recipe;
     } catch (error) {
       console.error("Error fetching basic recipe:", error);
@@ -184,7 +184,7 @@ export class RecipeService {
   static async getRecipeWithDetails(recipeId: string): Promise<Recipe | null> {
     try {
       // Check cache
-      const cached = await this.getCachedRecipe(recipeId);
+      const cached = await RecipeService.getCachedRecipe(recipeId);
       if (cached) return cached;
 
       // Fetch fresh data
@@ -206,7 +206,7 @@ export class RecipeService {
       const recipe = transformRecipeWithDetailsToAppFormat(
         recipeDataForTransform
       );
-      await this.cacheRecipe(recipeId, recipe);
+      await RecipeService.cacheRecipe(recipeId, recipe);
       return recipe;
     } catch (error) {
       console.error("Error fetching recipe details:", error);
