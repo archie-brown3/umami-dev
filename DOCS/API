@@ -1,10 +1,18 @@
-# Expo Integration with Recipe Extraction Service
+# Recipe Extraction & Web Scraping Service
 
-This document explains how to integrate the Recipe Extraction Service (hosted on Render) with your Expo application for production use.
+This document explains how to integrate the Recipe Extraction & Web Scraping Service (hosted on Render) with your Expo application for production use.
 
 ## Overview
 
-The Recipe Extraction Service is a backend API that extracts recipe information from Instagram posts. This service is hosted on Render and can be integrated into your Expo application.
+The Recipe Extraction & Web Scraping Service is a comprehensive backend API that provides:
+
+- 🍽️ **Instagram Recipe Extraction** - Extract recipes and content from Instagram posts
+- 🕸️ **General Web Scraping** - Extract content from any website using industry-standard libraries
+- 🚀 **High Performance** - Built with robust libraries and caching
+- 🛡️ **Anti-Detection** - Browser-like headers and rate limiting
+- 📊 **Rich Data Extraction** - Text, links, images, metadata, forms, tables
+
+This service is hosted on Render and can be integrated into your Expo application.
 
 ## Base URL
 
@@ -21,12 +29,138 @@ https://recipeextractionservice.onrender.com
 - **Purpose**: Verify service availability
 - **Response**: `{ "status": "ok" }`
 
-### 2. Extract Recipe
+### 2. Server Status
+
+- **Endpoint**: `/api/status`
+- **Method**: GET
+- **Purpose**: Get detailed server status and configuration
+- **Response**: Server configuration and status information
+
+### 3. Extract Instagram Recipe
 
 - **Endpoint**: `/api/extract`
 - **Method**: POST
 - **Body**: `{ "url": "instagram_post_url" }`
 - **Response**: Recipe data including ingredients, instructions, and media
+
+**Example Response:**
+
+```json
+{
+  "shortcode": "SHORTCODE",
+  "caption": "Post caption text...",
+  "username": "post_author",
+  "media": [
+    {
+      "url": "https://example.com/image.jpg",
+      "type": "image"
+    }
+  ],
+  "likes": 123456,
+  "timestamp": "2023-04-01T12:34:56",
+  "url": "https://www.instagram.com/p/SHORTCODE/"
+}
+```
+
+### 🆕 4. Web Scraping (Real Content Extraction)
+
+- **Endpoint**: `/api/scrape-web`
+- **Method**: POST
+- **Purpose**: Extract real content from any website using BeautifulSoup + Requests
+- **Body**:
+
+```json
+{
+  "url": "https://example.com",
+  "options": {
+    "text": true,
+    "links": true,
+    "images": true,
+    "metadata": true,
+    "headings": true,
+    "tables": false,
+    "forms": false
+  }
+}
+```
+
+**Response Features:**
+
+- Page title and metadata (Open Graph, Twitter Cards)
+- Full text content with word count
+- All links (internal/external classification)
+- Images with alt text and dimensions
+- Headings (H1-H6) with hierarchy
+- Optional: Table data and form structures
+
+**Example Response:**
+
+```json
+{
+  "url": "https://example.com",
+  "status_code": 200,
+  "metadata": {
+    "title": "Example Domain",
+    "description": "Example site description",
+    "meta_tags": {
+      "viewport": "width=device-width, initial-scale=1",
+      "charset": "UTF-8"
+    },
+    "open_graph": {
+      "title": "Example Domain",
+      "description": "Example description",
+      "image": "https://example.com/image.jpg"
+    },
+    "twitter": {
+      "card": "summary",
+      "title": "Example Domain"
+    }
+  },
+  "text": {
+    "full_text": "Full page content...",
+    "text_length": 1234,
+    "word_count": 200,
+    "preview": "First 500 characters..."
+  },
+  "links": {
+    "total_links": 10,
+    "internal_links": 7,
+    "external_links": 3,
+    "links": [
+      {
+        "url": "https://example.com/page",
+        "text": "Link text",
+        "type": "internal"
+      }
+    ]
+  },
+  "images": {
+    "total_images": 5,
+    "images": [
+      {
+        "url": "https://example.com/image.jpg",
+        "alt": "Image description",
+        "width": 800,
+        "height": 600
+      }
+    ]
+  },
+  "headings": {
+    "h1": ["Main Title"],
+    "h2": ["Section Title 1", "Section Title 2"],
+    "h3": ["Subsection Title"]
+  },
+  "extraction_timestamp": "2025-05-23T12:27:03.993Z",
+  "extraction_method": "beautifulsoup"
+}
+```
+
+### 5. Image Proxy
+
+- **Endpoint**: `/api/image-proxy?url={encoded-url}`
+- **Method**: GET
+- **Purpose**: Proxy image requests to bypass CORS restrictions
+- **Response**: Proxied image data
 
 ## Integration Steps
 
@@ -44,6 +178,7 @@ https://recipeextractionservice.onrender.com
    import axios from "axios";
    import { API_BASE_URL } from "../config";
 
+   // Instagram recipe extraction
    export const extractRecipe = async (instagramUrl) => {
      try {
        const response = await axios.post(`${API_BASE_URL}/api/extract`, {
@@ -52,6 +187,38 @@ https://recipeextractionservice.onrender.com
        return response.data;
      } catch (error) {
        throw new Error("Failed to extract recipe");
+     }
+   };
+
+   // Real web content scraping
+   export const scrapeWebContent = async (url, options = {}) => {
+     try {
+       const response = await axios.post(`${API_BASE_URL}/api/scrape-web`, {
+         url,
+         options: {
+           text: true,
+           links: true,
+           images: true,
+           metadata: true,
+           headings: true,
+           tables: false,
+           forms: false,
+           ...options,
+         },
+       });
+       return response.data;
+     } catch (error) {
+       throw new Error("Failed to scrape web content");
+     }
+   };
+
+   // Check service status
+   export const checkServiceStatus = async () => {
+     try {
+       const response = await axios.get(`${API_BASE_URL}/api/status`);
+       return response.data;
+     } catch (error) {
+       throw new Error("Service unavailable");
      }
    };
    ```
@@ -63,11 +230,34 @@ https://recipeextractionservice.onrender.com
      - Invalid URLs
      - API rate limiting
      - Service unavailability
+     - Timeout errors
+     - Anti-bot protection
 
 4. **Loading States**
    - Show loading indicators during API calls
-   - Implement timeout handling
+   - Implement timeout handling (30-60 seconds)
    - Add retry logic for failed requests
+   - Handle long-running scraping operations
+
+## Performance Features
+
+### Caching
+
+- **Instagram Posts**: Cached for 1 hour
+- **Web Scraping**: Cached for 1 hour based on URL + options
+- **Automatic Cache Management**: LRU eviction
+
+### Rate Limiting
+
+- **Instagram**: 5 seconds between requests + exponential backoff
+- **Web Scraping**: 1 second between requests + retry logic
+- **Respect for robots.txt**: Built-in politeness
+
+### Error Handling
+
+- **Automatic Retries**: Up to 3 attempts with exponential backoff
+- **Timeout Management**: 30-60 second timeouts
+- **Graceful Degradation**: Continues on non-critical errors
 
 ## Production Considerations
 
@@ -76,23 +266,27 @@ https://recipeextractionservice.onrender.com
    - Implement error tracking (e.g., Sentry)
    - Log API failures
    - Monitor API response times
+   - Track scraping success rates
 
 2. **Performance**
 
    - Cache successful responses
    - Implement request debouncing
    - Optimize image loading
+   - Use appropriate scraping options
 
 3. **User Experience**
 
    - Add offline support
    - Implement proper loading states
    - Show user-friendly error messages
+   - Handle long scraping times gracefully
 
 4. **Security**
    - Validate URLs before sending to API
    - Implement proper error handling
    - Handle API failures gracefully
+   - Respect website terms of service
 
 ## Testing
 
@@ -101,28 +295,43 @@ https://recipeextractionservice.onrender.com
    - Test API integration
    - Test error handling
    - Test loading states
+   - Test different URL types
 
 2. **Integration Tests**
    - Test end-to-end flow
    - Test error scenarios
    - Test offline behavior
+   - Test web scraping options
 
 ## Example Usage
 
 ```javascript
-import { extractRecipe } from "../services/recipeService";
+import { extractRecipe, scrapeWebContent } from "../services/recipeService";
 
 const RecipeScreen = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [recipe, setRecipe] = useState(null);
+  const [content, setContent] = useState(null);
 
-  const handleExtract = async (url) => {
+  const handleExtractContent = async (url) => {
     try {
       setLoading(true);
       setError(null);
-      const data = await extractRecipe(url);
-      setRecipe(data);
+
+      // Determine if it's Instagram or general web content
+      if (url.includes("instagram.com")) {
+        const data = await extractRecipe(url);
+        setContent(data);
+      } else {
+        // Use real web scraping instead of fake content
+        const data = await scrapeWebContent(url, {
+          text: true,
+          metadata: true,
+          images: true,
+          headings: true,
+        });
+        setContent(data);
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -134,6 +343,66 @@ const RecipeScreen = () => {
 };
 ```
 
+## Testing the New Web Scraping Integration
+
+To test the updated web scraping functionality in your app:
+
+```javascript
+import { testWebScrapingFlow } from "../services/recipeExtractor";
+
+// Test with a recipe website URL
+const testUrl = "https://example-recipe-site.com/recipe";
+
+const testResult = await testWebScrapingFlow(testUrl);
+console.log("Test Result:", testResult);
+
+if (testResult.success) {
+  console.log("✅ Recipe extracted successfully:", testResult.recipe);
+} else {
+  console.log("❌ Test failed:", testResult.message);
+  if (testResult.validationErrors) {
+    console.log("Validation errors:", testResult.validationErrors);
+  }
+}
+```
+
+### Expected Flow
+
+1. **Non-Instagram URLs**: Uses `/api/scrape-web` to get real webpage content, then DeepSeek to format it into a recipe
+2. **Instagram URLs**: Uses `/api/extract` for Instagram-specific extraction
+3. **Validation**: Ensures recipes have required fields (title, ingredients, instructions)
+4. **Normalization**: Standardizes data format before saving
+
+### Debugging
+
+Check the service logs for detailed extraction information:
+
+```javascript
+import { getServiceLogs } from "../services/deepseekservice";
+
+const logs = getServiceLogs();
+console.log("Service logs:", logs);
+```
+
+## Quick Testing
+
+Test the web scraping functionality:
+
+```bash
+# Test web scraping endpoint
+curl -X POST https://recipeextractionservice.onrender.com/api/scrape-web \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com"}'
+
+# Test Instagram extraction
+curl -X POST https://recipeextractionservice.onrender.com/api/extract \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://www.instagram.com/p/SHORTCODE/"}'
+
+# Check service status
+curl https://recipeextractionservice.onrender.com/api/status
+```
+
 ## Troubleshooting
 
 1. **Service Unavailable**
@@ -142,32 +411,54 @@ const RecipeScreen = () => {
    - Verify network connectivity
    - Check Render service status
 
-2. **Invalid Responses**
+2. **Web Scraping Issues**
 
    - Validate URL format
-   - Check response structure
-   - Verify error handling
+   - Check if site blocks scraping
+   - Try different scraping options
+   - Check timeout settings
 
-3. **Performance Issues**
+3. **Instagram Issues**
+
+   - Verify Instagram URL format
+   - Check for rate limiting
+   - Ensure session is valid
+
+4. **Performance Issues**
    - Monitor response times
    - Check network conditions
    - Implement caching if needed
+   - Use appropriate scraping options
+
+## Library Information
+
+The web scraping service uses industry-standard libraries:
+
+| Library            | Downloads/Week | Use Case             |
+| ------------------ | -------------- | -------------------- |
+| **BeautifulSoup4** | 10M+           | HTML/XML parsing     |
+| **Requests**       | 50M+           | HTTP requests        |
+| **lxml**           | 5M+            | Fast XML/HTML parser |
+| **Instaloader**    | 100K+          | Instagram extraction |
 
 ## Support
 
-For issues with the Recipe Extraction Service:
+For issues with the Recipe Extraction & Web Scraping Service:
 
 1. Check the Render dashboard for service status
 2. Monitor the service logs
-3. Contact the service administrator
+3. Test endpoints individually
+4. Contact the service administrator
 
 ## Best Practices
 
 1. Always implement proper error handling
-2. Show loading states during API calls
+2. Show loading states during API calls (scraping can take 10-30 seconds)
 3. Cache successful responses when appropriate
 4. Implement retry logic for failed requests
 5. Monitor API performance and errors
 6. Keep the API base URL in a config file
 7. Implement proper URL validation
 8. Handle offline scenarios gracefully
+9. Use appropriate scraping options for performance
+10. Respect website terms of service and robots.txt

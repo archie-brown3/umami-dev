@@ -3,6 +3,9 @@ import { API_ENDPOINTS } from "../constants/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { formatTag } from "./utils";
 
+// This service handles DeepSeek AI analysis for recipe text formatting
+// Web scraping is now handled in recipeExtractor.ts using the /api/scrape-web endpoint
+
 // Debug logs storage
 let serviceLogs: string[] = [];
 
@@ -445,6 +448,109 @@ async function scrapeGenericRecipeWebsite(
   url: string
 ): Promise<ScrapedContent | null> {
   try {
+    addServiceLog(`Starting real web scraping for URL: ${url}`);
+
+    // First check if the web scraping API is available
+    const extractionServiceUrl = API_ENDPOINTS.RECIPE_EXTRACTION_SERVICE_URL;
+    if (!extractionServiceUrl) {
+      addServiceLog(
+        "Web scraping API URL not configured, falling back to DeepSeek"
+      );
+      return await scrapeWithDeepSeekFallback(url);
+    }
+
+    try {
+      // Use the real web scraping API
+      addServiceLog("Using real web scraping API");
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 45000); // 45 second timeout for web scraping
+
+      const response = await fetch(`${extractionServiceUrl}/api/scrape-web`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          url,
+          options: {
+            text: true,
+            metadata: true,
+            images: true,
+            headings: true,
+            links: true,
+            tables: false,
+            forms: false,
+          },
+        }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        addServiceLog(
+          `Web scraping API error: ${response.status} ${response.statusText}`
+        );
+        throw new Error(`Web scraping API error: ${response.status}`);
+      }
+
+      const scrapedData = await response.json();
+      addServiceLog(
+        `Web scraping successful, extracted ${
+          scrapedData.text?.word_count || 0
+        } words`
+      );
+
+      // Transform the scraped data to our ScrapedContent format
+      const result: ScrapedContent = {
+        title: scrapedData.metadata?.title || extractTitleFromUrl(url),
+        caption: scrapedData.text?.full_text || "",
+        url,
+        author: extractAuthorFromMetadata(scrapedData.metadata),
+        imageUrl: scrapedData.images?.images?.[0]?.url,
+        mediaUrls:
+          scrapedData.images?.images?.map((img: any) => ({
+            url: img.url,
+            isVideo: false,
+          })) || [],
+        publishDate: scrapedData.extraction_timestamp,
+      };
+
+      addServiceLog(
+        `Transformed scraped data - title: "${result.title}", content length: ${result.caption.length}`
+      );
+      return result;
+    } catch (webScrapingError) {
+      addServiceLog(
+        `Real web scraping failed: ${
+          webScrapingError instanceof Error
+            ? webScrapingError.message
+            : String(webScrapingError)
+        }`
+      );
+
+      // Fall back to DeepSeek method if real scraping fails
+      addServiceLog("Falling back to DeepSeek content generation");
+      return await scrapeWithDeepSeekFallback(url);
+    }
+  } catch (error) {
+    addServiceLog(
+      `Generic web scraping error: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+    return null;
+  }
+}
+
+// Fallback function using DeepSeek (original implementation)
+async function scrapeWithDeepSeekFallback(
+  url: string
+): Promise<ScrapedContent | null> {
+  try {
+    addServiceLog("Using DeepSeek fallback for content generation");
+
     // Use DeepSeek API to simulate extraction
     const prompt = `You are a helpful assistant that extracts content from recipe websites.
 
@@ -488,15 +594,53 @@ Do not include any explanations or commentary - just return the extracted conten
     const lines = content.split("\n").filter((line) => line.trim().length > 0);
     const title = lines.length > 0 ? lines[0] : undefined;
 
+    addServiceLog(
+      `DeepSeek fallback generated content with title: "${title}" and ${content.length} characters`
+    );
+
     return {
       title,
       caption: content,
       url,
     };
   } catch (error) {
-    console.error("Error scraping generic recipe website:", error);
+    addServiceLog(
+      `DeepSeek fallback also failed: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
     return null;
   }
+}
+
+// Helper functions for data transformation
+function extractTitleFromUrl(url: string): string {
+  try {
+    const urlObj = new URL(url);
+    const pathParts = urlObj.pathname
+      .split("/")
+      .filter((part) => part.length > 0);
+    if (pathParts.length > 0) {
+      return pathParts[pathParts.length - 1]
+        .replace(/-/g, " ")
+        .replace(/\b\w/g, (l) => l.toUpperCase());
+    }
+    return urlObj.hostname.replace("www.", "");
+  } catch {
+    return "Recipe";
+  }
+}
+
+function extractAuthorFromMetadata(metadata: any): string | undefined {
+  if (!metadata) return undefined;
+
+  // Try various author fields
+  return (
+    metadata.author ||
+    metadata.open_graph?.author ||
+    metadata.twitter?.creator ||
+    metadata.meta_tags?.author
+  );
 }
 
 export async function analyzeRecipeText(
@@ -559,36 +703,51 @@ export async function analyzeRecipeText(
 
 // Split recipe analysis into smaller tasks
 async function analyzeBasicRecipeInfo(text: string) {
-  const prompt = `Extract basic recipe information from this text. Include only:
-- title
-- description
-- ingredients
-- instructions
-- prep time
-- cook time
-- servings
+  const prompt = `You are a recipe extraction assistant. Extract the following information from this recipe text and return it as a valid JSON object.
 
-Text:
+Example format - respond with ONLY valid JSON:
+{
+  "title": "Recipe Title",
+  "description": "Brief description",
+  "ingredients": [
+    "1 tablespoon olive oil",
+    "1 pound ground beef",
+    "2 cloves garlic"
+  ],
+  "instructions": [
+    "Heat oil in pan",
+    "Cook beef until browned", 
+    "Add garlic and cook 1 minute"
+  ],
+  "prep_time": 15,
+  "cook_time": 30,
+  "servings": 4
+}
+
+Extract from this recipe text:
 ${text}
 
-Return as JSON.`;
+Return ONLY the JSON object, no explanations or code blocks.`;
 
   const response = await callDeepSeekAPI(prompt);
   return parseDeepSeekResponse(response);
 }
 
 async function analyzeNutritionInfo(text: string) {
-  const prompt = `Extract only nutritional information from this recipe text. Include:
-- nutrition facts
-- dietary categories
-- tags
-- meal type
-- cuisine type
+  const prompt = `Extract nutritional and categorization information from this recipe. Return as valid JSON only.
 
-Text:
+Required format - respond with ONLY valid JSON:
+{
+  "tags": ["Mexican", "Beef", "Quick"],
+  "meal_type": ["Dinner", "Lunch"],
+  "cuisine_type": ["Mexican"],
+  "dietary_categories": ["High-Protein"]
+}
+
+Recipe text:
 ${text}
 
-Return as JSON.`;
+Return ONLY the JSON object, no explanations or code blocks.`;
 
   const response = await callDeepSeekAPI(prompt);
   return parseDeepSeekResponse(response);
@@ -678,55 +837,69 @@ function parseDeepSeekResponse(response: DeepseekResponse): Partial<Recipe> {
   const content = response.choices[0]?.message?.content || "";
 
   try {
+    console.log(
+      `[DeepSeekService] Raw response content: ${content.substring(0, 500)}...`
+    );
+
     // First try to extract JSON between code blocks
-    const jsonMatch = content.match(/```(?:json)?\\s*([\\s\\S]*?)\\s*```/);
-    let jsonString = jsonMatch ? jsonMatch[1].trim() : content;
+    const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    let jsonString = jsonMatch ? jsonMatch[1].trim() : content.trim();
+
+    console.log(
+      `[DeepSeekService] Initial JSON extraction: ${jsonString.substring(
+        0,
+        300
+      )}...`
+    );
 
     // If no JSON was found in code blocks, try to find JSON object in the content
     if (!jsonString.startsWith("{")) {
-      const objectMatch = content.match(/{[\\s\\S]*}/);
+      const objectMatch = content.match(/{[\s\S]*}/);
       if (objectMatch) {
         jsonString = objectMatch[0];
+        console.log(
+          `[DeepSeekService] Extracted JSON object: ${jsonString.substring(
+            0,
+            300
+          )}...`
+        );
       } else {
         console.error("Failed to extract JSON from response content:", content);
         throw new Error("No valid JSON found in response");
       }
     }
 
-    console.log(`Extracted JSON string (${jsonString.length} chars)`);
+    console.log(
+      `[DeepSeekService] Before fixing - JSON length: ${jsonString.length}`
+    );
 
-    // Handle potential errors in the JSON
-    jsonString = fixCommonJsonErrors(jsonString);
+    // Clean up the JSON string
+    const fixedJsonString = fixCommonJsonErrors(jsonString);
+
+    console.log(
+      `[DeepSeekService] After fixing - JSON length: ${fixedJsonString.length}`
+    );
+    console.log(
+      `[DeepSeekService] Fixed JSON sample: ${fixedJsonString.substring(
+        0,
+        500
+      )}...`
+    );
 
     // Try to parse the fixed JSON
     let parsedRecipe: any;
     try {
-      parsedRecipe = JSON.parse(jsonString);
+      parsedRecipe = JSON.parse(fixedJsonString);
+      console.log(
+        `[DeepSeekService] Successfully parsed JSON with keys: ${Object.keys(
+          parsedRecipe
+        ).join(", ")}`
+      );
     } catch (jsonError) {
       console.error("JSON parse error:", jsonError);
+      console.error("Failed JSON string:", fixedJsonString);
       throw new Error("Failed to parse DeepSeek response JSON");
     }
-
-    // Log successful parse and basic structure
-    console.log(
-      `Successfully parsed recipe JSON: ${JSON.stringify(
-        {
-          ingredientsCount: Array.isArray(parsedRecipe.ingredients)
-            ? parsedRecipe.ingredients.length
-            : typeof parsedRecipe.ingredients === "object"
-            ? Object.keys(parsedRecipe.ingredients).length
-            : 0,
-          instructionsCount: Array.isArray(parsedRecipe.instructions)
-            ? parsedRecipe.instructions.length
-            : parsedRecipe.steps && Array.isArray(parsedRecipe.steps)
-            ? parsedRecipe.steps.length
-            : 0,
-          title: parsedRecipe.title,
-        },
-        null,
-        2
-      )}`
-    );
 
     // Extract information into the Recipe format
     const result: Partial<Recipe> = {};
@@ -741,9 +914,24 @@ function parseDeepSeekResponse(response: DeepseekResponse): Partial<Recipe> {
 
     // Instructions processing - handle different formats
     const instructions: string[] = [];
+
+    console.log(
+      `[DeepSeekService] Raw instructions from API: ${JSON.stringify(
+        parsedRecipe.instructions,
+        null,
+        2
+      )}`
+    );
+
     if (Array.isArray(parsedRecipe.instructions)) {
-      instructions.push(...parsedRecipe.instructions.map(String));
+      console.log(
+        `[DeepSeekService] Processing instructions as array (${parsedRecipe.instructions.length} items)`
+      );
+      instructions.push(
+        ...parsedRecipe.instructions.map(String).filter(Boolean)
+      );
     } else if (typeof parsedRecipe.instructions === "string") {
+      console.log(`[DeepSeekService] Processing instructions as string`);
       // Split by newlines and filter out empty lines
       instructions.push(
         ...parsedRecipe.instructions
@@ -752,15 +940,22 @@ function parseDeepSeekResponse(response: DeepseekResponse): Partial<Recipe> {
           .filter((line: string) => line.length > 0)
       );
     } else if (parsedRecipe.steps && Array.isArray(parsedRecipe.steps)) {
-      // Some responses use "steps" instead of "instructions"
-      instructions.push(...parsedRecipe.steps.map(String));
+      console.log(
+        `[DeepSeekService] Processing steps as array (${parsedRecipe.steps.length} items)`
+      );
+      instructions.push(...parsedRecipe.steps.map(String).filter(Boolean));
+    } else {
+      console.log(`[DeepSeekService] No valid instructions format found`);
     }
+
     result.instructions = instructions;
+    console.log(
+      `[DeepSeekService] Final processed instructions count: ${instructions.length}`
+    );
 
     // Process ingredients - handles both array and object formats
     let ingredients: Ingredient[] = [];
 
-    // Log what ingredient format we're dealing with
     console.log(
       `[DeepSeekService] Raw ingredients from API: ${JSON.stringify(
         parsedRecipe.ingredients,
@@ -769,50 +964,113 @@ function parseDeepSeekResponse(response: DeepseekResponse): Partial<Recipe> {
       )}`
     );
 
-    // Case 1: Ingredients are a simple array of strings or objects
     if (Array.isArray(parsedRecipe.ingredients)) {
+      console.log(
+        `[DeepSeekService] Processing ingredients as array (${parsedRecipe.ingredients.length} items)`
+      );
       ingredients = parsedRecipe.ingredients.map(
         (ing: any, index: number): Ingredient => {
-          const ingredientName =
+          const ingredientText =
             typeof ing === "string" ? ing : ing?.name || "Unknown ingredient";
-          const quantityString =
-            typeof ing === "string" ? "" : ing?.quantity || "1";
-          const quantityParts = quantityString
-            ? quantityString.split(" ")
-            : ["1"];
-          const quantity = quantityParts[0] || "";
-          const unit = quantityParts.slice(1).join(" ") || "";
+
+          // Parse ingredient text to extract amount, unit, and name
+          const match = ingredientText.match(
+            /^([\d\/.]+(?:\s*-\s*[\d\/.]+)?)\s*([a-zA-Z]*)\s*(.+)$/
+          );
+
+          let amount = 1;
+          let unit = "";
+          let name = ingredientText;
+
+          if (match) {
+            const [_, quantity, possibleUnit, ingredientName] = match;
+            amount = parseFloat(quantity) || 1;
+
+            // Check if the possible unit is actually a unit
+            const commonUnits = [
+              "cup",
+              "cups",
+              "tbsp",
+              "tsp",
+              "tablespoon",
+              "tablespoons",
+              "teaspoon",
+              "teaspoons",
+              "oz",
+              "ounce",
+              "ounces",
+              "g",
+              "gram",
+              "grams",
+              "kg",
+              "lb",
+              "pound",
+              "pounds",
+              "small",
+              "medium",
+              "large",
+            ];
+
+            if (
+              possibleUnit &&
+              commonUnits.some((u) =>
+                possibleUnit.toLowerCase().includes(u.toLowerCase())
+              )
+            ) {
+              unit = possibleUnit;
+              name = ingredientName.trim();
+            } else {
+              name = ingredientText.trim();
+              unit = "";
+            }
+          } else {
+            // Simple fallback parsing
+            const parts = ingredientText.split(" ");
+            if (parts.length > 1 && !isNaN(parseFloat(parts[0]))) {
+              amount = parseFloat(parts[0]);
+              name = parts.slice(1).join(" ");
+            } else {
+              name = ingredientText;
+            }
+          }
 
           return {
             id: `temp-${index}`,
-            name: ingredientName,
-            amount: parseFloat(quantity) || 1,
-            unit: unit,
+            name: name.trim(),
+            amount,
+            unit: unit.trim(),
           };
         }
       );
     }
-    // Case 2: Ingredients are categorized in sections
+    // Handle ingredients as object with sections (the common DeepSeek format)
     else if (
       parsedRecipe.ingredients &&
       typeof parsedRecipe.ingredients === "object" &&
       !Array.isArray(parsedRecipe.ingredients)
     ) {
+      console.log(
+        `[DeepSeekService] Processing ingredients as object with sections`
+      );
       let index = 0;
 
       // Iterate through each section of ingredients
       for (const [section, items] of Object.entries(parsedRecipe.ingredients)) {
+        console.log(
+          `[DeepSeekService] Processing section "${section}" with ${
+            Array.isArray(items) ? items.length : 0
+          } items`
+        );
         if (Array.isArray(items)) {
-          // Add each ingredient with its section as a prefix if it's not a simple ingredient
           const sectionIngredients = items.map((item: any) => {
             const ingredientText =
               typeof item === "string"
                 ? item
                 : item?.name || "Unknown ingredient";
 
-            // Extract quantity/unit/name using regex
+            // Parse ingredient text to extract amount, unit, and name
             const match = ingredientText.match(
-              /^(~?\s*[\d\/\.]+\s*(?:-\s*[\d\/\.]+)?)?\s*((?:[\w\s]+)?)\s*(.+)$/
+              /^([\d\/.]+(?:\s*-\s*[\d\/.]+)?)\s*([a-zA-Z]*)\s*(.+)$/
             );
 
             let amount = 1;
@@ -821,12 +1079,8 @@ function parseDeepSeekResponse(response: DeepseekResponse): Partial<Recipe> {
 
             if (match) {
               const [_, quantity, possibleUnit, ingredientName] = match;
-              if (quantity) {
-                // Remove tilde and convert to number
-                amount = parseFloat(quantity.replace(/~/, "").trim()) || 1;
-              }
+              amount = parseFloat(quantity) || 1;
 
-              // Check if the possible unit is actually a unit
               const commonUnits = [
                 "cup",
                 "cups",
@@ -846,36 +1100,39 @@ function parseDeepSeekResponse(response: DeepseekResponse): Partial<Recipe> {
                 "lb",
                 "pound",
                 "pounds",
+                "small",
+                "medium",
+                "large",
               ];
 
               if (
                 possibleUnit &&
-                commonUnits.some((u) => possibleUnit.toLowerCase().includes(u))
+                commonUnits.some((u) =>
+                  possibleUnit.toLowerCase().includes(u.toLowerCase())
+                )
               ) {
-                unit = possibleUnit.trim();
+                unit = possibleUnit;
                 name = ingredientName.trim();
               } else {
-                // If no recognizable unit, combine possibleUnit and ingredientName
-                name = `${possibleUnit} ${ingredientName}`.trim();
+                name = ingredientText.trim();
+                unit = "";
               }
-            }
-
-            // If the section is not already part of the name and it's not a generic section
-            if (
-              !name.toLowerCase().includes(section.toLowerCase()) &&
-              !["ingredients", "ingredient", "items", "main"].includes(
-                section.toLowerCase()
-              )
-            ) {
-              name = `${section.replace(/_/g, " ")}: ${name}`;
+            } else {
+              // Simple fallback parsing
+              const parts = ingredientText.split(" ");
+              if (parts.length > 1 && !isNaN(parseFloat(parts[0]))) {
+                amount = parseFloat(parts[0]);
+                name = parts.slice(1).join(" ");
+              } else {
+                name = ingredientText;
+              }
             }
 
             return {
               id: `temp-${index++}`,
-              name,
+              name: name.trim(),
               amount,
-              unit,
-              category: section.replace(/_/g, " "),
+              unit: unit.trim(),
             };
           });
 
@@ -884,104 +1141,37 @@ function parseDeepSeekResponse(response: DeepseekResponse): Partial<Recipe> {
       }
     }
 
-    // Case 3: Scan all object entries for potential ingredient categories
-    // If we still don't have ingredients, check for other patterns
-    if (ingredients.length === 0) {
-      let index = 0;
-
-      for (const [key, value] of Object.entries(parsedRecipe)) {
-        // Check if this is likely an ingredient category
-        if (
-          Array.isArray(value) &&
-          !key.includes("instruction") &&
-          !key.includes("step") &&
-          key !== "tags" &&
-          key !== "nutritional_tags"
-        ) {
-          const categoryName = key.replace(/_/g, " ");
-          const categoryIngredients = value.map((item: any) => {
-            const ingredientText =
-              typeof item === "string"
-                ? item
-                : item?.name || "Unknown ingredient";
-
-            // Extract quantity from string format
-            const match = ingredientText.match(
-              /^(~?\s*[\d\/\.]+\s*(?:-\s*[\d\/\.]+)?)?\s*((?:[\w\s]+)?)\s*(.+)$/
-            );
-
-            let amount = 1;
-            let unit = "";
-            let name = ingredientText;
-
-            if (match) {
-              const [_, quantity, possibleUnit, ingredientName] = match;
-              if (quantity) {
-                // Remove tilde and convert to number
-                amount = parseFloat(quantity.replace(/~/, "").trim()) || 1;
-              }
-
-              // Check if the possible unit is actually a unit
-              const commonUnits = [
-                "cup",
-                "cups",
-                "tbsp",
-                "tsp",
-                "tablespoon",
-                "tablespoons",
-                "teaspoon",
-                "teaspoons",
-                "oz",
-                "ounce",
-                "ounces",
-                "g",
-                "gram",
-                "grams",
-                "kg",
-                "lb",
-                "pound",
-                "pounds",
-              ];
-
-              if (
-                possibleUnit &&
-                commonUnits.some((u) => possibleUnit.toLowerCase().includes(u))
-              ) {
-                unit = possibleUnit.trim();
-                name = ingredientName ? ingredientName.trim() : name;
-              } else if (ingredientName) {
-                // If no recognizable unit, combine possibleUnit and ingredientName
-                name = `${possibleUnit} ${ingredientName}`.trim();
-              }
-            }
-
-            // Add the category to the ingredient name if it's not a generic category
-            if (
-              !["ingredients", "ingredient", "items", "main"].includes(
-                categoryName.toLowerCase()
-              )
-            ) {
-              name = `${categoryName}: ${name}`;
-            }
-
-            return {
-              id: `temp-${index++}`,
-              name,
-              amount,
-              unit,
-              category: categoryName,
-            };
-          });
-
-          ingredients = [...ingredients, ...categoryIngredients];
-        }
-      }
-    }
-
     result.ingredients = ingredients;
     console.log(
-      `[DeepSeekService] Processed ${ingredients.length} ingredients`
+      `[DeepSeekService] Final processed ingredients count: ${ingredients.length}`
     );
+
+    // Validate the final result before returning
+    const hasTitle = !!result.title;
+    const hasIngredients = ingredients.length > 0;
+    const hasInstructions = instructions.length > 0;
+
+    console.log(
+      `[DeepSeekService] Final result summary: {
+        "ingredientsCount": ${ingredients.length},
+        "instructionsCount": ${instructions.length},
+        "hasTitle": ${hasTitle},
+        "hasIngredients": ${hasIngredients},
+        "hasInstructions": ${hasInstructions}
+      }`
+    );
+
+    // If we don't have critical data, log the raw response for debugging
+    if (!hasIngredients || !hasInstructions) {
+      console.error(
+        `[DeepSeekService] Missing critical data. Raw parsed object keys:`,
+        Object.keys(parsedRecipe)
+      );
+      console.error(
+        `[DeepSeekService] Raw parsed object:`,
+        JSON.stringify(parsedRecipe, null, 2)
+      );
+    }
 
     return result;
   } catch (error) {
@@ -1052,18 +1242,56 @@ Format it as a recipe post with clear sections for ingredients and steps.`;
 function fixCommonJsonErrors(jsonString: string): string {
   let fixedJson = jsonString;
 
-  // Fix unquoted property names
-  fixedJson = fixedJson.replace(/([{,]\s*)(\w+)(\s*:)/g, '$1"$2"$3');
+  // Remove any HTML tags that might have snuck in
+  fixedJson = fixedJson.replace(/<[^>]*>/g, "");
+
+  // Remove any leading/trailing whitespace and non-JSON content
+  fixedJson = fixedJson.trim();
+
+  // If the string starts with text before the JSON, try to extract just the JSON part
+  const jsonStart = fixedJson.indexOf("{");
+  const jsonEnd = fixedJson.lastIndexOf("}");
+  if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+    fixedJson = fixedJson.substring(jsonStart, jsonEnd + 1);
+  }
+
+  // Handle the specific problematic pattern in instructions
+  // Look for patterns like: "Cook the Ground Beef: "Heat olive oil in a large skillet..."
+  // This is a very targeted fix for the exact issue we're seeing
+
+  // Split into lines to process each instruction separately
+  const lines = fixedJson.split("\n");
+
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i].trim();
+
+    // Only process lines that are clearly instruction array items
+    if (
+      line.includes('"') &&
+      line.includes(': "') &&
+      line.includes('" ') &&
+      !line.includes('": "')
+    ) {
+      // This is likely an instruction with embedded quotes
+      // Pattern: "Cook the Ground Beef: "Heat olive oil..." and cook", about 3 minutes..."
+
+      // Find the instruction pattern and fix it carefully
+      const instructionMatch = line.match(
+        /^(\s*"[^"]*: ")([^"]*)"([^"]*)"([^"]*?")/
+      );
+      if (instructionMatch) {
+        const [, prefix, quoted1, middle, quoted2] = instructionMatch;
+        const fixed = `${prefix}${quoted1}\\"${middle}\\"${quoted2}`;
+        lines[i] = line.replace(instructionMatch[0], fixed);
+      }
+    }
+  }
+
+  fixedJson = lines.join("\n");
 
   // Fix trailing commas
   fixedJson = fixedJson.replace(/,\s*}/g, "}");
   fixedJson = fixedJson.replace(/,\s*]/g, "]");
-
-  // Fix missing quotes around string values
-  fixedJson = fixedJson.replace(
-    /:(\s*)([^"{}\[\],\s][^{}\[\],]*?)(\s*[,}])/g,
-    ':"$2"$3'
-  );
 
   return fixedJson;
 }

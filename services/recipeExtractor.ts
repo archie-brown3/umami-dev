@@ -9,9 +9,9 @@ import {
 } from "./deepseekservice";
 import { formatTag } from "./utils";
 
-// Get the API URL from environment variables
+// Use the API URL from the constants file
 const RECIPE_EXTRACTION_SERVICE_URL =
-  process.env.EXPO_PUBLIC_RECIPE_EXTRACTION_SERVICE_URL;
+  API_ENDPOINTS.RECIPE_EXTRACTION_SERVICE_URL;
 
 interface DeepseekResponse {
   choices: {
@@ -59,32 +59,35 @@ export async function extractRecipeFromUrl(
   try {
     addServiceLog(`Starting extraction for URL: ${url}`);
 
-    // Use the extraction API
-    const extractApiResponse = await fetch(
-      `${RECIPE_EXTRACTION_SERVICE_URL}/api/extract`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ url }),
-      }
-    );
+    // Check if it's an Instagram URL
+    const domain = new URL(url).hostname.toLowerCase();
 
-    if (!extractApiResponse.ok) {
-      throw new Error(
-        `API Error: ${extractApiResponse.status} ${extractApiResponse.statusText}`
+    if (domain.includes("instagram.com")) {
+      addServiceLog("Using Instagram extraction API");
+
+      // Use the extraction API for Instagram
+      const extractApiResponse = await fetch(
+        `${RECIPE_EXTRACTION_SERVICE_URL}/api/extract`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ url }),
+        }
       );
-    }
 
-    // Get the response as text first for better debugging
-    const responseText = await extractApiResponse.text();
+      if (!extractApiResponse.ok) {
+        throw new Error(
+          `Instagram API Error: ${extractApiResponse.status} ${extractApiResponse.statusText}`
+        );
+      }
 
-    try {
+      const responseText = await extractApiResponse.text();
       const recipeData = JSON.parse(responseText);
-      addServiceLog(`Successfully parsed extraction API response`);
+      addServiceLog(`Successfully parsed Instagram extraction API response`);
 
-      // Store the original text for potential reanalysis if needed
+      // Store the original text for analysis
       const originalText = recipeData.caption || "";
 
       // Analyze the recipe text to extract structured data
@@ -96,15 +99,155 @@ export async function extractRecipeFromUrl(
         imageUrl: recipeData.media?.[0]?.url,
         originalText,
       };
-    } catch (parseError) {
-      console.error(`JSON parse error:`, parseError);
-      throw new Error(
-        `Failed to parse API response: ${
-          parseError instanceof Error ? parseError.message : "Unknown error"
-        }`
+    } else {
+      addServiceLog("Using web scraping API for non-Instagram URL");
+
+      // First, check if the API is available
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+        const healthCheck = await fetch(
+          `${RECIPE_EXTRACTION_SERVICE_URL}/health`,
+          {
+            method: "GET",
+            signal: controller.signal,
+          }
+        );
+
+        clearTimeout(timeoutId);
+
+        if (!healthCheck.ok) {
+          throw new Error(
+            `Web scraping service is unavailable (status: ${healthCheck.status})`
+          );
+        }
+
+        addServiceLog("Web scraping API health check passed");
+      } catch (healthError) {
+        addServiceLog(
+          `Web scraping API health check failed: ${
+            healthError instanceof Error
+              ? healthError.message
+              : String(healthError)
+          }`
+        );
+        throw new Error(
+          "Web scraping service is currently unavailable. Please try again later."
+        );
+      }
+
+      // Use the new web scraping API for non-Instagram URLs
+      const webScrapingResponse = await fetch(
+        `${RECIPE_EXTRACTION_SERVICE_URL}/api/scrape-web`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            url,
+            options: {
+              text: true,
+              metadata: true,
+              images: true,
+              headings: true,
+              links: false,
+              tables: false,
+              forms: false,
+            },
+          }),
+        }
       );
+
+      if (!webScrapingResponse.ok) {
+        addServiceLog(
+          `Web scraping API error: ${webScrapingResponse.status} ${webScrapingResponse.statusText}`
+        );
+        throw new Error(
+          `Web Scraping API Error: ${webScrapingResponse.status} ${webScrapingResponse.statusText}`
+        );
+      }
+
+      const scrapedData = await webScrapingResponse.json();
+      addServiceLog(
+        `Web scraping successful, extracted ${
+          scrapedData.text?.word_count || 0
+        } words`
+      );
+
+      // Log the scraping response structure for debugging
+      addServiceLog(`Scraping response structure: {
+        "text": {
+          "word_count": ${scrapedData.text?.word_count || 0},
+          "full_text_length": ${scrapedData.text?.full_text?.length || 0}
+        },
+        "metadata": ${scrapedData.metadata ? "present" : "missing"},
+        "images": ${scrapedData.images ? "present" : "missing"}
+      }`);
+
+      // Extract the full text content from the scraped data
+      const scrapedText = scrapedData.text?.full_text || "";
+
+      if (!scrapedText) {
+        addServiceLog("No text content found on the webpage");
+        addServiceLog(
+          `Full scraping response: ${JSON.stringify(scrapedData, null, 2)}`
+        );
+        throw new Error(
+          "No text content found on the webpage. The page might be protected, require JavaScript, or contain only images/videos."
+        );
+      }
+
+      addServiceLog(
+        `Analyzing scraped content with DeepSeek (${scrapedText.length} characters)`
+      );
+
+      // Use DeepSeek to analyze and structure the scraped content into a recipe
+      const analysisResult = await analyzeRecipeText(scrapedText);
+
+      // Validate the extracted recipe
+      const validationErrors = validateRecipe(analysisResult);
+      if (validationErrors.length > 0) {
+        addServiceLog(
+          `Recipe validation failed: ${validationErrors.join(", ")}`
+        );
+
+        // Log detailed validation info for debugging
+        addServiceLog(`Recipe data summary: {
+          "title": "${analysisResult.title || "missing"}",
+          "ingredientsCount": ${analysisResult.ingredients?.length || 0},
+          "instructionsCount": ${analysisResult.instructions?.length || 0}
+        }`);
+
+        throw new Error(
+          `Recipe validation failed: ${validationErrors.join(", ")}`
+        );
+      }
+
+      addServiceLog(`Recipe validation passed successfully`);
+
+      // Normalize the recipe data
+      const normalizedRecipe = normalizeRecipe(analysisResult);
+
+      // Return the combined data with metadata from scraping
+      return {
+        ...normalizedRecipe,
+        imageUrl: scrapedData.images?.images?.[0]?.url,
+        originalText: scrapedText,
+        author:
+          scrapedData.metadata?.author ||
+          scrapedData.metadata?.open_graph?.author ||
+          scrapedData.metadata?.twitter?.creator,
+        sourceUrl: url,
+      };
     }
   } catch (error) {
+    addServiceLog(
+      `Recipe extraction error: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
     console.error("Recipe extraction error:", error);
     throw error;
   }
@@ -236,66 +379,6 @@ async function recordExtraction(extractionId: string): Promise<void> {
   }
 }
 */
-
-// Generic recipe website scraper
-async function scrapeGenericRecipeWebsite(
-  url: string
-): Promise<ScrapedContent | null> {
-  try {
-    // Since we can't directly scrape from the frontend due to CORS restrictions,
-    // we'll use DeepSeek API to simulate extraction
-    const prompt = `You are a helpful assistant that extracts content from recipe websites.
-
-For the URL: ${url}
-
-Please analyze what would likely be on this recipe webpage and provide the following information:
-1. Recipe title
-2. Full recipe content including ingredients and instructions
-3. Likely author name
-4. Likely publish date (if available)
-
-Format your response as if you were directly copying the full recipe. Start with the title, followed by the complete recipe text.
-Do not include any explanations or commentary - just return the extracted content.`;
-
-    const response = await fetch(API_ENDPOINTS.DEEPSEEK_API_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${API_ENDPOINTS.DEEPSEEK_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: "deepseek-chat",
-        messages: [
-          {
-            role: "user",
-            content: prompt,
-          },
-        ],
-        temperature: 0.2,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`API request failed with status ${response.status}`);
-    }
-
-    const data = (await response.json()) as DeepseekResponse;
-    const content = data.choices[0]?.message?.content || "";
-
-    // Try to extract title from first line
-    const lines = content.split("\n").filter((line) => line.trim().length > 0);
-    const title = lines.length > 0 ? lines[0] : undefined;
-
-    return {
-      title,
-      caption: content,
-      url,
-    };
-  } catch (error) {
-    console.error("Error scraping generic recipe website:", error);
-    return null;
-  }
-}
 
 /**
  * Validate that a recipe has the minimal required fields
@@ -442,3 +525,47 @@ function determineRecipeCategory(
 }
 
 // formatTag function moved to utils.ts
+
+/**
+ * Test the new web scraping and recipe validation flow
+ */
+export async function testWebScrapingFlow(url: string): Promise<{
+  success: boolean;
+  message: string;
+  recipe?: Partial<Recipe>;
+  validationErrors?: string[];
+}> {
+  try {
+    addServiceLog(`Testing web scraping flow for URL: ${url}`);
+
+    const recipe = await extractRecipeFromUrl(url);
+    const validationErrors = validateRecipe(recipe);
+
+    if (validationErrors.length > 0) {
+      return {
+        success: false,
+        message: `Recipe validation failed: ${validationErrors.join(", ")}`,
+        recipe,
+        validationErrors,
+      };
+    }
+
+    return {
+      success: true,
+      message: `Recipe extraction and validation successful! Title: "${
+        recipe.title
+      }", Ingredients: ${recipe.ingredients?.length || 0}, Instructions: ${
+        recipe.instructions?.length || 0
+      }`,
+      recipe,
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    addServiceLog(`Test failed: ${errorMessage}`);
+
+    return {
+      success: false,
+      message: `Test failed: ${errorMessage}`,
+    };
+  }
+}

@@ -15,7 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, typography } from "@/utils/styleUtils";
 import { useRecipes } from "@/context/RecipeContext";
 import { Recipe, Ingredient } from "@/types";
-import { scrapeFromUrl, analyzeRecipeText } from "@/services/deepseekservice";
+import { analyzeRecipeText } from "@/services/deepseekservice";
 import {
   extractRecipeFromUrl,
   validateRecipe,
@@ -71,84 +71,76 @@ export default function AddRecipeScreen() {
       setIsLoading(true);
       addLog(`Extracting recipe from ${urlInput}...`);
 
-      // Step 1: Scrape the content from the URL
-      const scrapedContent = await scrapeFromUrl(urlInput);
+      // Use the new extractRecipeFromUrl function which handles:
+      // 1. Web scraping API for real content
+      // 2. DeepSeek analysis for recipe formatting
+      // 3. Validation and normalization
+      const extractedRecipe = await extractRecipeFromUrl(urlInput);
 
-      if (!scrapedContent || !scrapedContent.caption) {
-        const errorMsg = "Failed to extract content from the URL";
+      if (!extractedRecipe) {
+        const errorMsg = "Failed to extract recipe from the URL";
         addLog(errorMsg);
         Alert.alert("Error", errorMsg);
         setIsLoading(false);
         return;
       }
 
-      addLog(`Scraped content: ${scrapedContent.caption.substring(0, 100)}...`);
+      addLog(`Extraction successful! Title: "${extractedRecipe.title}"`);
 
-      // Step 2: Analyze the scraped text
-      const recipeData = await analyzeRecipeText(scrapedContent.caption);
+      // The extractRecipeFromUrl already handles validation and normalization
+      // So we can proceed directly to creating the recipe
+      const newRecipe: Recipe = {
+        id: Date.now().toString(),
+        title: extractedRecipe.title || "Untitled Recipe",
+        description: extractedRecipe.description || "",
+        ingredients: extractedRecipe.ingredients || [],
+        instructions: extractedRecipe.instructions || [],
+        prepTime: extractedRecipe.prepTime || 0,
+        cookTime: extractedRecipe.cookTime || 0,
+        servings: extractedRecipe.servings || 2,
+        imageUrl: extractedRecipe.imageUrl,
+        tags: extractedRecipe.tags,
+        sourceUrl: extractedRecipe.sourceUrl,
+        author: extractedRecipe.author,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
 
-      if (recipeData) {
-        addLog("Recipe analysis successful!");
+      // Add the recipe to the user's collection
+      addRecipe(newRecipe);
+      addLog(`Recipe added: ${newRecipe.title}`);
 
-        // Normalize the recipe data
-        const normalizedData = normalizeRecipe(recipeData);
-
-        // Validate the recipe
-        const validationErrors = validateRecipe(normalizedData);
-        if (validationErrors.length > 0) {
-          addLog(`Validation failed: ${validationErrors.join(", ")}`);
-          Alert.alert(
-            "Error",
-            `Recipe is incomplete: ${validationErrors.join(", ")}`
-          );
-          setIsLoading(false);
-          return;
-        }
-
-        addLog("Recipe data is normalized and validated.");
-
-        // Step 3: Create a valid Recipe object
-        const newRecipe: Recipe = {
-          id: Date.now().toString(),
-          title: normalizedData.title || "Untitled Recipe",
-          description: normalizedData.description || "",
-          ingredients: normalizedData.ingredients || [],
-          instructions: normalizedData.instructions || [],
-          prepTime: normalizedData.prepTime || 0,
-          cookTime: normalizedData.cookTime || 0,
-          servings: normalizedData.servings || 2,
-          imageUrl: scrapedContent.imageUrl,
-          tags: normalizedData.tags,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-
-        // Step 4: Add the recipe to the user's collection
-        addRecipe(newRecipe);
-        addLog(`Recipe added: ${newRecipe.title}`);
-
-        // Step 5: Return to the previous screen with success message
-        Alert.alert(
-          "Success",
-          `Recipe "${newRecipe.title}" has been successfully added to your collection.`,
-          [
-            {
-              text: "OK",
-              onPress: () => router.push("/recipes"),
-            },
-          ]
-        );
-      } else {
-        const errorMsg = "Failed to analyze the recipe text";
-        addLog(errorMsg);
-        Alert.alert("Error", `${errorMsg}. Please try again or add manually.`);
-      }
+      // Return to the previous screen with success message
+      Alert.alert(
+        "Success",
+        `Recipe "${newRecipe.title}" has been successfully added to your collection.`,
+        [
+          {
+            text: "OK",
+            onPress: () => router.push("/recipes"),
+          },
+        ]
+      );
     } catch (error) {
       console.error("URL extraction error:", error);
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
       addLog(`Error: ${errorMessage}`);
-      Alert.alert("Error", `Failed to extract recipe: ${errorMessage}`);
+
+      // Provide more helpful error messages
+      let userMessage = `Failed to extract recipe: ${errorMessage}`;
+      if (errorMessage.includes("validation failed")) {
+        userMessage =
+          "The webpage doesn't contain a complete recipe with ingredients and instructions. Please try a different URL or add the recipe manually.";
+      } else if (errorMessage.includes("No text content found")) {
+        userMessage =
+          "Unable to extract content from this webpage. It might be protected or doesn't contain readable text.";
+      } else if (errorMessage.includes("Web Scraping API Error")) {
+        userMessage =
+          "The scraping service is temporarily unavailable. Please try again later or add the recipe manually.";
+      }
+
+      Alert.alert("Error", userMessage);
     } finally {
       setIsLoading(false);
     }
