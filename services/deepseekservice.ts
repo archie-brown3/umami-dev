@@ -105,7 +105,7 @@ export async function scrapeFromUrl(
 
         if (apiAvailable) {
           // Use dedicated API service for Instagram extraction
-          const apiResponse = await extractFromInstagramApi(url);
+          const apiResponse = await extractFromInstagramScraping(url);
           console.log(`[Instagram] API response received`);
 
           if (apiResponse) {
@@ -113,7 +113,7 @@ export async function scrapeFromUrl(
               caption:
                 apiResponse.caption || apiResponse.ingredients.join("\n"),
               url,
-              author: extractInstagramUsername(url),
+              author: extractInstagramUsername(apiResponse.metadata),
               imageUrl: apiResponse.media?.[0]?.url,
               mediaUrls: apiResponse.media?.map(
                 (m: { url: string; type: string }) => ({
@@ -143,6 +143,8 @@ export async function scrapeFromUrl(
 
         // Try fallback extraction method using DeepSeek directly
         console.log(`[Instagram] Trying local fallback extraction...`);
+        // COMMENTED OUT - using new scrape-web approach instead
+        /*
         const fallbackCaption = await fetchInstagramCaption(url);
 
         if (fallbackCaption) {
@@ -157,6 +159,7 @@ export async function scrapeFromUrl(
           );
           return fallbackResult;
         }
+        */
 
         // If fallback also failed, re-throw
         throw instagramError;
@@ -274,76 +277,93 @@ async function isExtractApiAvailable(): Promise<boolean> {
 }
 
 /**
- * Extract recipe data from Instagram using the dedicated API
+ * NEW: Extract Instagram data using /scrape-web endpoint
  */
-async function extractFromInstagramApi(instagramUrl: string): Promise<any> {
+async function extractFromInstagramScraping(
+  instagramUrl: string
+): Promise<any> {
   console.log(
-    `[Instagram] Making API request to ${API_ENDPOINTS.EXTRACT_API_URL}/api/extract`
+    `[Instagram] Making scrape-web API request to ${API_ENDPOINTS.EXTRACT_API_URL}/api/scrape-web`
   );
 
-  // Add retry logic with timeout
   const maxRetries = 2;
   let retryCount = 0;
   let lastError: Error | null = null;
 
   while (retryCount <= maxRetries) {
     try {
-      // Set a timeout for the fetch operation
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout for scraping
 
       const response = await fetch(
-        `${API_ENDPOINTS.EXTRACT_API_URL}/api/extract`,
+        `${API_ENDPOINTS.EXTRACT_API_URL}/api/scrape-web`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ url: instagramUrl }),
+          body: JSON.stringify({
+            url: instagramUrl,
+            options: {
+              text: true,
+              metadata: true,
+              images: true,
+              headings: true,
+              links: false,
+              tables: false,
+              forms: false,
+            },
+          }),
           signal: controller.signal,
         }
       );
 
       clearTimeout(timeoutId);
 
-      console.log(`[Instagram] API Response Status: ${response.status}`);
+      console.log(`[Instagram] Scrape API Response Status: ${response.status}`);
 
-      // Get the response as text first to aid debugging
       const responseText = await response.text();
       console.log(
-        `[Instagram] Raw API Response: ${responseText.substring(0, 200)}...`
+        `[Instagram] Raw Scrape Response: ${responseText.substring(0, 300)}...`
       );
 
       if (!response.ok) {
         console.error(
-          `[Instagram] API Error: ${response.status} ${response.statusText}`
+          `[Instagram] Scrape API Error: ${response.status} ${response.statusText}`
         );
-        throw new Error(`API Error: ${response.status} ${response.statusText}`);
+        throw new Error(
+          `Scrape API Error: ${response.status} ${response.statusText}`
+        );
       }
 
-      try {
-        const recipeData = JSON.parse(responseText);
-        console.log(`[Instagram] Successfully parsed API response`);
-        return recipeData;
-      } catch (parseError) {
-        console.error(`[Instagram] JSON parse error:`, parseError);
-        throw new Error(
-          `Failed to parse API response: ${
-            parseError instanceof Error ? parseError.message : "Unknown error"
-          }`
-        );
-      }
+      const scrapedData = JSON.parse(responseText);
+      console.log(`[Instagram] Successfully parsed scrape response`);
+
+      // Log what we got for testing
+      addServiceLog(`Instagram scrape result: {
+        "text_length": ${scrapedData.text?.full_text?.length || 0},
+        "word_count": ${scrapedData.text?.word_count || 0},
+        "images_count": ${scrapedData.images?.total_images || 0},
+        "metadata_title": "${scrapedData.metadata?.title || "none"}",
+        "has_open_graph": ${!!scrapedData.metadata?.open_graph}
+      }`);
+
+      // Extract Instagram-specific data
+      const instagramData = extractInstagramDataFromScrape(
+        scrapedData,
+        instagramUrl
+      );
+      return instagramData;
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
       console.warn(
-        `[Instagram] Extraction attempt ${retryCount + 1} failed: ${
+        `[Instagram] Scrape attempt ${retryCount + 1} failed: ${
           lastError.message
         }`
       );
       retryCount++;
 
       if (retryCount <= maxRetries) {
-        // Wait before retrying (exponential backoff)
         const delay = 1000 * Math.pow(2, retryCount);
         console.log(`[Instagram] Retrying in ${delay}ms...`);
         await new Promise((resolve) => setTimeout(resolve, delay));
@@ -351,96 +371,171 @@ async function extractFromInstagramApi(instagramUrl: string): Promise<any> {
     }
   }
 
-  // If we got here, all retries failed - try fallback to direct DeepSeek extraction
-  console.log(
-    `[Instagram] All extraction attempts failed, using DeepSeek fallback`
-  );
-
-  try {
-    const caption = await fetchInstagramCaption(instagramUrl);
-    if (caption) {
-      return {
-        caption,
-        media: [],
-        ingredients: caption
-          .split("\n")
-          .filter((line) => line.includes("•") || line.includes("-")),
-        instructions: [],
-      };
-    }
-  } catch (fallbackError) {
-    console.error(
-      "[Instagram] Fallback extraction also failed:",
-      fallbackError
-    );
-  }
-
-  // Rethrow the last error if fallback also failed
   if (lastError) throw lastError;
-  throw new Error("Failed to extract recipe from Instagram");
+  throw new Error("Failed to scrape Instagram post");
 }
 
-// Function to fetch caption from Instagram URL
-async function fetchInstagramCaption(
+/**
+ * Extract Instagram-specific data from scraped content
+ */
+function extractInstagramDataFromScrape(
+  scrapedData: any,
   instagramUrl: string
-): Promise<string | null> {
-  try {
-    // Use DeepSeek API to simulate extraction
-    const prompt = `You are a helpful assistant that extracts probable recipe captions from Instagram posts.
-    
-For the Instagram URL: ${instagramUrl}
-    
-Please provide what you believe would be the most likely recipe caption for this post. 
-Focus on identifying the recipe title, ingredients list, and cooking steps. If this doesn't 
-appear to be a recipe post, please respond with "Not a recipe post."
+): any {
+  // Extract caption from text content
+  const fullText = scrapedData.text?.full_text || "";
 
-Do not include any explanations or commentary - just return the extracted caption text as if it were directly copied from Instagram.`;
+  // Try to extract username from URL
+  const username = extractInstagramUsername(scrapedData.metadata);
 
-    const response = await fetch(API_ENDPOINTS.DEEPSEEK_API_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${API_ENDPOINTS.DEEPSEEK_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: "deepseek-chat",
-        messages: [
-          {
-            role: "user",
-            content: prompt,
-          },
-        ],
-        temperature: 0.2,
-      }),
-    });
+  // Get potential thumbnail from images
+  let thumbnailUrl = scrapedData.images?.images?.[0]?.src;
 
-    if (!response.ok) {
-      throw new Error(`API request failed with status ${response.status}`);
+  // For Instagram, try to get image from metadata first
+  if (isInstagramUrl(instagramUrl)) {
+    const ogImage = scrapedData.metadata?.open_graph?.image;
+    const twitterImage = scrapedData.metadata?.twitter_card?.image;
+
+    // Prefer og:image or twitter:image for Instagram posts
+    if (ogImage) {
+      thumbnailUrl = processInstagramImageUrl(ogImage);
+      console.log(
+        `[DeepSeekService] Using og:image for Instagram: ${thumbnailUrl}`
+      );
+    } else if (twitterImage) {
+      thumbnailUrl = processInstagramImageUrl(twitterImage);
+      console.log(
+        `[DeepSeekService] Using twitter:image for Instagram: ${thumbnailUrl}`
+      );
+    } else if (thumbnailUrl) {
+      thumbnailUrl = processInstagramImageUrl(thumbnailUrl);
+      console.log(
+        `[DeepSeekService] Processing scraped image for Instagram: ${thumbnailUrl}`
+      );
     }
-
-    const data = (await response.json()) as DeepseekResponse;
-    const content = data.choices[0]?.message?.content || "";
-
-    if (content.includes("Not a recipe post")) {
-      return null;
-    }
-
-    return content;
-  } catch (error) {
-    console.error("Error fetching Instagram caption:", error);
-    return null;
   }
+
+  // Extract caption - look for patterns in the scraped text
+  let caption = "";
+
+  // First try to get from Open Graph description
+  if (scrapedData.metadata?.open_graph?.description) {
+    caption = scrapedData.metadata.open_graph.description;
+  }
+  // Then try regular meta description
+  else if (scrapedData.metadata?.description) {
+    caption = scrapedData.metadata.description;
+  }
+  // Fallback to looking in the text content
+  else if (fullText) {
+    // Try to extract meaningful content from the full text
+    // This is basic - we'll refine based on test results
+    const lines = fullText
+      .split("\n")
+      .filter((line: string) => line.trim().length > 0);
+    caption = lines.slice(0, 3).join(" ").substring(0, 500); // First few lines, max 500 chars
+  }
+
+  const result = {
+    caption: caption || "No caption extracted",
+    username: username || "unknown",
+    thumbnail: thumbnailUrl || null,
+    url: instagramUrl,
+    raw_scraped_data: scrapedData, // Include for testing/debugging
+    extraction_method: "scrape-web",
+  };
+
+  addServiceLog(`Extracted Instagram data: {
+    "caption_length": ${result.caption.length},
+    "username": "${result.username}",
+    "has_thumbnail": ${!!result.thumbnail}
+  }`);
+
+  return result;
 }
 
-// Helper function to extract Instagram username from URL
-function extractInstagramUsername(instagramUrl: string): string | undefined {
-  try {
-    // Try to extract username from URL format: instagram.com/username/...
-    const match = instagramUrl.match(/instagram\.com\/([^\/\?]+)/i);
-    return match ? match[1] : undefined;
-  } catch {
-    return undefined;
+// Helper function to extract Instagram username from metadata
+function extractInstagramUsername(metadata: any): string | undefined {
+  console.log("[DeepSeekService] Extracting Instagram username from metadata");
+
+  // Method 1: From twitter:title: "Cal Reynolds (@username) • Instagram reel"
+  const twitterTitle = metadata?.twitter_card?.title;
+  if (twitterTitle) {
+    const match = twitterTitle.match(/\(@([^)]+)\)/);
+    if (match) {
+      console.log(
+        `[DeepSeekService] Username extracted from twitter:title: ${match[1]}`
+      );
+      return match[1];
+    }
   }
+
+  // Method 2: From og:description: "username on Date:"
+  const ogDesc = metadata?.open_graph?.description;
+  if (ogDesc) {
+    const match = ogDesc.match(/(\w+) on \w+ \d+, \d+:/);
+    if (match) {
+      console.log(
+        `[DeepSeekService] Username extracted from og:description: ${match[1]}`
+      );
+      return match[1];
+    }
+  }
+
+  // Method 3: From URL pattern if available
+  const ogUrl = metadata?.open_graph?.url;
+  if (ogUrl && ogUrl.includes("instagram.com/")) {
+    const match = ogUrl.match(/instagram\.com\/([^\/]+)\//);
+    if (
+      match &&
+      match[1] !== "p" &&
+      match[1] !== "reel" &&
+      match[1] !== "share"
+    ) {
+      console.log(`[DeepSeekService] Username extracted from URL: ${match[1]}`);
+      return match[1];
+    }
+  }
+
+  console.log("[DeepSeekService] No Instagram username found in metadata");
+  return undefined;
+}
+
+// Helper function to process Instagram image URLs
+function processInstagramImageUrl(
+  imageUrl: string | undefined
+): string | undefined {
+  if (!imageUrl) return undefined;
+
+  console.log(`[DeepSeekService] Processing Instagram image URL: ${imageUrl}`);
+
+  // Check if it's an Instagram CDN URL
+  if (imageUrl.includes("cdninstagram.com") || imageUrl.includes("fbcdn.net")) {
+    console.log("[DeepSeekService] Detected Instagram CDN URL");
+
+    // For Instagram CDN URLs, we can try using an image proxy service
+    // This helps with CORS issues and provides better reliability
+    try {
+      const proxyUrl = `https://images.weserv.nl/?url=${encodeURIComponent(
+        imageUrl
+      )}&w=640&h=640&fit=cover&output=jpg`;
+      console.log(`[DeepSeekService] Generated proxy URL: ${proxyUrl}`);
+      return proxyUrl;
+    } catch (error) {
+      console.warn(
+        "[DeepSeekService] Failed to generate proxy URL, using original:",
+        error
+      );
+      return imageUrl;
+    }
+  }
+
+  return imageUrl;
+}
+
+// Helper function to detect if URL is from Instagram
+function isInstagramUrl(url: string): boolean {
+  return url.includes("instagram.com");
 }
 
 // Generic recipe website scraper
@@ -670,17 +765,28 @@ export async function analyzeRecipeText(
       processedText = recipeText.substring(0, MAX_LENGTH);
     }
 
-    // Split the analysis into smaller parallel tasks
-    const [basicInfo, nutritionInfo] = await Promise.all([
-      analyzeBasicRecipeInfo(processedText),
-      analyzeNutritionInfo(processedText),
-    ]);
+    // SIMPLIFIED: Use single comprehensive analysis instead of splitting
+    // The two-part approach was causing data loss where ingredients/instructions
+    // were returned in the wrong analysis part
+    console.log(
+      `[DeepSeekService] Using single comprehensive analysis approach`
+    );
 
-    // Merge the results
-    const result = {
-      ...basicInfo,
-      ...nutritionInfo,
-    };
+    // Comprehensive recipe analysis in a single call
+    const result = await analyzeComprehensiveRecipeInfo(processedText);
+
+    console.log(
+      `[DeepSeekService] Comprehensive result keys:`,
+      Object.keys(result || {})
+    );
+    console.log(
+      `[DeepSeekService] Final ingredients count:`,
+      result?.ingredients?.length || 0
+    );
+    console.log(
+      `[DeepSeekService] Final instructions count:`,
+      result?.instructions?.length || 0
+    );
 
     // Cache the result
     recipeCache.set(cacheKey, result);
@@ -701,48 +807,41 @@ export async function analyzeRecipeText(
   }
 }
 
-// Split recipe analysis into smaller tasks
-async function analyzeBasicRecipeInfo(text: string) {
-  const prompt = `You are a recipe extraction assistant. Extract the following information from this recipe text and return it as a valid JSON object.
+// Comprehensive recipe analysis in a single call
+async function analyzeComprehensiveRecipeInfo(text: string) {
+  const prompt = `You are a comprehensive recipe extraction assistant. Extract ALL information from this recipe text and return it as a valid JSON object.
 
-Example format - respond with ONLY valid JSON:
-{
-  "title": "Recipe Title",
-  "description": "Brief description",
-  "ingredients": [
-    "1 tablespoon olive oil",
-    "1 pound ground beef",
-    "2 cloves garlic"
-  ],
-  "instructions": [
-    "Heat oil in pan",
-    "Cook beef until browned", 
-    "Add garlic and cook 1 minute"
-  ],
-  "prep_time": 15,
-  "cook_time": 30,
-  "servings": 4
-}
-
-Extract from this recipe text:
-${text}
-
-Return ONLY the JSON object, no explanations or code blocks.`;
-
-  const response = await callDeepSeekAPI(prompt);
-  return parseDeepSeekResponse(response);
-}
-
-async function analyzeNutritionInfo(text: string) {
-  const prompt = `Extract nutritional and categorization information from this recipe. Return as valid JSON only.
+CRITICAL: Include ALL fields below - this is a complete extraction, not partial.
 
 Required format - respond with ONLY valid JSON:
 {
-  "tags": ["Mexican", "Beef", "Quick"],
+  "title": "Recipe Title",
+  "description": "Brief description of the recipe",
+  "ingredients": [
+    "1 tablespoon olive oil",
+    "1 pound ground beef",
+    "2 cloves garlic, minced"
+  ],
+  "instructions": [
+    "Heat oil in pan over medium heat",
+    "Cook beef until browned, about 5 minutes", 
+    "Add garlic and cook 1 minute more"
+  ],
+  "prep_time": 15,
+  "cook_time": 30,
+  "servings": 4,
+  "tags": ["Greek", "Chicken", "Quick"],
   "meal_type": ["Dinner", "Lunch"],
-  "cuisine_type": ["Mexican"],
-  "dietary_categories": ["High-Protein"]
+  "cuisine_type": ["Greek"],
+  "dietary_categories": ["High-Protein", "Mediterranean"]
 }
+
+IMPORTANT RULES:
+1. Extract ALL ingredients as complete strings (with quantities)
+2. Extract ALL instructions as step-by-step strings
+3. Include title, description, prep_time, cook_time, servings
+4. Add appropriate tags and categories
+5. Return ONLY the JSON object, no explanations or code blocks
 
 Recipe text:
 ${text}
@@ -752,6 +851,19 @@ Return ONLY the JSON object, no explanations or code blocks.`;
   const response = await callDeepSeekAPI(prompt);
   return parseDeepSeekResponse(response);
 }
+
+/*
+// OLD: Split recipe analysis into smaller tasks - COMMENTED OUT
+// This approach was causing data loss where ingredients were returned in nutrition analysis
+// and basic analysis wasn't returning the actual recipe data
+async function analyzeBasicRecipeInfo(text: string) {
+  // ... old function commented out
+}
+
+async function analyzeNutritionInfo(text: string) {
+  // ... old function commented out  
+}
+*/
 
 // Helper function for API calls with retries
 async function callDeepSeekAPI(
@@ -973,66 +1085,8 @@ function parseDeepSeekResponse(response: DeepseekResponse): Partial<Recipe> {
           const ingredientText =
             typeof ing === "string" ? ing : ing?.name || "Unknown ingredient";
 
-          // Parse ingredient text to extract amount, unit, and name
-          const match = ingredientText.match(
-            /^([\d\/.]+(?:\s*-\s*[\d\/.]+)?)\s*([a-zA-Z]*)\s*(.+)$/
-          );
-
-          let amount = 1;
-          let unit = "";
-          let name = ingredientText;
-
-          if (match) {
-            const [_, quantity, possibleUnit, ingredientName] = match;
-            amount = parseFloat(quantity) || 1;
-
-            // Check if the possible unit is actually a unit
-            const commonUnits = [
-              "cup",
-              "cups",
-              "tbsp",
-              "tsp",
-              "tablespoon",
-              "tablespoons",
-              "teaspoon",
-              "teaspoons",
-              "oz",
-              "ounce",
-              "ounces",
-              "g",
-              "gram",
-              "grams",
-              "kg",
-              "lb",
-              "pound",
-              "pounds",
-              "small",
-              "medium",
-              "large",
-            ];
-
-            if (
-              possibleUnit &&
-              commonUnits.some((u) =>
-                possibleUnit.toLowerCase().includes(u.toLowerCase())
-              )
-            ) {
-              unit = possibleUnit;
-              name = ingredientName.trim();
-            } else {
-              name = ingredientText.trim();
-              unit = "";
-            }
-          } else {
-            // Simple fallback parsing
-            const parts = ingredientText.split(" ");
-            if (parts.length > 1 && !isNaN(parseFloat(parts[0]))) {
-              amount = parseFloat(parts[0]);
-              name = parts.slice(1).join(" ");
-            } else {
-              name = ingredientText;
-            }
-          }
+          // Enhanced parsing to extract amount, unit, and name properly
+          const { amount, unit, name } = parseIngredientText(ingredientText);
 
           return {
             id: `temp-${index}`,
@@ -1068,65 +1122,8 @@ function parseDeepSeekResponse(response: DeepseekResponse): Partial<Recipe> {
                 ? item
                 : item?.name || "Unknown ingredient";
 
-            // Parse ingredient text to extract amount, unit, and name
-            const match = ingredientText.match(
-              /^([\d\/.]+(?:\s*-\s*[\d\/.]+)?)\s*([a-zA-Z]*)\s*(.+)$/
-            );
-
-            let amount = 1;
-            let unit = "";
-            let name = ingredientText;
-
-            if (match) {
-              const [_, quantity, possibleUnit, ingredientName] = match;
-              amount = parseFloat(quantity) || 1;
-
-              const commonUnits = [
-                "cup",
-                "cups",
-                "tbsp",
-                "tsp",
-                "tablespoon",
-                "tablespoons",
-                "teaspoon",
-                "teaspoons",
-                "oz",
-                "ounce",
-                "ounces",
-                "g",
-                "gram",
-                "grams",
-                "kg",
-                "lb",
-                "pound",
-                "pounds",
-                "small",
-                "medium",
-                "large",
-              ];
-
-              if (
-                possibleUnit &&
-                commonUnits.some((u) =>
-                  possibleUnit.toLowerCase().includes(u.toLowerCase())
-                )
-              ) {
-                unit = possibleUnit;
-                name = ingredientName.trim();
-              } else {
-                name = ingredientText.trim();
-                unit = "";
-              }
-            } else {
-              // Simple fallback parsing
-              const parts = ingredientText.split(" ");
-              if (parts.length > 1 && !isNaN(parseFloat(parts[0]))) {
-                amount = parseFloat(parts[0]);
-                name = parts.slice(1).join(" ");
-              } else {
-                name = ingredientText;
-              }
-            }
+            // Enhanced parsing to extract amount, unit, and name properly
+            const { amount, unit, name } = parseIngredientText(ingredientText);
 
             return {
               id: `temp-${index++}`,
@@ -1343,4 +1340,90 @@ function processNutritionalTags(parsedRecipe: any): string[] {
 
   // Remove duplicates
   return [...new Set(allTags)];
+}
+
+// Helper function to parse ingredient text and extract amount, unit, and name
+function parseIngredientText(ingredientText: string): {
+  amount: number;
+  unit: string;
+  name: string;
+} {
+  // Enhanced regex patterns to handle various ingredient formats
+  const patterns = [
+    // Pattern 1: "2 cups flour" or "1/2 cup sugar"
+    /^([\d\/.]+(?:\s*-\s*[\d\/.]+)?)\s+([a-zA-Z]+)\s+(.+)$/,
+    // Pattern 2: "2 tablespoons olive oil"
+    /^([\d\/.]+(?:\s*-\s*[\d\/.]+)?)\s+(tablespoons?|teaspoons?|tbsp|tsp|cups?|ounces?|oz|pounds?|lbs?|grams?|g|kilograms?|kg)\s+(.+)$/i,
+    // Pattern 3: "~2 cups flour" (with tilde)
+    /^~?([\d\/.]+(?:\s*-\s*[\d\/.]+)?)\s+([a-zA-Z]+)\s+(.+)$/,
+    // Pattern 4: Just number and ingredient "2 eggs"
+    /^([\d\/.]+(?:\s*-\s*[\d\/.]+)?)\s+(.+)$/,
+  ];
+
+  // Try each pattern
+  for (const pattern of patterns) {
+    const match = ingredientText.match(pattern);
+    if (match) {
+      const [, quantity, unitOrName, nameOrEmpty] = match;
+
+      // If we have 4 groups (quantity, unit, name), it's a full match
+      if (nameOrEmpty) {
+        const commonUnits = [
+          "cup",
+          "cups",
+          "tbsp",
+          "tsp",
+          "tablespoon",
+          "tablespoons",
+          "teaspoon",
+          "teaspoons",
+          "oz",
+          "ounce",
+          "ounces",
+          "g",
+          "gram",
+          "grams",
+          "kg",
+          "lb",
+          "pound",
+          "pounds",
+          "small",
+          "medium",
+          "large",
+          "clove",
+          "cloves",
+          "slice",
+          "slices",
+          "piece",
+          "pieces",
+        ];
+
+        const isUnit = commonUnits.some((unit) =>
+          unitOrName.toLowerCase().includes(unit.toLowerCase())
+        );
+
+        if (isUnit) {
+          return {
+            amount: parseFloat(quantity.replace(/~/g, "")) || 1,
+            unit: unitOrName.trim(),
+            name: nameOrEmpty.trim(),
+          };
+        }
+      }
+
+      // If we only have quantity and name (no unit)
+      return {
+        amount: parseFloat(quantity.replace(/~/g, "")) || 1,
+        unit: "",
+        name: (nameOrEmpty || unitOrName).trim(),
+      };
+    }
+  }
+
+  // Fallback: if no pattern matches, treat as just a name
+  return {
+    amount: 1,
+    unit: "",
+    name: ingredientText.trim(),
+  };
 }

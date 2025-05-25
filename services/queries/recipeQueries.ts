@@ -41,6 +41,17 @@ const RECIPE_INGREDIENTS = `
   )
 `;
 
+// Recipe tags with their tag info
+const RECIPE_TAGS = `
+  recipe_tags (
+    tag_id,
+    tags (
+      id,
+      name
+    )
+  )
+`;
+
 export const recipeQueries = {
   // Get basic recipe info (lightweight)
   getBasicRecipe: (recipeId: string) =>
@@ -58,7 +69,8 @@ export const recipeQueries = {
         `
         ${RECIPE_BASE_FIELDS},
         ${RECIPE_STEPS},
-        ${RECIPE_INGREDIENTS}
+        ${RECIPE_INGREDIENTS},
+        ${RECIPE_TAGS}
       `
       )
       .eq("id", recipeId)

@@ -20,6 +20,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Recipe } from "@/types";
 import { getRecipeWithDetails } from "@/services/recipeService";
 import { supabase } from "@/lib/supabase";
+import { formatTagName } from "@/services/tagUtils";
+import RecipeIngredientRow from "@/components/recipes/RecipeIngredientRow";
 
 const RETRY_DELAY = 2000; // 2 seconds
 
@@ -32,6 +34,7 @@ export default function RecipeDetailScreen() {
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [imageError, setImageError] = useState(false);
 
   const recipeId = Array.isArray(id) ? id[0] : id;
 
@@ -49,6 +52,10 @@ export default function RecipeDetailScreen() {
         console.log(
           "[RecipeDetailScreen] Recipe details fetched:",
           JSON.stringify(details, null, 2).substring(0, 500) + "..."
+        );
+        console.log(
+          `[RecipeDetailScreen] Recipe tags:`,
+          JSON.stringify(details.tags, null, 2)
         );
       } else {
         setError("Recipe not found.");
@@ -80,34 +87,6 @@ export default function RecipeDetailScreen() {
       fetchRecipeDetails();
     }
   }, [recipeId]);
-
-  // Get icon name for ingredient
-  const getIconForIngredient = (ingredientName: string) => {
-    const lowerName = ingredientName.toLowerCase();
-    if (lowerName.includes("sweet potato") || lowerName.includes("potato"))
-      return "restaurant-outline";
-    if (lowerName.includes("oil") || lowerName.includes("olive"))
-      return "water-outline";
-    if (lowerName.includes("garlic")) return "flower-outline";
-    if (lowerName.includes("italian") || lowerName.includes("seasoning"))
-      return "sparkles-outline";
-    if (lowerName.includes("pepper")) return "flame-outline";
-    if (lowerName.includes("meat") || lowerName.includes("chicken"))
-      return "restaurant-outline";
-    if (lowerName.includes("tomato")) return "nutrition-outline";
-    if (lowerName.includes("broccoli") || lowerName.includes("vegetable"))
-      return "leaf-outline";
-    if (lowerName.includes("rice") || lowerName.includes("pasta"))
-      return "grid-outline";
-    if (lowerName.includes("fish") || lowerName.includes("seafood"))
-      return "fish-outline";
-    if (lowerName.includes("egg")) return "ellipse-outline";
-    if (lowerName.includes("cheese") || lowerName.includes("parmesan"))
-      return "square-outline";
-    if (lowerName.includes("spice") || lowerName.includes("herb"))
-      return "sparkles-outline";
-    return "restaurant-outline";
-  };
 
   // Loading state with retry information
   if (loading) {
@@ -371,11 +350,17 @@ export default function RecipeDetailScreen() {
 
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         {/* Recipe Image with overlay text */}
-        {recipe.imageUrl ? (
+        {recipe.imageUrl && !imageError ? (
           <ImageBackground
             source={{ uri: recipe.imageUrl }}
             style={styles.recipeImage}
             resizeMode="cover"
+            onError={() => {
+              console.log(
+                `[RecipeDetail] Image failed to load: ${recipe.imageUrl}`
+              );
+              setImageError(true);
+            }}
           >
             {/* Optional: You can add an overlay for text directly on the image if desired */}
             {/* <View style={styles.imageOverlay}>
@@ -390,6 +375,11 @@ export default function RecipeDetailScreen() {
               size={48}
               color={colors.gray[300]}
             />
+            {imageError && (
+              <Text style={styles.imagePlaceholderText}>
+                Image failed to load
+              </Text>
+            )}
           </View>
         )}
 
@@ -400,6 +390,27 @@ export default function RecipeDetailScreen() {
             {totalTime > 0 ? `${totalTime} Mins | ` : ""} {recipe.servings || 1}{" "}
             serving{recipe.servings === 1 ? "" : "s"}
           </Text>
+
+          {/* Recipe Tags */}
+          {(() => {
+            console.log(`[RecipeDetail] Checking tags:`, recipe.tags);
+            return recipe.tags && recipe.tags.length > 0 ? (
+              <View style={styles.tagsContainer}>
+                {recipe.tags.slice(0, 6).map((tag, index) => (
+                  <View key={`${tag}-${index}`} style={styles.tagChip}>
+                    <Text style={styles.tagChipText}>{formatTagName(tag)}</Text>
+                  </View>
+                ))}
+                {recipe.tags.length > 6 && (
+                  <View style={styles.moreTagsChip}>
+                    <Text style={styles.moreTagsText}>
+                      +{recipe.tags.length - 6} more
+                    </Text>
+                  </View>
+                )}
+              </View>
+            ) : null;
+          })()}
         </View>
 
         {/* Author Section - Only display if author info exists */}
@@ -432,27 +443,13 @@ export default function RecipeDetailScreen() {
           <Text style={styles.sectionTitle}>Ingredients</Text>
           {recipe?.ingredients && recipe.ingredients.length > 0 ? (
             recipe.ingredients.map((ingredient, index) => (
-              <View
+              <RecipeIngredientRow
                 key={ingredient.id || index.toString()}
-                style={styles.ingredientRow}
-              >
-                <View style={styles.ingredientCircleIcon}>
-                  <Ionicons
-                    name={getIconForIngredient(ingredient.name)}
-                    size={20}
-                    color="#F87171"
-                  />
-                </View>
-                <View style={styles.ingredientTextWrap}>
-                  <Text style={styles.ingredientAmountText}>
-                    {ingredient.amount} {ingredient.unit}
-                  </Text>
-                  <Text> </Text>
-                  <Text style={styles.ingredientNameText}>
-                    {ingredient.name}
-                  </Text>
-                </View>
-              </View>
+                ingredient={ingredient}
+                recipeId={recipe.id}
+                showStatus={true}
+                showAddToShoppingList={true}
+              />
             ))
           ) : (
             <View style={styles.noDataContainer}>
@@ -719,40 +716,47 @@ const styles = StyleSheet.create({
     color: colors.gray[600],
     paddingHorizontal: spacing.lg,
   },
-  ingredientRow: {
+  imagePlaceholderText: {
+    color: colors.gray[400],
+    fontSize: 15,
+    fontStyle: "italic",
+  },
+  tagsContainer: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: spacing.sm,
-  },
-  ingredientCircleIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.gray[100],
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: spacing.sm,
-  },
-  ingredientTextWrap: {
-    flex: 1,
-    flexDirection: "row",
     flexWrap: "wrap",
-    alignItems: "center",
+    marginTop: spacing.sm,
+    gap: spacing.xs,
   },
-  ingredientAmountText: {
+  tagChip: {
+    backgroundColor: colors.primary[100],
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.primary[200],
+  },
+  tagChipText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: colors.primary[700],
+  },
+  moreTagsChip: {
+    backgroundColor: colors.gray[100],
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.gray[200],
+  },
+  moreTagsText: {
+    fontSize: 12,
     fontWeight: "500",
-    color: colors.dark,
-    fontSize: 15,
-  },
-  ingredientNameText: {
-    fontWeight: "normal",
-    color: colors.gray[800],
-    fontSize: 15,
-    marginLeft: spacing.xs,
+    color: colors.gray[600],
   },
   retryButton: {
     marginTop: spacing.md,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primary[600],
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.lg,
     borderRadius: borderRadius.md,

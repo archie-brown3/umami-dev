@@ -63,8 +63,10 @@ export async function extractRecipeFromUrl(
     const domain = new URL(url).hostname.toLowerCase();
 
     if (domain.includes("instagram.com")) {
-      addServiceLog("Using Instagram extraction API");
+      addServiceLog("Using Instagram scrape-web API");
 
+      // COMMENTED OUT - Old extraction API approach
+      /*
       // Use the extraction API for Instagram
       const extractApiResponse = await fetch(
         `${RECIPE_EXTRACTION_SERVICE_URL}/api/extract`,
@@ -98,6 +100,151 @@ export async function extractRecipeFromUrl(
         ...analysisResult,
         imageUrl: recipeData.media?.[0]?.url,
         originalText,
+      };
+      */
+
+      // NEW: Use the scrape-web API for Instagram
+      const webScrapingResponse = await fetch(
+        `${RECIPE_EXTRACTION_SERVICE_URL}/api/scrape-web`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            url,
+            options: {
+              text: true,
+              metadata: true,
+              images: true,
+              headings: true,
+              links: false,
+              tables: false,
+              forms: false,
+            },
+          }),
+        }
+      );
+
+      if (!webScrapingResponse.ok) {
+        throw new Error(
+          `Instagram Scrape API Error: ${webScrapingResponse.status} ${webScrapingResponse.statusText}`
+        );
+      }
+
+      const scrapedData = await webScrapingResponse.json();
+      addServiceLog(`Successfully scraped Instagram post data`);
+
+      // Log the scraped data structure for testing
+      addServiceLog(`Instagram scrape data: {
+        "text_length": ${scrapedData.text?.full_text?.length || 0},
+        "word_count": ${scrapedData.text?.word_count || 0},
+        "images_count": ${scrapedData.images?.total_images || 0},
+        "metadata_title": "${scrapedData.metadata?.title || "none"}",
+        "has_open_graph": ${!!scrapedData.metadata?.open_graph}
+      }`);
+
+      // Extract Instagram-specific data using enhanced methods
+      const caption =
+        scrapedData.metadata?.open_graph?.description ||
+        scrapedData.metadata?.description ||
+        scrapedData.text?.full_text ||
+        "No caption extracted";
+
+      // Use enhanced username extraction from metadata (same logic as DeepSeek service)
+      let username = "unknown";
+
+      // Method 1: From twitter:title: "Cal Reynolds (@username) • Instagram reel"
+      const twitterTitle = scrapedData.metadata?.twitter_card?.title;
+      if (twitterTitle) {
+        const match = twitterTitle.match(/\(@([^)]+)\)/);
+        if (match) {
+          username = match[1];
+          addServiceLog(`Username extracted from twitter:title: ${username}`);
+        }
+      }
+
+      // Method 2: From og:description: "username on Date:"
+      if (username === "unknown") {
+        const ogDesc = scrapedData.metadata?.open_graph?.description;
+        if (ogDesc) {
+          const match = ogDesc.match(/(\w+) on \w+ \d+, \d+:/);
+          if (match) {
+            username = match[1];
+            addServiceLog(
+              `Username extracted from og:description: ${username}`
+            );
+          }
+        }
+      }
+
+      // Method 3: From URL pattern (fallback)
+      if (username === "unknown") {
+        const urlMatch = url.match(/instagram\.com\/([^\/\?]+)/i);
+        if (
+          urlMatch &&
+          urlMatch[1] !== "share" &&
+          urlMatch[1] !== "p" &&
+          urlMatch[1] !== "reel"
+        ) {
+          username = urlMatch[1];
+          addServiceLog(`Username extracted from URL: ${username}`);
+        }
+      }
+
+      // Use enhanced image processing for Instagram CDN URLs
+      let thumbnail = scrapedData.images?.images?.[0]?.url || null;
+
+      // Prefer metadata images for Instagram
+      const ogImage = scrapedData.metadata?.open_graph?.image;
+      const twitterImage = scrapedData.metadata?.twitter_card?.image;
+
+      if (ogImage) {
+        thumbnail = ogImage;
+        addServiceLog(`Using og:image for Instagram: ${thumbnail}`);
+      } else if (twitterImage) {
+        thumbnail = twitterImage;
+        addServiceLog(`Using twitter:image for Instagram: ${thumbnail}`);
+      }
+
+      // Process Instagram CDN URLs with proxy service
+      if (
+        thumbnail &&
+        (thumbnail.includes("cdninstagram.com") ||
+          thumbnail.includes("fbcdn.net"))
+      ) {
+        try {
+          const proxyUrl = `https://images.weserv.nl/?url=${encodeURIComponent(
+            thumbnail
+          )}&w=640&h=640&fit=cover&output=jpg`;
+          thumbnail = proxyUrl;
+          addServiceLog(`Generated proxy URL for Instagram image: ${proxyUrl}`);
+        } catch (error) {
+          addServiceLog(
+            `Failed to generate proxy URL, using original: ${error}`
+          );
+        }
+      }
+
+      addServiceLog(
+        `Extracted from Instagram: caption_length=${
+          caption.length
+        }, username=${username}, has_thumbnail=${!!thumbnail}`
+      );
+
+      // Store the caption as original text for analysis
+      const originalText = caption;
+
+      // Analyze the caption text to extract structured recipe data
+      const analysisResult = await analyzeRecipeText(originalText);
+
+      // Return the combined data
+      return {
+        ...analysisResult,
+        imageUrl: thumbnail,
+        originalText,
+        author: username,
+        sourceUrl: url,
       };
     } else {
       addServiceLog("Using web scraping API for non-Instagram URL");
@@ -568,4 +715,161 @@ export async function testWebScrapingFlow(url: string): Promise<{
       message: `Test failed: ${errorMessage}`,
     };
   }
+}
+
+/**
+ * NEW: Test Instagram scraping with /scrape-web endpoint
+ * This function helps analyze what data we can extract from Instagram posts
+ */
+export async function testInstagramScraping(url: string): Promise<{
+  success: boolean;
+  message: string;
+  scrapedData?: any;
+  extractedData?: {
+    caption: string;
+    username: string;
+    thumbnail: string | null;
+  };
+  rawResponse?: any;
+}> {
+  try {
+    addServiceLog(`Starting Instagram scraping test for: ${url}`);
+
+    // Validate it's an Instagram URL
+    if (!url.includes("instagram.com")) {
+      return {
+        success: false,
+        message: "URL is not an Instagram URL",
+      };
+    }
+
+    // Test the scrape-web endpoint
+    const webScrapingResponse = await fetch(
+      `${RECIPE_EXTRACTION_SERVICE_URL}/api/scrape-web`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          url,
+          options: {
+            text: true,
+            metadata: true,
+            images: true,
+            headings: true,
+            links: true, // Include links for testing
+            tables: false,
+            forms: false,
+          },
+        }),
+      }
+    );
+
+    if (!webScrapingResponse.ok) {
+      return {
+        success: false,
+        message: `Scrape API Error: ${webScrapingResponse.status} ${webScrapingResponse.statusText}`,
+      };
+    }
+
+    const scrapedData = await webScrapingResponse.json();
+
+    // Extract the key data we're interested in
+    const caption =
+      scrapedData.metadata?.open_graph?.description ||
+      scrapedData.metadata?.description ||
+      scrapedData.text?.full_text
+        ?.split("\n")
+        .slice(0, 5)
+        .join(" ")
+        .substring(0, 1000) ||
+      "No caption extracted";
+
+    const username = url.match(/instagram\.com\/([^\/\?]+)/i)?.[1] || "unknown";
+    const thumbnail = scrapedData.images?.images?.[0]?.url || null;
+
+    const extractedData = {
+      caption,
+      username,
+      thumbnail,
+    };
+
+    addServiceLog(`Instagram test completed: {
+      "caption_length": ${caption.length},
+      "username": "${username}",
+      "has_thumbnail": ${!!thumbnail},
+      "total_images": ${scrapedData.images?.total_images || 0},
+      "text_word_count": ${scrapedData.text?.word_count || 0}
+    }`);
+
+    return {
+      success: true,
+      message: "Instagram scraping test successful",
+      scrapedData,
+      extractedData,
+      rawResponse: scrapedData,
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    addServiceLog(`Instagram scraping test failed: ${errorMessage}`);
+
+    return {
+      success: false,
+      message: `Instagram scraping test failed: ${errorMessage}`,
+    };
+  }
+}
+
+/**
+ * Test multiple Instagram URLs and compare results
+ */
+export async function testMultipleInstagramUrls(urls: string[]): Promise<{
+  success: boolean;
+  results: Array<{
+    url: string;
+    success: boolean;
+    caption?: string;
+    username?: string;
+    thumbnail?: string | null;
+    error?: string;
+  }>;
+}> {
+  const results = [];
+
+  for (const url of urls) {
+    try {
+      const testResult = await testInstagramScraping(url);
+
+      if (testResult.success && testResult.extractedData) {
+        results.push({
+          url,
+          success: true,
+          caption: testResult.extractedData.caption,
+          username: testResult.extractedData.username,
+          thumbnail: testResult.extractedData.thumbnail,
+        });
+      } else {
+        results.push({
+          url,
+          success: false,
+          error: testResult.message,
+        });
+      }
+    } catch (error) {
+      results.push({
+        url,
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    // Add a small delay between requests to be polite
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+  }
+
+  return {
+    success: true,
+    results,
+  };
 }

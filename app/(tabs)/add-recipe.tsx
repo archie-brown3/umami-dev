@@ -99,9 +99,9 @@ export default function AddRecipeScreen() {
         cookTime: extractedRecipe.cookTime || 0,
         servings: extractedRecipe.servings || 2,
         imageUrl: extractedRecipe.imageUrl,
-        tags: extractedRecipe.tags,
-        sourceUrl: extractedRecipe.sourceUrl,
         author: extractedRecipe.author,
+        sourceUrl: extractedRecipe.sourceUrl,
+        tags: extractedRecipe.tags,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -117,7 +117,7 @@ export default function AddRecipeScreen() {
         [
           {
             text: "OK",
-            onPress: () => router.push("/recipes"),
+            onPress: () => router.replace("/recipes"),
           },
         ]
       );
@@ -312,6 +312,8 @@ export default function AddRecipeScreen() {
         cookTime: validatedRecipe.cookTime || 0,
         servings: validatedRecipe.servings || 2,
         imageUrl: validatedRecipe.imageUrl,
+        author: validatedRecipe.author,
+        sourceUrl: validatedRecipe.sourceUrl,
         tags: validatedRecipe.tags || [],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -330,7 +332,7 @@ export default function AddRecipeScreen() {
             [
               {
                 text: "OK",
-                onPress: () => router.push("/recipes"),
+                onPress: () => router.replace("/recipes"),
               },
             ]
           );
@@ -349,7 +351,7 @@ export default function AddRecipeScreen() {
           [
             {
               text: "OK",
-              onPress: () => router.push("/recipes"),
+              onPress: () => router.replace("/recipes"),
             },
           ]
         );
@@ -526,7 +528,7 @@ export default function AddRecipeScreen() {
         [
           {
             text: "OK",
-            onPress: () => router.push("/recipes"),
+            onPress: () => router.replace("/recipes"),
           },
         ]
       );

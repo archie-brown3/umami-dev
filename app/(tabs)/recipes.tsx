@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -8,71 +8,224 @@ import {
   TextInput,
   ScrollView,
   ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 
 import EmptyState from "@/components/ui/EmptyState";
 import { RecipeCard } from "@/components/recipes/RecipeCard";
+import { TagFilter } from "@/components/recipes/TagFilter";
 import { useAuth } from "@/context/AuthContext";
 import { getUserRecipes } from "@/services/recipeService";
+// import { migrateUserRecipeTags } from "@/services/tagMigration";
+import { addBasicTagsToRecipes } from "@/services/simpleTagMigration";
 import { colors, spacing, typography } from "@/utils/styleUtils";
 import { Recipe } from "@/types";
+import { eventEmitter, EVENTS } from "@/utils/eventEmitter";
+
+const DEBUG_TAG_MIGRATION = false; // Set to true to enable tag migration button
 
 export default function RecipesScreen() {
   const [recipes, setRecipes] = React.useState<Recipe[]>([]);
+  const [filteredRecipes, setFilteredRecipes] = useState<Recipe[]>([]);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = React.useState(true);
+  const [isRefreshing, setIsRefreshing] = React.useState(false);
+  const [isMigratingTags, setIsMigratingTags] = useState(false);
   const { user } = useAuth();
   const filtersScrollRef = useRef<ScrollView>(null);
 
+  // Simple fetch function
+  const fetchRecipes = async (showRefreshIndicator = false) => {
+    if (!user?.id) {
+      setRecipes([]);
+      setFilteredRecipes([]);
+      setIsLoading(false);
+      setIsRefreshing(false);
+      return;
+    }
+
+    console.log(`[RecipesScreen] Fetching recipes for user: ${user.id}`);
+
+    if (showRefreshIndicator) {
+      setIsRefreshing(true);
+    } else {
+      setIsLoading(true);
+    }
+
+    try {
+      const fetchedRecipesFromService = await getUserRecipes(user.id);
+
+      const conformingRecipes: Recipe[] = fetchedRecipesFromService.map(
+        (r) => ({
+          ...r,
+          id: r.id,
+          title: r.title,
+          ingredients: r.ingredients || [],
+          instructions: r.instructions || [],
+          prepTime: r.prepTime || 0,
+          cookTime: r.cookTime || 0,
+          servings: r.servings || 0,
+          createdAt: r.createdAt,
+          updatedAt: r.updatedAt,
+          tags: r.tags || [],
+        })
+      );
+
+      setRecipes(conformingRecipes);
+      setFilteredRecipes(conformingRecipes);
+      console.log(
+        `[RecipesScreen] Successfully loaded ${conformingRecipes.length} recipes`
+      );
+    } catch (error) {
+      console.error("[RecipesScreen] Error fetching recipes:", error);
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  };
+
+  // Initial fetch on mount
   useEffect(() => {
-    const fetchRecipes = async () => {
-      if (user?.id) {
-        console.log(
-          `[RecipesScreen] Attempting to fetch recipes for user: ${user.id}`
-        );
-        setIsLoading(true);
-        try {
-          const fetchedRecipesFromService = await getUserRecipes(user.id);
-          const conformingRecipes: Recipe[] = fetchedRecipesFromService.map(
-            (r) => ({
-              ...r,
-              id: r.id,
-              title: r.title,
-              ingredients: r.ingredients || [],
-              instructions: r.instructions || [],
-              prepTime: r.prepTime || 0,
-              cookTime: r.cookTime || 0,
-              servings: r.servings || 0,
-              createdAt: r.createdAt,
-              updatedAt: r.updatedAt,
-            })
-          );
-          setRecipes(conformingRecipes);
-          console.log(
-            "[RecipesScreen] Successfully set recipes state:",
-            JSON.stringify(conformingRecipes, null, 2)
-          );
-        } catch (error) {
-          console.error("[RecipesScreen] Error fetching recipes:", error);
-          // Optionally, set an error state here to show to the user
-        } finally {
-          setIsLoading(false);
-        }
-      } else {
-        console.log(
-          "[RecipesScreen] No user found, clearing recipes and not fetching."
-        );
-        setRecipes([]); // Clear recipes if no user
-        setIsLoading(false);
+    if (user?.id) {
+      fetchRecipes();
+    }
+  }, [user?.id]);
+
+  // Listen for recipe events (simple version)
+  useEffect(() => {
+    const handleRecipeRefresh = () => {
+      console.log("[RecipesScreen] Received refresh event");
+      if (user?.id && !isLoading) {
+        fetchRecipes();
       }
     };
 
-    fetchRecipes();
-  }, [user]);
+    eventEmitter.on(EVENTS.RECIPES_REFRESH_NEEDED, handleRecipeRefresh);
+    return () => {
+      eventEmitter.off(EVENTS.RECIPES_REFRESH_NEEDED, handleRecipeRefresh);
+    };
+  }, [user?.id, isLoading]);
+
+  // Focus effect (simple version)
+  useFocusEffect(
+    useCallback(() => {
+      if (user?.id && recipes.length > 0) {
+        console.log("[RecipesScreen] Screen focused, refreshing...");
+        fetchRecipes();
+      }
+    }, [user?.id])
+  );
+
+  // Pull-to-refresh handler
+  const onRefresh = () => {
+    fetchRecipes(true);
+  };
+
+  // Manual tag migration function for testing
+  const handleManualTagMigration = async () => {
+    if (!user?.id) return;
+
+    setIsMigratingTags(true);
+    try {
+      await addBasicTagsToRecipes(user.id);
+      console.log("[RecipesScreen] Manual tag migration completed");
+      // Refresh recipes after migration
+      const refreshedRecipes = await getUserRecipes(user.id);
+      const conformingRecipes: Recipe[] = refreshedRecipes.map((r) => ({
+        ...r,
+        tags: r.tags || [],
+      }));
+      setRecipes(conformingRecipes);
+      setFilteredRecipes(conformingRecipes);
+    } catch (error) {
+      console.error("[RecipesScreen] Manual tag migration failed:", error);
+    } finally {
+      setIsMigratingTags(false);
+    }
+  };
+
+  // Handle tag filter changes
+  const handleFilterChange = useCallback(
+    (filtered: Recipe[]) => {
+      // Apply search query to the tag-filtered results
+      if (searchQuery.trim()) {
+        const searchFiltered = filtered.filter(
+          (recipe) =>
+            recipe.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            recipe.description
+              ?.toLowerCase()
+              .includes(searchQuery.toLowerCase()) ||
+            (recipe.tags || []).some((tag) =>
+              tag.toLowerCase().includes(searchQuery.toLowerCase())
+            )
+        );
+        setFilteredRecipes(searchFiltered);
+      } else {
+        setFilteredRecipes(filtered);
+      }
+    },
+    [searchQuery]
+  );
+
+  // Handle tag selection changes
+  const handleTagSelectionChange = useCallback((tags: string[]) => {
+    setSelectedTags(tags);
+  }, []);
+
+  // Handle search input changes
+  const handleSearchChange = useCallback(
+    (query: string) => {
+      setSearchQuery(query);
+
+      // Apply search to current tag-filtered recipes
+      if (query.trim()) {
+        const baseRecipes =
+          selectedTags.length > 0
+            ? recipes.filter((recipe) => {
+                const recipeTags = (recipe.tags || []).map((tag) =>
+                  tag.toLowerCase()
+                );
+                return selectedTags.every((selectedTag) =>
+                  recipeTags.includes(selectedTag.toLowerCase())
+                );
+              })
+            : recipes;
+
+        const searchFiltered = baseRecipes.filter(
+          (recipe) =>
+            recipe.title.toLowerCase().includes(query.toLowerCase()) ||
+            recipe.description?.toLowerCase().includes(query.toLowerCase()) ||
+            (recipe.tags || []).some((tag) =>
+              tag.toLowerCase().includes(query.toLowerCase())
+            )
+        );
+        setFilteredRecipes(searchFiltered);
+      } else {
+        // Re-apply tag filtering if search is cleared
+        if (selectedTags.length > 0) {
+          const tagFiltered = recipes.filter((recipe) => {
+            const recipeTags = (recipe.tags || []).map((tag) =>
+              tag.toLowerCase()
+            );
+            return selectedTags.every((selectedTag) =>
+              recipeTags.includes(selectedTag.toLowerCase())
+            );
+          });
+          setFilteredRecipes(tagFiltered);
+        } else {
+          setFilteredRecipes(recipes);
+        }
+      }
+    },
+    [recipes, selectedTags]
+  );
 
   const hasRecipes = recipes.length > 0;
+  const displayedRecipes = filteredRecipes;
 
   const renderRecipeCard = ({ item }: { item: Recipe }) => (
     <TouchableOpacity
@@ -83,11 +236,22 @@ export default function RecipesScreen() {
     </TouchableOpacity>
   );
 
-  if (isLoading) {
+  if (isLoading && recipes.length === 0) {
     return (
       <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>My Recipes</Text>
+          {DEBUG_TAG_MIGRATION && (
+            <TouchableOpacity
+              style={styles.debugButton}
+              onPress={handleManualTagMigration}
+              disabled={isMigratingTags}
+            >
+              <Text style={styles.debugButtonText}>
+                {isMigratingTags ? "Migrating..." : "Add Tags"}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
         <View
           style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
@@ -106,6 +270,17 @@ export default function RecipesScreen() {
       <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>My Recipes</Text>
+          {DEBUG_TAG_MIGRATION && (
+            <TouchableOpacity
+              style={styles.debugButton}
+              onPress={handleManualTagMigration}
+              disabled={isMigratingTags}
+            >
+              <Text style={styles.debugButtonText}>
+                {isMigratingTags ? "Migrating..." : "Add Tags"}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
         <EmptyState
           title="No Recipes Yet"
@@ -121,6 +296,17 @@ export default function RecipesScreen() {
     <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>My Recipes</Text>
+        {DEBUG_TAG_MIGRATION && (
+          <TouchableOpacity
+            style={styles.debugButton}
+            onPress={handleManualTagMigration}
+            disabled={isMigratingTags}
+          >
+            <Text style={styles.debugButtonText}>
+              {isMigratingTags ? "Migrating..." : "Add Tags"}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <View style={styles.searchContainer}>
@@ -135,6 +321,8 @@ export default function RecipesScreen() {
             style={styles.searchInput}
             placeholder="Search recipes..."
             placeholderTextColor={colors.gray[400]}
+            value={searchQuery}
+            onChangeText={handleSearchChange}
           />
         </View>
         <TouchableOpacity style={styles.filterButton}>
@@ -144,22 +332,12 @@ export default function RecipesScreen() {
       </View>
 
       <View style={styles.filtersAndTabsContainer}>
-        <ScrollView
-          ref={filtersScrollRef}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filtersContainer}
-        >
-          <TouchableOpacity style={styles.tagPill}>
-            <Text style={styles.tagText}>🇺🇸 American</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.tagPill}>
-            <Text style={styles.tagText}>Bake</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.tagPill}>
-            <Text style={styles.tagText}>Difficulty: Easy</Text>
-          </TouchableOpacity>
-        </ScrollView>
+        <TagFilter
+          recipes={recipes}
+          onFilterChange={handleFilterChange}
+          selectedTags={selectedTags}
+          onTagSelectionChange={handleTagSelectionChange}
+        />
 
         <View style={styles.tabsContainer}>
           <TouchableOpacity style={[styles.tabButton, styles.activeTab]}>
@@ -183,18 +361,39 @@ export default function RecipesScreen() {
       </View>
 
       <View style={styles.content}>
-        {hasRecipes ? (
+        {!hasRecipes ? (
+          <EmptyState
+            title="No Recipes Yet"
+            message="Start by adding your first recipe. You can manually add recipes, or extract them from websites, photos, or Instagram."
+            actionLabel="Add Recipe"
+            iconName="book-outline"
+          />
+        ) : displayedRecipes.length === 0 ? (
+          <EmptyState
+            title="No Matching Recipes"
+            message={
+              selectedTags.length > 0
+                ? `No recipes found with the selected tags: ${selectedTags.join(
+                    ", "
+                  )}`
+                : "No recipes match your search criteria."
+            }
+            actionLabel="Clear Filters"
+            iconName="filter-outline"
+          />
+        ) : (
           <FlatList
-            data={recipes}
+            data={displayedRecipes}
             renderItem={renderRecipeCard}
             keyExtractor={(item) => item.id}
             numColumns={2}
             columnWrapperStyle={styles.columnWrapper}
             contentContainerStyle={styles.recipeGrid}
             showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />
+            }
           />
-        ) : (
-          <EmptyState showGuide={true} iconName="restaurant-outline" />
         )}
       </View>
     </SafeAreaView>
@@ -250,27 +449,6 @@ const styles = StyleSheet.create({
   filtersAndTabsContainer: {
     marginBottom: 0,
   },
-  filtersContainer: {
-    paddingHorizontal: 16,
-    paddingBottom: 8,
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 0,
-  },
-  tagPill: {
-    backgroundColor: colors.gray[100],
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 16,
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: colors.gray[200],
-  },
-  tagText: {
-    color: colors.gray[700],
-    fontSize: 14,
-    fontWeight: "500",
-  },
   tabsContainer: {
     flexDirection: "row",
     paddingHorizontal: 16,
@@ -312,5 +490,15 @@ const styles = StyleSheet.create({
     width: "48%",
     marginBottom: 20,
     elevation: 2,
+  },
+  debugButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+  },
+  debugButtonText: {
+    marginLeft: 4,
+    color: colors.gray[700],
+    fontWeight: "500",
   },
 });

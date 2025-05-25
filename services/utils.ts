@@ -3,11 +3,13 @@
  */
 
 /**
- * Helper function to format tags consistently
+ * Helper function to format tags consistently for display
+ * Converts underscores to spaces and capitalizes properly
  */
 export function formatTag(tag: string): string {
   return tag
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "");
+    .replace(/_/g, " ") // Convert underscores to spaces
+    .split(" ")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
 }

@@ -12,6 +12,7 @@ import { colors, spacing } from "../../utils/styleUtils";
 import { useGroceries } from "../../context/GroceriesContext";
 import ShoppingItemCard from "./shopping/ShoppingItemCard";
 import AddItemButton from "./shared/AddItemButton";
+import CompleteShoppingButton from "./shopping/CompleteShoppingButton";
 
 const ShoppingListScreen: React.FC = () => {
   const {
@@ -77,19 +78,22 @@ const ShoppingListScreen: React.FC = () => {
       </View>
 
       {filteredItems.length > 0 ? (
-        <FlatList
-          data={filteredItems}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <ShoppingItemCard
-              item={item}
-              onToggle={() => toggleShoppingItem(item.id)}
-              onDelete={() => removeShoppingItem(item.id)}
-            />
-          )}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-        />
+        <>
+          <FlatList
+            data={filteredItems}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <ShoppingItemCard
+                item={item}
+                onToggle={() => toggleShoppingItem(item.id)}
+                onDelete={() => removeShoppingItem(item.id)}
+              />
+            )}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+          />
+          <CompleteShoppingButton />
+        </>
       ) : (
         <View style={styles.emptyContainer}>
           {searchQuery ? (

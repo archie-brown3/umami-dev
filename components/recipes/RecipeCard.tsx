@@ -3,6 +3,7 @@ import { Recipe } from "../../types";
 import { View, Text, StyleSheet, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors } from "../../utils/styleUtils";
+import { formatTagName } from "../../services/tagUtils";
 
 interface RecipeCardProps {
   recipe: Recipe;
@@ -22,7 +23,9 @@ export const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onPress }) => {
     "RecipeCard rendering recipe:",
     recipe.id,
     "title:",
-    recipe.title
+    recipe.title,
+    "tags:",
+    tags
   );
 
   return (
@@ -35,6 +38,11 @@ export const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onPress }) => {
               "https://via.placeholder.com/400x300/EAEAEA/999999?text=No+Image",
           }}
           style={styles.image}
+          onError={() => {
+            console.log(
+              `[RecipeCard] Image failed to load: ${recipe.imageUrl}`
+            );
+          }}
         />
         <View style={styles.timeContainer}>
           <Ionicons name="time-outline" size={16} color="#fff" />
@@ -45,18 +53,21 @@ export const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onPress }) => {
         <Text style={styles.title} numberOfLines={2} ellipsizeMode="tail">
           {recipe.title || recipe.name || "Untitled Recipe"}
         </Text>
-        <View style={styles.tagsRow}>
-          {visibleTags.map((tag, index) => (
-            <View key={index} style={styles.tag}>
-              <Text style={styles.tagText}>{tag}</Text>
-            </View>
-          ))}
-          {extraTagCount > 0 && (
-            <View style={styles.moreTag}>
-              <Text style={styles.moreTagText}>+{extraTagCount} more</Text>
-            </View>
-          )}
-        </View>
+        {/* Only show tags if they exist */}
+        {tags.length > 0 && (
+          <View style={styles.tagsRow}>
+            {visibleTags.map((tag, index) => (
+              <View key={`${tag}-${index}`} style={styles.tag}>
+                <Text style={styles.tagText}>{formatTagName(tag)}</Text>
+              </View>
+            ))}
+            {extraTagCount > 0 && (
+              <View style={styles.moreTag}>
+                <Text style={styles.moreTagText}>+{extraTagCount}</Text>
+              </View>
+            )}
+          </View>
+        )}
       </View>
     </View>
   );

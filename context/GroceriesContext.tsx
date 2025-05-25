@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Recipe } from "../types";
 
 // Type definitions
 export interface GroceryItem {
@@ -25,6 +26,7 @@ interface GroceriesContextType {
   // State
   shoppingList: ShoppingItem[];
   cupboardItems: CupboardItem[];
+  selectedRecipes: Recipe[];
   activeView: "shopping" | "cupboard";
   isLoading: boolean;
   error: string | null;
@@ -41,12 +43,16 @@ interface GroceriesContextType {
   ) => void;
   removeCupboardItem: (id: string) => void;
   updateCupboardItem: (id: string, updates: Partial<CupboardItem>) => void;
+  moveCheckedItemsToCupboard: () => void;
+  addSelectedRecipe: (recipe: Recipe) => void;
+  removeSelectedRecipe: (recipeId: string) => void;
   clearError: () => void;
 }
 
 const STORAGE_KEYS = {
   SHOPPING_LIST: "groceries.shoppingList",
   CUPBOARD_ITEMS: "groceries.cupboardItems",
+  SELECTED_RECIPES: "groceries.selectedRecipes",
 };
 
 const GroceriesContext = createContext<GroceriesContextType | undefined>(
@@ -58,6 +64,7 @@ export const GroceriesProvider: React.FC<{ children: React.ReactNode }> = ({
 }) => {
   const [shoppingList, setShoppingList] = useState<ShoppingItem[]>([]);
   const [cupboardItems, setCupboardItems] = useState<CupboardItem[]>([]);
+  const [selectedRecipes, setSelectedRecipes] = useState<Recipe[]>([]);
   const [activeView, setActiveView] = useState<"shopping" | "cupboard">(
     "shopping"
   );
@@ -69,10 +76,12 @@ export const GroceriesProvider: React.FC<{ children: React.ReactNode }> = ({
     const loadData = async () => {
       setIsLoading(true);
       try {
-        const [shoppingData, cupboardData] = await Promise.all([
-          AsyncStorage.getItem(STORAGE_KEYS.SHOPPING_LIST),
-          AsyncStorage.getItem(STORAGE_KEYS.CUPBOARD_ITEMS),
-        ]);
+        const [shoppingData, cupboardData, selectedRecipesData] =
+          await Promise.all([
+            AsyncStorage.getItem(STORAGE_KEYS.SHOPPING_LIST),
+            AsyncStorage.getItem(STORAGE_KEYS.CUPBOARD_ITEMS),
+            AsyncStorage.getItem(STORAGE_KEYS.SELECTED_RECIPES),
+          ]);
 
         if (shoppingData) {
           const parsedData = JSON.parse(shoppingData);
@@ -97,6 +106,11 @@ export const GroceriesProvider: React.FC<{ children: React.ReactNode }> = ({
               : undefined,
           }));
           setCupboardItems(formattedData);
+        }
+
+        if (selectedRecipesData) {
+          const parsedData = JSON.parse(selectedRecipesData);
+          setSelectedRecipes(parsedData);
         }
       } catch (error) {
         console.error("[GroceriesContext] Error loading data:", error);
@@ -146,6 +160,28 @@ export const GroceriesProvider: React.FC<{ children: React.ReactNode }> = ({
       saveData();
     }
   }, [cupboardItems]);
+
+  // Save selected recipes data to AsyncStorage when it changes
+  useEffect(() => {
+    const saveData = async () => {
+      try {
+        await AsyncStorage.setItem(
+          STORAGE_KEYS.SELECTED_RECIPES,
+          JSON.stringify(selectedRecipes)
+        );
+      } catch (error) {
+        console.error(
+          "[GroceriesContext] Error saving selected recipes:",
+          error
+        );
+        setError("Failed to save selected recipes.");
+      }
+    };
+
+    if (selectedRecipes.length > 0) {
+      saveData();
+    }
+  }, [selectedRecipes]);
 
   const clearError = () => setError(null);
 
@@ -231,11 +267,72 @@ export const GroceriesProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
+  const moveCheckedItemsToCupboard = () => {
+    try {
+      const checkedItems = shoppingList.filter((item) => item.checked);
+      const uncheckedItems = shoppingList.filter((item) => !item.checked);
+
+      // Convert checked shopping items to cupboard items
+      const newCupboardItems: CupboardItem[] = checkedItems.map((item) => {
+        const now = new Date();
+        return {
+          id: `cupboard-${now.getTime()}-${Math.random()}`,
+          name: item.name,
+          quantity: item.quantity,
+          unit: item.unit,
+          category: item.category,
+          createdAt: now,
+          updatedAt: now,
+          // Add expiration date if desired (could be set to null or calculated)
+          expirationDate: undefined,
+        };
+      });
+
+      // Update both lists
+      setShoppingList(uncheckedItems);
+      setCupboardItems((prev) => [...prev, ...newCupboardItems]);
+
+      console.log(
+        `[GroceriesContext] Moved ${checkedItems.length} items to cupboard`
+      );
+    } catch (error) {
+      console.error(
+        "[GroceriesContext] Error moving checked items to cupboard:",
+        error
+      );
+      setError("Failed to move checked items to cupboard.");
+    }
+  };
+
+  const addSelectedRecipe = (recipe: Recipe) => {
+    try {
+      setSelectedRecipes((prev) => [...prev, recipe]);
+    } catch (error) {
+      console.error("[GroceriesContext] Error adding selected recipe:", error);
+      setError("Failed to add selected recipe.");
+    }
+  };
+
+  const removeSelectedRecipe = (recipeId: string) => {
+    try {
+      setSelectedRecipes((prev) =>
+        prev.filter((recipe) => recipe.id !== recipeId)
+      );
+    } catch (error) {
+      console.error(
+        "[GroceriesContext] Error removing selected recipe:",
+        error
+      );
+      setError("Failed to remove selected recipe.");
+    }
+  };
+
   return (
     <GroceriesContext.Provider
       value={{
         shoppingList,
         cupboardItems,
+        selectedRecipes,
         activeView,
         isLoading,
         error,
@@ -246,6 +343,9 @@ export const GroceriesProvider: React.FC<{ children: React.ReactNode }> = ({
         addCupboardItem,
         removeCupboardItem,
         updateCupboardItem,
+        moveCheckedItemsToCupboard,
+        addSelectedRecipe,
+        removeSelectedRecipe,
         clearError,
       }}
     >
