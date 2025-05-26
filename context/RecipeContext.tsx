@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Recipe, MealPlan, RecipeContextType } from "@/types";
 import { generateId } from "@/lib/lib/utils";
-import { addRecipeToSupabase } from "@/services/recipeService";
+import { addRecipeToSupabase, getUserRecipes } from "@/services/recipeService";
 import { useAuth } from "./AuthContext";
 import { emitRecipeCreated } from "@/utils/eventEmitter";
 import { extractRecipeFromUrl } from "../services/recipeExtractor";
@@ -37,10 +37,39 @@ export function RecipeProvider({ children }: { children: React.ReactNode }) {
   const [mealPlan, setMealPlan] = useState<MealPlanState>({ dayMeals: {} });
   const { user } = useAuth();
 
-  // Load data from AsyncStorage on mount
+  // Load data from Supabase when user changes
   useEffect(() => {
-    loadData();
-  }, []);
+    if (user?.id) {
+      loadRecipesFromSupabase();
+    } else {
+      loadData(); // Fallback to AsyncStorage for offline use
+    }
+  }, [user?.id]);
+
+  const loadRecipesFromSupabase = async () => {
+    if (!user?.id) return;
+
+    try {
+      console.log(
+        "[RecipeContext] Loading recipes from Supabase for user:",
+        user.id
+      );
+      const supabaseRecipes = await getUserRecipes(user.id);
+      setRecipes(supabaseRecipes);
+      console.log(
+        "[RecipeContext] Loaded",
+        supabaseRecipes.length,
+        "recipes from Supabase"
+      );
+    } catch (error) {
+      console.error(
+        "[RecipeContext] Error loading recipes from Supabase:",
+        error
+      );
+      // Fallback to AsyncStorage
+      await loadData();
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -93,19 +122,16 @@ export function RecipeProvider({ children }: { children: React.ReactNode }) {
           if (user?.id) {
             const savedRecipe = await addRecipeToSupabase(finalRecipe, user.id);
             if (savedRecipe) {
-              // Transform back to Recipe format and update local state
-              const transformedRecipe = transformSupabaseToRecipe(
-                savedRecipe,
-                finalRecipe
-              );
-              const updatedRecipes = [...recipes, transformedRecipe];
-              setRecipes(updatedRecipes);
-              await AsyncStorage.setItem(
-                "recipes",
-                JSON.stringify(updatedRecipes)
-              );
-              emitRecipeCreated(transformedRecipe);
-              return transformedRecipe;
+              // Refresh recipes from Supabase to ensure consistency
+              await loadRecipesFromSupabase();
+
+              // Find the newly added recipe
+              const newRecipe =
+                recipes.find((r) => r.id === savedRecipe.id) ||
+                transformSupabaseToRecipe(savedRecipe, finalRecipe);
+
+              emitRecipeCreated(newRecipe);
+              return newRecipe;
             } else {
               throw new Error("Failed to save recipe to Supabase");
             }
@@ -158,16 +184,16 @@ export function RecipeProvider({ children }: { children: React.ReactNode }) {
       if (user?.id) {
         const savedRecipe = await addRecipeToSupabase(recipe, user.id);
         if (savedRecipe) {
-          // Transform back to Recipe format and update local state
-          const transformedRecipe = transformSupabaseToRecipe(
-            savedRecipe,
-            recipe
-          );
-          const updatedRecipes = [...recipes, transformedRecipe];
-          setRecipes(updatedRecipes);
-          await AsyncStorage.setItem("recipes", JSON.stringify(updatedRecipes));
-          emitRecipeCreated(transformedRecipe);
-          return transformedRecipe;
+          // Refresh recipes from Supabase to ensure consistency
+          await loadRecipesFromSupabase();
+
+          // Find the newly added recipe
+          const newRecipe =
+            recipes.find((r) => r.id === savedRecipe.id) ||
+            transformSupabaseToRecipe(savedRecipe, recipe);
+
+          emitRecipeCreated(newRecipe);
+          return newRecipe;
         } else {
           throw new Error("Failed to save recipe to Supabase");
         }

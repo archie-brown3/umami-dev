@@ -18,9 +18,15 @@ interface MealSlotProps {
   date: string;
   mealType: string;
   meals: MealPlanItem[];
+  compact?: boolean;
 }
 
-const MealSlot: React.FC<MealSlotProps> = ({ date, mealType, meals }) => {
+const MealSlot: React.FC<MealSlotProps> = ({
+  date,
+  mealType,
+  meals,
+  compact = false,
+}) => {
   const { addMealToDay, removeMealFromDay } = useMealPlan();
   const { recipes } = useRecipes();
   const [showRecipePicker, setShowRecipePicker] = useState(false);
@@ -66,20 +72,38 @@ const MealSlot: React.FC<MealSlotProps> = ({ date, mealType, meals }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, compact && styles.compactContainer]}>
       {meals.length === 0 ? (
-        <TouchableOpacity style={styles.emptySlot} onPress={handleAddMeal}>
+        <TouchableOpacity
+          style={[styles.emptySlot, compact && styles.compactEmptySlot]}
+          onPress={handleAddMeal}
+        >
           <Ionicons
             name="add-circle-outline"
-            size={24}
+            size={compact ? 16 : 24}
             color={colors.gray[400]}
           />
-          <Text style={styles.emptyText}>Add meal</Text>
+          {!compact && <Text style={styles.emptyText}>Add meal</Text>}
         </TouchableOpacity>
       ) : (
         <View style={styles.mealsContainer}>
           {meals.map((meal, index) => {
             const recipe = getRecipeById(meal.recipe_id);
+
+            if (compact) {
+              return (
+                <View
+                  key={`${meal.id}-${index}`}
+                  style={styles.compactMealItem}
+                >
+                  <View style={styles.compactMealIndicator} />
+                  <Text style={styles.compactMealTitle} numberOfLines={1}>
+                    {recipe?.title || "Unknown Recipe"}
+                  </Text>
+                </View>
+              );
+            }
+
             return (
               <View key={`${meal.id}-${index}`} style={styles.mealItem}>
                 {recipe?.imageUrl && (
@@ -110,14 +134,16 @@ const MealSlot: React.FC<MealSlotProps> = ({ date, mealType, meals }) => {
             );
           })}
 
-          {/* Add another meal button */}
-          <TouchableOpacity
-            style={styles.addAnotherButton}
-            onPress={handleAddMeal}
-          >
-            <Ionicons name="add-outline" size={16} color={colors.primary} />
-            <Text style={styles.addAnotherText}>Add another</Text>
-          </TouchableOpacity>
+          {/* Add another meal button - only show in non-compact mode */}
+          {!compact && (
+            <TouchableOpacity
+              style={styles.addAnotherButton}
+              onPress={handleAddMeal}
+            >
+              <Ionicons name="add-outline" size={16} color={colors.primary} />
+              <Text style={styles.addAnotherText}>Add another</Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
 
@@ -136,8 +162,7 @@ const MealSlot: React.FC<MealSlotProps> = ({ date, mealType, meals }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 8,
-    minHeight: 80,
+    minHeight: 120,
   },
   emptySlot: {
     flex: 1,
@@ -146,73 +171,109 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.gray[200],
     borderStyle: "dashed",
-    borderRadius: 8,
+    borderRadius: 12,
     backgroundColor: colors.gray[50],
+    paddingVertical: 24,
+    marginVertical: 8,
   },
   emptyText: {
-    marginTop: 4,
-    fontSize: 12,
+    marginTop: 8,
+    fontSize: 14,
     color: colors.gray[500],
     fontWeight: "500",
   },
   mealsContainer: {
     flex: 1,
+    paddingVertical: 8,
   },
   mealItem: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: colors.white,
-    borderRadius: 8,
-    padding: 8,
-    marginBottom: 6,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 8,
     borderWidth: 1,
     borderColor: colors.gray[200],
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   mealImage: {
-    width: 32,
-    height: 32,
-    borderRadius: 6,
+    width: 48,
+    height: 48,
+    borderRadius: 8,
     backgroundColor: colors.gray[200],
   },
   mealContent: {
     flex: 1,
-    marginLeft: 8,
+    marginLeft: 12,
   },
   mealTitle: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: "600",
     color: colors.dark,
-    lineHeight: 14,
+    lineHeight: 18,
+    marginBottom: 2,
   },
   mealTime: {
-    fontSize: 10,
+    fontSize: 12,
     color: colors.gray[500],
-    marginTop: 2,
   },
   removeButton: {
-    padding: 2,
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: colors.red[500] + "10",
   },
   addAnotherButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 6,
-    paddingHorizontal: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     borderWidth: 1,
     borderColor: colors.primary,
-    borderRadius: 6,
+    borderRadius: 12,
     backgroundColor: colors.primary + "10",
+    marginTop: 4,
   },
   addAnotherText: {
-    fontSize: 11,
+    fontSize: 14,
     color: colors.primary,
+    fontWeight: "600",
+    marginLeft: 6,
+  },
+  compactContainer: {
+    minHeight: 60,
+  },
+  compactEmptySlot: {
+    minHeight: 40,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderStyle: "solid",
+  },
+  compactMealItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.primary,
+    borderRadius: 6,
+    padding: 6,
+    marginBottom: 4,
+  },
+  compactMealIndicator: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.white,
+    marginRight: 6,
+  },
+  compactMealTitle: {
+    fontSize: 10,
     fontWeight: "500",
-    marginLeft: 4,
+    color: colors.white,
+    flex: 1,
   },
 });
 

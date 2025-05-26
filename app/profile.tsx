@@ -1,12 +1,5 @@
 import React from "react";
-import {
-  View,
-  Text,
-  Button,
-  StyleSheet,
-  SafeAreaView,
-  Alert,
-} from "react-native";
+import { View, Text, Button, StyleSheet, Alert } from "react-native";
 import { useAuth } from "@/context/AuthContext";
 import { router } from "expo-router";
 import { colors, spacing, typography } from "@/utils/styleUtils"; // Assuming you have these defined
@@ -29,16 +22,16 @@ export default function ProfileScreen() {
   if (!user) {
     // This case should ideally be handled by the root navigator redirecting to login
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <View style={styles.centered}>
           <Text style={styles.text}>Loading user information...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.content}>
         <Text style={styles.title}>My Profile</Text>
         <View style={styles.infoContainer}>
@@ -55,7 +48,7 @@ export default function ProfileScreen() {
           />
         </View>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 

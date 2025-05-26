@@ -42,7 +42,8 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
   onClose,
   screenType,
 }) => {
-  const { addShoppingItem, addCupboardItem } = useGroceries();
+  const { addShoppingItem, addCupboardItem, addItemToShoppingList } =
+    useGroceries();
 
   const [name, setName] = useState("");
   const [quantity, setQuantity] = useState("");
@@ -69,8 +70,11 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
     };
 
     if (screenType === "shopping") {
-      addShoppingItem({
-        ...baseItem,
+      addItemToShoppingList({
+        name: baseItem.name,
+        quantity: quantity || "1",
+        unit: baseItem.unit,
+        category: baseItem.category || "Other",
         checked: false,
       });
     } else {

@@ -42,6 +42,7 @@ export default function AddRecipeScreen() {
   // States for URL and Instagram
   const [urlInput, setUrlInput] = useState("");
   const [instagramUrl, setInstagramUrl] = useState("");
+  const [aiTextInput, setAiTextInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [debugLogs, setDebugLogs] = useState<string[]>([]);
 
@@ -318,6 +319,78 @@ export default function AddRecipeScreen() {
     }
   };
 
+  // Extract recipe from AI Text Input
+  const handleAiTextExtraction = async () => {
+    if (!aiTextInput.trim()) {
+      Alert.alert("Error", "Please enter some recipe text.");
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      addLog(
+        `Analyzing recipe text with DeepSeek: ${aiTextInput.substring(
+          0,
+          100
+        )}...`
+      );
+      const recipeData = await analyzeRecipeText(aiTextInput);
+
+      if (recipeData) {
+        addLog("Recipe analysis successful from text input.");
+        const newRecipe: Recipe = {
+          id: Date.now().toString(), // Consider a more robust ID generation
+          title:
+            recipeData.title || recipeData.name || "Untitled Recipe from Text",
+          name:
+            recipeData.name || recipeData.title || "Untitled Recipe from Text",
+          description: recipeData.description || "",
+          ingredients: recipeData.ingredients || [],
+          instructions: recipeData.instructions || [],
+          prepTime: recipeData.prepTime || 0,
+          cookTime: recipeData.cookTime || 0,
+          servings: recipeData.servings || 2,
+          imageUrl: undefined, // No image from text input typically
+          tags: recipeData.tags || [],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          sourceUrl: "text-input", // Indicate source
+        };
+
+        addRecipe(newRecipe);
+        addLog(`Recipe added from text: ${newRecipe.title}`);
+        Alert.alert(
+          "Success",
+          `Recipe "${newRecipe.title}" has been successfully added from the text provided.`,
+          [
+            {
+              text: "OK",
+              onPress: () => navigateAfterSuccess(newRecipe.id),
+            },
+          ]
+        );
+      } else {
+        const errorMsg = "Failed to analyze the provided recipe text.";
+        addLog(errorMsg);
+        Alert.alert(
+          "Error",
+          `${errorMsg}. Please check the text or try again.`
+        );
+      }
+    } catch (error) {
+      console.error("AI Text extraction error:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      addLog(`AI Text Error: ${errorMessage}`);
+      Alert.alert(
+        "Error",
+        `Failed to extract recipe from text: ${errorMessage}`
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Add a recipe manually
   const handleAddRecipe = () => {
     // Very basic validation
@@ -483,16 +556,52 @@ export default function AddRecipeScreen() {
         return (
           <View style={styles.tabContent}>
             <Text style={styles.infoText}>
-              Upload a photo of a recipe or describe it in text, and we'll
+              Paste recipe text below, or upload a photo of a recipe, and we'll
               extract the details.
             </Text>
+
+            <Text style={styles.label}>Recipe Text</Text>
+            <TextInput
+              style={[styles.input, styles.multilineInput]}
+              value={aiTextInput}
+              onChangeText={setAiTextInput}
+              placeholder="Paste your recipe text here...\n\nExample:\nTitle: Chocolate Chip Cookies\nIngredients:\n- 1 cup flour\n- 1/2 cup sugar\n- ...\nInstructions:\n1. Mix flour and sugar.\n2. ..."
+              multiline
+              numberOfLines={8}
+            />
+
+            {isLoading && activeTab === "ai" && !urlInput && !instagramUrl ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={colors.primary} />
+                <Text style={styles.loadingText}>Analyzing text...</Text>
+              </View>
+            ) : (
+              <Pressable style={styles.button} onPress={handleAiTextExtraction}>
+                <Ionicons
+                  name="text-outline"
+                  size={20}
+                  color={colors.white}
+                  style={{ marginRight: spacing.sm }}
+                />
+                <Text style={styles.buttonText}>Extract from Text</Text>
+              </Pressable>
+            )}
+
+            <View style={styles.dividerContainer}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>OR</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
             <Pressable style={styles.uploadButton}>
               <Ionicons
                 name="camera-outline"
                 size={24}
                 color={colors.primary}
               />
-              <Text style={styles.uploadButtonText}>Take a Photo</Text>
+              <Text style={styles.uploadButtonText}>
+                Take or Upload a Photo
+              </Text>
             </Pressable>
           </View>
         );
@@ -624,6 +733,10 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     fontSize: typography.fontSizes.md,
   },
+  multilineInput: {
+    height: 150, // Adjust height for multiline input
+    textAlignVertical: "top", // Align text to top for multiline
+  },
   row: {
     flexDirection: "row",
     marginHorizontal: -spacing.xs,
@@ -676,5 +789,20 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     color: colors.gray[600],
     fontSize: typography.fontSizes.sm,
+  },
+  dividerContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: spacing.lg,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.gray[300],
+  },
+  dividerText: {
+    marginHorizontal: spacing.sm,
+    color: colors.gray[500],
+    fontWeight: "500",
   },
 });

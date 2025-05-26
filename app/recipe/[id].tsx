@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -12,11 +12,12 @@ import {
   Modal,
   Alert,
   ActivityIndicator,
+  Dimensions,
+  Share,
 } from "react-native";
 import { useLocalSearchParams, router, Stack } from "expo-router";
 import { colors, spacing, typography, borderRadius } from "@/utils/styleUtils";
 import { Ionicons } from "@expo/vector-icons";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Recipe } from "@/types";
 import { getRecipeWithDetails } from "@/services/recipeService";
 import { supabase } from "@/lib/supabase";
@@ -91,7 +92,7 @@ export default function RecipeDetailScreen() {
   // Loading state with retry information
   if (loading) {
     return (
-      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+      <View style={styles.safeArea}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.header}>
           <TouchableOpacity
@@ -123,7 +124,7 @@ export default function RecipeDetailScreen() {
             </Text>
           )}
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -136,7 +137,7 @@ export default function RecipeDetailScreen() {
       error?.includes("Unable to connect");
 
     return (
-      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+      <View style={styles.safeArea}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.header}>
           <TouchableOpacity
@@ -178,7 +179,7 @@ export default function RecipeDetailScreen() {
             </TouchableOpacity>
           )}
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -189,7 +190,7 @@ export default function RecipeDetailScreen() {
   const handleEdit = () => {
     setMenuVisible(false);
     router.push({
-      pathname: "/recipe/[id]" as const,
+      pathname: "/recipe/edit/[id]" as const,
       params: { id: recipeId },
     });
   };
@@ -234,7 +235,7 @@ export default function RecipeDetailScreen() {
 
   if (deleting) {
     return (
-      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+      <View style={styles.safeArea}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.header}>
           <TouchableOpacity
@@ -250,12 +251,12 @@ export default function RecipeDetailScreen() {
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>Deleting recipe...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+    <View style={styles.safeArea}>
       {/* Disable the native header */}
       <Stack.Screen
         options={{
@@ -485,14 +486,15 @@ export default function RecipeDetailScreen() {
       <View style={styles.buttonContainer}>
         <TouchableOpacity
           style={styles.getCookingButton}
-          onPress={() =>
-            Alert.alert("Get Cooking", "This feature is coming soon!")
-          }
+          onPress={() => router.push(`/cooking/${recipeId}`)}
         >
-          <Text style={styles.buttonText}>Get Cooking</Text>
+          <View style={styles.buttonContent}>
+            <Ionicons name="flame" size={20} color={colors.white} />
+            <Text style={styles.buttonText}>Get Cooking</Text>
+          </View>
         </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -503,7 +505,7 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    backgroundColor: colors.white,
+    backgroundColor: colors.gray[50],
   },
   header: {
     flexDirection: "row",
@@ -511,27 +513,44 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
+    paddingTop: spacing.lg,
+    backgroundColor: colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.gray[100],
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
+    fontSize: 20,
+    fontWeight: "700",
     color: colors.dark,
+    letterSpacing: -0.5,
   },
   backButton: {
-    padding: spacing.xs,
+    padding: spacing.sm,
+    borderRadius: 12,
+    backgroundColor: colors.gray[50],
   },
   favoriteButton: {
-    padding: spacing.xs,
+    padding: spacing.sm,
+    borderRadius: 12,
+    backgroundColor: colors.gray[50],
+    marginRight: spacing.xs,
   },
   recipeImage: {
     width: "100%",
-    height: 300,
+    height: 250,
     justifyContent: "flex-end",
   },
   imagePlaceholder: {
-    backgroundColor: colors.gray[100],
+    backgroundColor: colors.gray[50],
     justifyContent: "center",
     alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: colors.gray[100],
   },
   imageOverlay: {
     backgroundColor: "rgba(0,0,0,0.4)",
@@ -550,90 +569,103 @@ const styles = StyleSheet.create({
   },
   titleContainer: {
     padding: spacing.lg,
-    paddingBottom: spacing.sm,
+    paddingBottom: spacing.md,
+    backgroundColor: colors.white,
   },
   title: {
-    fontSize: 28,
-    fontWeight: "bold",
+    fontSize: 26,
+    fontWeight: "700",
     color: colors.dark,
-    marginBottom: spacing.xs,
+    marginBottom: spacing.sm,
+    lineHeight: 32,
   },
   metaText: {
-    fontSize: 15,
+    fontSize: 16,
     color: colors.gray[600],
+    fontWeight: "500",
   },
   authorSection: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.md,
+    paddingVertical: spacing.md,
+    backgroundColor: colors.white,
+    marginBottom: spacing.sm,
   },
   authorAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.gray[100],
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.primary[100],
     justifyContent: "center",
     alignItems: "center",
-    marginRight: spacing.sm,
+    marginRight: spacing.md,
   },
   recipeByText: {
-    fontSize: 13,
+    fontSize: 14,
     color: colors.gray[500],
+    fontWeight: "500",
   },
   authorName: {
-    fontSize: 15,
-    fontWeight: "500",
+    fontSize: 16,
+    fontWeight: "600",
     color: colors.dark,
   },
   descriptionContainer: {
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.md,
+    backgroundColor: colors.white,
+    marginBottom: spacing.sm,
   },
   description: {
-    fontSize: 15,
+    fontSize: 16,
     color: colors.gray[700],
-    lineHeight: 22,
+    lineHeight: 24,
+    fontStyle: "italic",
   },
   ingredientsSection: {
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.sm,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.md,
+    backgroundColor: colors.white,
+    marginBottom: spacing.sm,
   },
   sectionTitle: {
-    fontSize: 22,
-    fontWeight: "600",
+    fontSize: 20,
+    fontWeight: "700",
     color: colors.dark,
-    marginBottom: spacing.md,
+    marginBottom: spacing.lg,
   },
   instructionsSection: {
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.xl,
+    backgroundColor: colors.white,
   },
   instructionItem: {
     flexDirection: "row",
-    marginBottom: spacing.md,
+    marginBottom: spacing.lg,
     alignItems: "flex-start",
   },
   instructionNumber: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: colors.gray[100],
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.primary[100],
     justifyContent: "center",
     alignItems: "center",
-    marginRight: spacing.sm,
+    marginRight: spacing.md,
+    marginTop: 2,
   },
   instructionNumberText: {
-    color: colors.primary,
-    fontWeight: "bold",
-    fontSize: 13,
+    color: colors.primary[700],
+    fontWeight: "700",
+    fontSize: 14,
   },
   instructionText: {
     flex: 1,
-    fontSize: 15,
-    lineHeight: 22,
+    fontSize: 16,
+    lineHeight: 24,
     color: colors.gray[700],
   },
   noDataContainer: {
@@ -654,28 +686,38 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
+    paddingTop: spacing.lg,
     paddingBottom: spacing.lg,
     backgroundColor: colors.white,
     borderTopWidth: 1,
-    borderTopColor: colors.gray[100],
+    borderTopColor: colors.gray[200],
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 8,
   },
   getCookingButton: {
     backgroundColor: colors.primary[600],
-    borderRadius: 12,
-    paddingVertical: spacing.md,
+    borderRadius: 16,
+    paddingVertical: spacing.lg,
     paddingHorizontal: spacing.lg,
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowColor: colors.primary[600],
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  buttonContent: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   buttonText: {
     color: colors.white,
-    fontSize: 16,
-    fontWeight: "600",
+    fontSize: 18,
+    fontWeight: "700",
+    marginLeft: spacing.md,
   },
   errorText: {
     marginTop: spacing.md,
@@ -725,32 +767,32 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     flexWrap: "wrap",
-    marginTop: spacing.sm,
-    gap: spacing.xs,
+    marginTop: spacing.md,
+    gap: spacing.sm,
   },
   tagChip: {
     backgroundColor: colors.primary[100],
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: 16,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: colors.primary[200],
   },
   tagChipText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "600",
     color: colors.primary[700],
   },
   moreTagsChip: {
     backgroundColor: colors.gray[100],
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: 16,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: colors.gray[200],
   },
   moreTagsText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "500",
     color: colors.gray[600],
   },

@@ -296,3 +296,139 @@ export function validateIngredientAmount(amount: string): {
 
   return { isValid: true, numericValue };
 }
+
+/**
+ * Validates a recipe for editing with more relaxed rules
+ * Still maintains security measures but allows more flexibility
+ */
+export function validateRecipeForEdit(recipe: Recipe): ValidationErrors {
+  const errors: ValidationErrors = {};
+
+  // Validate title - still required but more lenient
+  if (!recipe.title?.trim()) {
+    errors.title = "Title is required";
+  } else if (recipe.title.length > VALIDATION_LIMITS.TITLE.max) {
+    errors.title = `Title must be less than ${VALIDATION_LIMITS.TITLE.max} characters`;
+  }
+
+  // Validate description - only check max length for security
+  if (
+    recipe.description &&
+    recipe.description.length > VALIDATION_LIMITS.DESCRIPTION.max
+  ) {
+    errors.description = `Description must be less than ${VALIDATION_LIMITS.DESCRIPTION.max} characters`;
+  }
+
+  // Validate ingredients - more relaxed, allow empty ingredients during editing
+  if (
+    recipe.ingredients &&
+    recipe.ingredients.length > VALIDATION_LIMITS.INGREDIENTS.max
+  ) {
+    errors.ingredients = `Maximum ${VALIDATION_LIMITS.INGREDIENTS.max} ingredients allowed`;
+  } else if (recipe.ingredients) {
+    // Only validate for security issues, not completeness
+    const ingredientErrors = validateIngredientsForEdit(recipe.ingredients);
+    if (ingredientErrors.length > 0) {
+      errors.ingredients = ingredientErrors.join(", ");
+    }
+  }
+
+  // Validate instructions - more relaxed, allow empty instructions during editing
+  if (
+    recipe.instructions &&
+    recipe.instructions.length > VALIDATION_LIMITS.INSTRUCTIONS.max
+  ) {
+    errors.instructions = `Maximum ${VALIDATION_LIMITS.INSTRUCTIONS.max} instructions allowed`;
+  } else if (recipe.instructions) {
+    // Only validate for security issues, not completeness
+    const instructionErrors = validateInstructionsForEdit(recipe.instructions);
+    if (instructionErrors.length > 0) {
+      errors.instructions = instructionErrors.join(", ");
+    }
+  }
+
+  // Validate times - allow 0 values during editing
+  if (recipe.prepTime > VALIDATION_LIMITS.PREP_TIME.max) {
+    errors.prepTime = `Prep time must be less than ${VALIDATION_LIMITS.PREP_TIME.max} minutes`;
+  }
+
+  if (recipe.cookTime > VALIDATION_LIMITS.COOK_TIME.max) {
+    errors.cookTime = `Cook time must be less than ${VALIDATION_LIMITS.COOK_TIME.max} minutes`;
+  }
+
+  // Validate servings - allow 0 during editing
+  if (recipe.servings > VALIDATION_LIMITS.SERVINGS.max) {
+    errors.servings = `Servings must be less than ${VALIDATION_LIMITS.SERVINGS.max}`;
+  }
+
+  // Validate tags - only check max count and length for security
+  if (recipe.tags && recipe.tags.length > VALIDATION_LIMITS.TAGS.max) {
+    errors.tags = `Maximum ${VALIDATION_LIMITS.TAGS.max} tags allowed`;
+  } else if (recipe.tags) {
+    const tagErrors = validateTagsForEdit(recipe.tags);
+    if (tagErrors.length > 0) {
+      errors.tags = tagErrors.join(", ");
+    }
+  }
+
+  return errors;
+}
+
+/**
+ * Validates individual ingredients for editing (more relaxed)
+ */
+function validateIngredientsForEdit(ingredients: Ingredient[]): string[] {
+  const errors: string[] = [];
+
+  ingredients.forEach((ingredient, index) => {
+    // Only check for security issues, not completeness
+    if (
+      ingredient.name &&
+      ingredient.name.length > VALIDATION_LIMITS.INGREDIENT_NAME.max
+    ) {
+      errors.push(`Ingredient ${index + 1}: Name too long`);
+    }
+
+    // Allow 0 amounts during editing, but check for reasonable upper bounds
+    if (ingredient.amount > 99999) {
+      errors.push(`Ingredient ${index + 1}: Amount too large`);
+    }
+  });
+
+  return errors;
+}
+
+/**
+ * Validates individual instructions for editing (more relaxed)
+ */
+function validateInstructionsForEdit(instructions: string[]): string[] {
+  const errors: string[] = [];
+
+  instructions.forEach((instruction, index) => {
+    // Only check for security issues, not completeness
+    if (
+      instruction &&
+      instruction.length > VALIDATION_LIMITS.INSTRUCTION_TEXT.max
+    ) {
+      errors.push(`Step ${index + 1}: Instruction too long`);
+    }
+  });
+
+  return errors;
+}
+
+/**
+ * Validates tags for editing (more relaxed)
+ */
+function validateTagsForEdit(tags: string[]): string[] {
+  const errors: string[] = [];
+
+  tags.forEach((tag, index) => {
+    // Only check for security issues, not completeness
+    if (tag && tag.length > VALIDATION_LIMITS.TAG_LENGTH.max) {
+      errors.push(`Tag ${index + 1}: Too long`);
+    }
+  });
+
+  return errors;
+}

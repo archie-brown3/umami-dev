@@ -8,8 +8,7 @@ import {
   Platform,
   BackHandler,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { router } from "expo-router";
 import { useRecipes } from "@/context/RecipeContext";
 import { Recipe, Ingredient } from "@/types";
 import {
@@ -50,7 +49,7 @@ const createEmptyRecipe = (): Recipe => ({
       id: `ingredient-${Date.now()}-1`,
       name: "",
       amount: 1,
-      unit: "",
+      unit: "piece",
     },
   ],
   instructions: [""],
@@ -68,7 +67,6 @@ const createEmptyRecipe = (): Recipe => ({
 });
 
 const RecipeCreateScreen: React.FC = () => {
-  const router = useRouter();
   const { addRecipe } = useRecipes();
 
   const [state, setState] = useState<CreateState>({
@@ -146,7 +144,7 @@ const RecipeCreateScreen: React.FC = () => {
       id: `ingredient-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       name: "",
       amount: 1,
-      unit: "",
+      unit: "piece",
     };
 
     setState((prev) => ({
@@ -382,7 +380,7 @@ const RecipeCreateScreen: React.FC = () => {
 
   return (
     <ErrorBoundary>
-      <SafeAreaView style={styles.container} edges={["top"]}>
+      <View style={styles.container}>
         <KeyboardAvoidingView
           style={styles.keyboardAvoid}
           behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -446,7 +444,7 @@ const RecipeCreateScreen: React.FC = () => {
 
           {state.isSaving && <LoadingOverlay message="Creating recipe..." />}
         </KeyboardAvoidingView>
-      </SafeAreaView>
+      </View>
     </ErrorBoundary>
   );
 };

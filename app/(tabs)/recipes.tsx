@@ -11,7 +11,6 @@ import {
   RefreshControl,
   Alert,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 
@@ -285,7 +284,7 @@ export default function RecipesScreen() {
 
   if (isLoading && recipes.length === 0) {
     return (
-      <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+      <View style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>My Recipes</Text>
           {DEBUG_TAG_MIGRATION && (
@@ -309,14 +308,14 @@ export default function RecipesScreen() {
             {retryCount > 0 && ` (Retry ${retryCount}/3)`}
           </Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   // Error state
   if (error && recipes.length === 0) {
     return (
-      <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+      <View style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>My Recipes</Text>
         </View>
@@ -344,13 +343,13 @@ export default function RecipesScreen() {
             )}
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (!isLoading && recipes.length === 0) {
     return (
-      <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+      <View style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>My Recipes</Text>
           {DEBUG_TAG_MIGRATION && (
@@ -371,12 +370,12 @@ export default function RecipesScreen() {
           actionLabel="Add Recipe"
           iconName="book-outline"
         />
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+    <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>My Recipes</Text>
         {DEBUG_TAG_MIGRATION && (
@@ -479,7 +478,7 @@ export default function RecipesScreen() {
           />
         )}
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 

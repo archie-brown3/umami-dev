@@ -13,6 +13,7 @@ import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { GroceriesProvider } from "@/context/GroceriesContext";
+import { MealPlanProvider } from "@/context/MealPlanContext";
 import { ConnectionDiagnostic } from "@/components/ConnectionDiagnostic";
 import Constants from "expo-constants";
 
@@ -171,7 +172,9 @@ export default function RootLayout() {
         <AuthProvider>
           <RecipeProvider>
             <GroceriesProvider>
-              <RootLayoutNav />
+              <MealPlanProvider>
+                <RootLayoutNav />
+              </MealPlanProvider>
             </GroceriesProvider>
           </RecipeProvider>
         </AuthProvider>

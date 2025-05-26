@@ -24,7 +24,7 @@ export default function TabLayout() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={["bottom"]}>
+    <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
       <Tabs
         screenOptions={{
           headerShown: false,
@@ -41,19 +41,6 @@ export default function TabLayout() {
           name="index"
           options={{
             title: "Home",
-            headerShown: true,
-            headerRight: () => (
-              <TouchableOpacity
-                onPress={() => router.push("/profile")}
-                style={{ marginRight: spacing.md }}
-              >
-                <Ionicons
-                  name="person-circle-outline"
-                  size={28}
-                  color={colors.primary}
-                />
-              </TouchableOpacity>
-            ),
             tabBarIcon: ({ color, focused }) => (
               <Ionicons
                 name={focused ? "home" : "home-outline"}
@@ -137,9 +124,9 @@ const styles = StyleSheet.create({
   },
   tabBar: {
     ...createShadow(5, 0.1, 10),
-    height: 70,
-    paddingBottom: Platform.OS === "ios" ? 0 : 0,
-    paddingTop: 6,
+    height: Platform.OS === "ios" ? 85 : 70,
+    paddingBottom: Platform.OS === "ios" ? 20 : 10,
+    paddingTop: 8,
     backgroundColor: colors.white,
     borderTopLeftRadius: 18,
     borderTopRightRadius: 18,
@@ -154,7 +141,7 @@ const styles = StyleSheet.create({
   tabBarLabel: {
     fontSize: 12,
     fontWeight: "500",
-    marginBottom: 5,
+    marginBottom: Platform.OS === "ios" ? 0 : 5,
   },
   tabBarIcon: {
     marginTop: 5,

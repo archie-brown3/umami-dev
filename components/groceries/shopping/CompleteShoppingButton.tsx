@@ -94,7 +94,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
   },
   button: {
-    backgroundColor: colors.primary[600],
+    backgroundColor: colors.primary,
     borderRadius: borderRadius.md,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.lg,

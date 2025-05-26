@@ -110,24 +110,24 @@ const RecipePicker: React.FC<RecipePickerProps> = ({
         )}
         <View style={styles.recipeMetadata}>
           {item.prepTime && (
-            <Text style={styles.metadataText}>
+            <View style={styles.metadataItem}>
               <Ionicons
                 name="time-outline"
                 size={12}
                 color={colors.gray[500]}
-              />{" "}
-              {item.prepTime}min
-            </Text>
+              />
+              <Text style={styles.metadataText}>{item.prepTime}min</Text>
+            </View>
           )}
           {item.category && (
-            <Text style={styles.metadataText}>
+            <View style={styles.metadataItem}>
               <Ionicons
                 name="pricetag-outline"
                 size={12}
                 color={colors.gray[500]}
-              />{" "}
-              {item.category}
-            </Text>
+              />
+              <Text style={styles.metadataText}>{item.category}</Text>
+            </View>
           )}
         </View>
       </View>
@@ -410,10 +410,14 @@ const styles = StyleSheet.create({
     marginTop: 4,
     gap: 12,
   },
+  metadataItem: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
   metadataText: {
     fontSize: 12,
     color: colors.gray[500],
-    alignItems: "center",
+    marginLeft: 4,
   },
   recipeActions: {
     alignItems: "center",

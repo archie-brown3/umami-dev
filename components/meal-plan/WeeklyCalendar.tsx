@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -6,15 +6,25 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  Dimensions,
+  Animated,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useMealPlan } from "@/context/MealPlanContext";
 import { getWeekDates } from "@/services/mealPlanService";
-import { colors } from "@/utils/styleUtils";
+import { colors, spacing, borderRadius } from "@/utils/styleUtils";
 import MealSlot from "./MealSlot";
 
+const { width: screenWidth } = Dimensions.get("window");
 const DAYS_OF_WEEK = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const MEAL_TYPES = ["breakfast", "lunch", "dinner", "snack"];
+const MEAL_TYPES = [
+  { key: "breakfast", label: "Breakfast", icon: "sunny-outline" },
+  { key: "lunch", label: "Lunch", icon: "partly-sunny-outline" },
+  { key: "dinner", label: "Dinner", icon: "moon-outline" },
+  { key: "snack", label: "Snacks", icon: "cafe-outline" },
+];
+
+type ViewMode = "daily" | "weekly";
 
 const WeeklyCalendar: React.FC = () => {
   const {
@@ -29,16 +39,47 @@ const WeeklyCalendar: React.FC = () => {
     refreshWeek,
   } = useMealPlan();
 
+  const [viewMode, setViewMode] = useState<ViewMode>("daily");
+  const [selectedDayIndex, setSelectedDayIndex] = useState(() => {
+    // Default to today if it's in the current week
+    const today = new Date().toISOString().split("T")[0];
+    const weekDates = getWeekDates(currentWeek);
+    const todayIndex = weekDates.findIndex((date) => date === today);
+    return todayIndex >= 0 ? todayIndex : 0;
+  });
+
+  const [collapsedMeals, setCollapsedMeals] = useState<Set<string>>(new Set());
+
   const weekDates = getWeekDates(currentWeek);
   const today = new Date().toISOString().split("T")[0];
+  const selectedDate = weekDates[selectedDayIndex];
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.getDate().toString();
   };
 
+  const formatFullDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+    });
+  };
+
   const isToday = (dateString: string) => {
     return dateString === today;
+  };
+
+  const toggleMealCollapse = (mealType: string) => {
+    const newCollapsed = new Set(collapsedMeals);
+    if (newCollapsed.has(mealType)) {
+      newCollapsed.delete(mealType);
+    } else {
+      newCollapsed.add(mealType);
+    }
+    setCollapsedMeals(newCollapsed);
   };
 
   const handleGenerateShoppingList = async () => {
@@ -51,6 +92,231 @@ const WeeklyCalendar: React.FC = () => {
     } catch (error) {
       console.error("Failed to generate shopping list:", error);
     }
+  };
+
+  const goToNextDay = () => {
+    if (selectedDayIndex < 6) {
+      setSelectedDayIndex(selectedDayIndex + 1);
+    } else {
+      goToNextWeek();
+      setSelectedDayIndex(0);
+    }
+  };
+
+  const goToPreviousDay = () => {
+    if (selectedDayIndex > 0) {
+      setSelectedDayIndex(selectedDayIndex - 1);
+    } else {
+      goToPreviousWeek();
+      setSelectedDayIndex(6);
+    }
+  };
+
+  const goToTodayAndSelectIt = () => {
+    goToToday();
+    // After going to today's week, find today's index
+    const todayIndex = getWeekDates(new Date()).findIndex(
+      (date) => date === today
+    );
+    if (todayIndex >= 0) {
+      setSelectedDayIndex(todayIndex);
+    }
+  };
+
+  // Render weekly grid view
+  const renderWeeklyView = () => {
+    return (
+      <ScrollView
+        style={styles.weeklyContainer}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Days header */}
+        <View style={styles.weeklyHeader}>
+          <View style={styles.mealTypeHeaderCell} />
+          {DAYS_OF_WEEK.map((day, index) => (
+            <View key={day} style={styles.dayHeaderCell}>
+              <Text
+                style={[
+                  styles.dayHeaderText,
+                  isToday(weekDates[index]) && styles.todayHeaderText,
+                ]}
+              >
+                {day}
+              </Text>
+              <Text
+                style={[
+                  styles.dayHeaderDate,
+                  isToday(weekDates[index]) && styles.todayHeaderDate,
+                ]}
+              >
+                {formatDate(weekDates[index])}
+              </Text>
+            </View>
+          ))}
+        </View>
+
+        {/* Meal rows */}
+        {MEAL_TYPES.map((mealType) => (
+          <View key={mealType.key} style={styles.weeklyRow}>
+            <View style={styles.mealTypeCell}>
+              <Ionicons
+                name={mealType.icon as any}
+                size={16}
+                color={colors.primary}
+                style={styles.mealTypeIcon}
+              />
+              <Text style={styles.mealTypeText}>{mealType.label}</Text>
+            </View>
+            {weekDates.map((date) => {
+              const meals = weekMeals[date]?.[mealType.key] || [];
+              return (
+                <View
+                  key={`${date}-${mealType.key}`}
+                  style={styles.weeklyMealCell}
+                >
+                  <MealSlot
+                    date={date}
+                    mealType={mealType.key}
+                    meals={meals}
+                    compact={true}
+                  />
+                </View>
+              );
+            })}
+          </View>
+        ))}
+      </ScrollView>
+    );
+  };
+
+  // Render daily view (existing implementation)
+  const renderDailyView = () => {
+    return (
+      <>
+        {/* Day Selector */}
+        <View style={styles.daySelector}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.daySelectorContent}
+          >
+            {DAYS_OF_WEEK.map((day, index) => (
+              <TouchableOpacity
+                key={day}
+                style={[
+                  styles.dayTab,
+                  selectedDayIndex === index && styles.selectedDayTab,
+                  isToday(weekDates[index]) && styles.todayTab,
+                ]}
+                onPress={() => setSelectedDayIndex(index)}
+              >
+                <Text
+                  style={[
+                    styles.dayTabText,
+                    selectedDayIndex === index && styles.selectedDayTabText,
+                    isToday(weekDates[index]) && styles.todayTabText,
+                  ]}
+                >
+                  {day}
+                </Text>
+                <Text
+                  style={[
+                    styles.dayTabDate,
+                    selectedDayIndex === index && styles.selectedDayTabDate,
+                    isToday(weekDates[index]) && styles.todayTabDate,
+                  ]}
+                >
+                  {formatDate(weekDates[index])}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+
+        {/* Selected Day Content */}
+        <View style={styles.dayContent}>
+          {/* Day Navigation */}
+          <View style={styles.dayNavigation}>
+            <TouchableOpacity
+              style={styles.dayNavButton}
+              onPress={goToPreviousDay}
+            >
+              <Ionicons
+                name="chevron-back"
+                size={20}
+                color={colors.gray[600]}
+              />
+            </TouchableOpacity>
+
+            <Text style={styles.selectedDayTitle}>
+              {formatFullDate(selectedDate)}
+            </Text>
+
+            <TouchableOpacity style={styles.dayNavButton} onPress={goToNextDay}>
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={colors.gray[600]}
+              />
+            </TouchableOpacity>
+          </View>
+
+          {/* Meals for Selected Day */}
+          <ScrollView
+            style={styles.mealsContainer}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.mealsContent}
+          >
+            {MEAL_TYPES.map((mealType) => {
+              const isCollapsed = collapsedMeals.has(mealType.key);
+              const meals = weekMeals[selectedDate]?.[mealType.key] || [];
+
+              return (
+                <View key={mealType.key} style={styles.mealSection}>
+                  <TouchableOpacity
+                    style={styles.mealSectionHeader}
+                    onPress={() => toggleMealCollapse(mealType.key)}
+                  >
+                    <View style={styles.mealSectionHeaderLeft}>
+                      <Ionicons
+                        name={mealType.icon as any}
+                        size={20}
+                        color={colors.primary}
+                      />
+                      <Text style={styles.mealSectionTitle}>
+                        {mealType.label}
+                      </Text>
+                      {meals.length > 0 && (
+                        <View style={styles.mealCount}>
+                          <Text style={styles.mealCountText}>
+                            {meals.length}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                    <Ionicons
+                      name={isCollapsed ? "chevron-down" : "chevron-up"}
+                      size={20}
+                      color={colors.gray[500]}
+                    />
+                  </TouchableOpacity>
+
+                  {!isCollapsed && (
+                    <View style={styles.mealSectionContent}>
+                      <MealSlot
+                        date={selectedDate}
+                        mealType={mealType.key}
+                        meals={meals}
+                      />
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+          </ScrollView>
+        </View>
+      </>
+    );
   };
 
   if (isLoading) {
@@ -125,7 +391,10 @@ const WeeklyCalendar: React.FC = () => {
               day: "numeric",
             })}
           </Text>
-          <TouchableOpacity style={styles.todayButton} onPress={goToToday}>
+          <TouchableOpacity
+            style={styles.todayButton}
+            onPress={goToTodayAndSelectIt}
+          >
             <Text style={styles.todayButtonText}>Today</Text>
           </TouchableOpacity>
         </View>
@@ -135,70 +404,74 @@ const WeeklyCalendar: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      {/* Action Buttons */}
-      <View style={styles.actionButtons}>
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={handleGenerateShoppingList}
-        >
-          <Ionicons name="basket-outline" size={20} color={colors.white} />
-          <Text style={styles.actionButtonText}>Generate Shopping List</Text>
-        </TouchableOpacity>
+      {/* View Mode Slider */}
+      <View style={styles.viewModeContainer}>
+        <View style={styles.viewModeSlider}>
+          <TouchableOpacity
+            style={[
+              styles.viewModeButton,
+              viewMode === "daily" && styles.activeViewModeButton,
+            ]}
+            onPress={() => setViewMode("daily")}
+          >
+            <Ionicons
+              name="calendar-outline"
+              size={16}
+              color={viewMode === "daily" ? colors.white : colors.gray[600]}
+            />
+            <Text
+              style={[
+                styles.viewModeText,
+                viewMode === "daily" && styles.activeViewModeText,
+              ]}
+            >
+              Daily
+            </Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionButton} onPress={refreshWeek}>
-          <Ionicons name="refresh-outline" size={20} color={colors.white} />
-          <Text style={styles.actionButtonText}>Refresh</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.viewModeButton,
+              viewMode === "weekly" && styles.activeViewModeButton,
+            ]}
+            onPress={() => setViewMode("weekly")}
+          >
+            <Ionicons
+              name="grid-outline"
+              size={16}
+              color={viewMode === "weekly" ? colors.white : colors.gray[600]}
+            />
+            <Text
+              style={[
+                styles.viewModeText,
+                viewMode === "weekly" && styles.activeViewModeText,
+              ]}
+            >
+              Weekly
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* Calendar Grid */}
-      <ScrollView
-        style={styles.calendarContainer}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Days Header */}
-        <View style={styles.daysHeader}>
-          {DAYS_OF_WEEK.map((day, index) => (
-            <View key={day} style={styles.dayHeaderContainer}>
-              <Text style={styles.dayHeader}>{day}</Text>
-              <Text
-                style={[
-                  styles.dateHeader,
-                  isToday(weekDates[index]) && styles.todayDate,
-                ]}
-              >
-                {formatDate(weekDates[index])}
-              </Text>
-            </View>
-          ))}
-        </View>
+      {/* Content based on view mode */}
+      {viewMode === "daily" ? renderDailyView() : renderWeeklyView()}
 
-        {/* Meal Slots Grid */}
-        {MEAL_TYPES.map((mealType) => (
-          <View key={mealType} style={styles.mealRow}>
-            <View style={styles.mealTypeHeader}>
-              <Text style={styles.mealTypeText}>
-                {mealType.charAt(0).toUpperCase() + mealType.slice(1)}
-              </Text>
-            </View>
+      {/* Floating Action Buttons */}
+      <View style={styles.floatingActions}>
+        <TouchableOpacity
+          style={styles.floatingButton}
+          onPress={handleGenerateShoppingList}
+        >
+          <Ionicons name="basket-outline" size={24} color={colors.white} />
+        </TouchableOpacity>
 
-            <View style={styles.mealSlotsContainer}>
-              {weekDates.map((date) => (
-                <View
-                  key={`${date}-${mealType}`}
-                  style={styles.mealSlotContainer}
-                >
-                  <MealSlot
-                    date={date}
-                    mealType={mealType}
-                    meals={weekMeals[date]?.[mealType] || []}
-                  />
-                </View>
-              ))}
-            </View>
-          </View>
-        ))}
-      </ScrollView>
+        <TouchableOpacity
+          style={[styles.floatingButton, styles.refreshButton]}
+          onPress={refreshWeek}
+        >
+          <Ionicons name="refresh-outline" size={20} color={colors.white} />
+        </TouchableOpacity>
+      </View>
     </View>
   );
 };
@@ -263,14 +536,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
     backgroundColor: colors.white,
     borderBottomWidth: 1,
     borderBottomColor: colors.gray[200],
   },
   navButton: {
-    padding: 8,
+    padding: spacing.xs,
   },
   weekInfo: {
     alignItems: "center",
@@ -292,88 +565,258 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontWeight: "500",
   },
-  actionButtons: {
-    flexDirection: "row",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+  daySelector: {
     backgroundColor: colors.white,
     borderBottomWidth: 1,
     borderBottomColor: colors.gray[200],
-    gap: 12,
   },
-  actionButton: {
-    flex: 1,
-    flexDirection: "row",
+  daySelectorContent: {
+    paddingHorizontal: spacing.sm,
+  },
+  dayTab: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    marginHorizontal: spacing.xs,
+    borderRadius: borderRadius.md,
     alignItems: "center",
-    justifyContent: "center",
+    minWidth: 60,
+  },
+  selectedDayTab: {
     backgroundColor: colors.primary,
-    paddingVertical: 10,
-    borderRadius: 8,
-    gap: 6,
   },
-  actionButtonText: {
-    color: colors.white,
-    fontWeight: "600",
-    fontSize: 14,
+  todayTab: {
+    backgroundColor: colors.blue[50],
+    borderWidth: 1,
+    borderColor: colors.blue[500],
   },
-  calendarContainer: {
-    flex: 1,
-  },
-  daysHeader: {
-    flexDirection: "row",
-    backgroundColor: colors.white,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.gray[200],
-  },
-  dayHeaderContainer: {
-    flex: 1,
-    alignItems: "center",
-  },
-  dayHeader: {
-    fontSize: 14,
-    fontWeight: "600",
+  dayTabText: {
+    fontSize: 12,
+    fontWeight: "500",
     color: colors.gray[600],
   },
-  dateHeader: {
+  selectedDayTabText: {
+    color: colors.white,
+    fontWeight: "600",
+  },
+  todayTabText: {
+    color: colors.blue[600],
+    fontWeight: "600",
+  },
+  dayTabDate: {
     fontSize: 16,
     fontWeight: "700",
     color: colors.dark,
     marginTop: 2,
   },
-  todayDate: {
-    color: colors.primary,
+  selectedDayTabDate: {
+    color: colors.white,
   },
-  mealRow: {
+  todayTabDate: {
+    color: colors.blue[600],
+  },
+  dayContent: {
+    flex: 1,
+  },
+  dayNavigation: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
     backgroundColor: colors.white,
-    marginBottom: 1,
-  },
-  mealTypeHeader: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: colors.gray[100],
     borderBottomWidth: 1,
-    borderBottomColor: colors.gray[200],
+    borderBottomColor: colors.gray[100],
   },
-  mealTypeText: {
+  dayNavButton: {
+    padding: spacing.xs,
+  },
+  selectedDayTitle: {
     fontSize: 16,
     fontWeight: "600",
     color: colors.dark,
-  },
-  mealSlotsContainer: {
-    flexDirection: "row",
-    minHeight: 80,
-  },
-  mealSlotContainer: {
+    textAlign: "center",
     flex: 1,
-    borderRightWidth: 1,
-    borderRightColor: colors.gray[200],
+  },
+  mealsContainer: {
+    flex: 1,
+  },
+  mealsContent: {
+    padding: spacing.md,
+    paddingBottom: 100, // Space for floating buttons
+  },
+  mealSection: {
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.lg,
+    marginBottom: spacing.md,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  mealSectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.gray[50],
+    borderBottomWidth: 1,
+    borderBottomColor: colors.gray[100],
+  },
+  mealSectionHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  mealSectionTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: colors.dark,
+    marginLeft: spacing.sm,
+  },
+  mealCount: {
+    backgroundColor: colors.primary,
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginLeft: spacing.sm,
+  },
+  mealCountText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: colors.white,
+  },
+  mealSectionContent: {
+    padding: spacing.sm,
+  },
+  floatingActions: {
+    position: "absolute",
+    bottom: spacing.lg,
+    right: spacing.md,
+    alignItems: "center",
+  },
+  floatingButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: spacing.sm,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  refreshButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.gray[600],
   },
   retryInfo: {
     marginTop: 16,
     fontSize: 14,
     color: colors.gray[600],
     textAlign: "center",
+  },
+  viewModeContainer: {
+    padding: spacing.md,
+    backgroundColor: colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.gray[200],
+    alignItems: "center",
+  },
+  viewModeSlider: {
+    flexDirection: "row",
+    backgroundColor: colors.gray[100],
+    borderRadius: 12,
+    padding: 4,
+  },
+  viewModeButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: 8,
+    gap: 6,
+  },
+  activeViewModeButton: {
+    backgroundColor: colors.primary,
+  },
+  viewModeText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.gray[600],
+  },
+  activeViewModeText: {
+    color: colors.white,
+  },
+  weeklyContainer: {
+    flex: 1,
+    backgroundColor: colors.gray[50],
+  },
+  weeklyHeader: {
+    flexDirection: "row",
+    backgroundColor: colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.gray[200],
+    paddingVertical: spacing.sm,
+  },
+  mealTypeHeaderCell: {
+    width: 100,
+    paddingHorizontal: spacing.sm,
+  },
+  dayHeaderCell: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: spacing.sm,
+  },
+  dayHeaderText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: colors.dark,
+    marginBottom: 2,
+  },
+  dayHeaderDate: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: colors.dark,
+  },
+  todayHeaderText: {
+    color: colors.blue[600],
+  },
+  todayHeaderDate: {
+    color: colors.blue[600],
+  },
+  weeklyRow: {
+    flexDirection: "row",
+    backgroundColor: colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.gray[100],
+    minHeight: 80,
+  },
+  mealTypeCell: {
+    width: 100,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: spacing.sm,
+    backgroundColor: colors.gray[50],
+  },
+  mealTypeIcon: {
+    marginRight: spacing.xs,
+  },
+  mealTypeText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: colors.dark,
+  },
+  weeklyMealCell: {
+    flex: 1,
+    padding: spacing.xs,
   },
 });
 

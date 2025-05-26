@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -7,6 +7,9 @@ import {
   TouchableOpacity,
   FlatList,
   Alert,
+  Modal,
+  ScrollView,
+  Pressable,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Ingredient } from "@/types";
@@ -21,6 +24,242 @@ import {
   borderRadius,
   createShadow,
 } from "@/utils/styleUtils";
+
+// Common cooking units
+const COOKING_UNITS = [
+  { label: "No unit", value: "" },
+  { label: "Cup", value: "cup" },
+  { label: "Cups", value: "cups" },
+  { label: "Tablespoon", value: "tbsp" },
+  { label: "Tablespoons", value: "tbsps" },
+  { label: "Teaspoon", value: "tsp" },
+  { label: "Teaspoons", value: "tsps" },
+  { label: "Ounce", value: "oz" },
+  { label: "Ounces", value: "ozs" },
+  { label: "Fluid ounce", value: "fl oz" },
+  { label: "Fluid ounces", value: "fl ozs" },
+  { label: "Pound", value: "lb" },
+  { label: "Pounds", value: "lbs" },
+  { label: "Gram", value: "g" },
+  { label: "Grams", value: "grams" },
+  { label: "Kilogram", value: "kg" },
+  { label: "Kilograms", value: "kgs" },
+  { label: "Milliliter", value: "ml" },
+  { label: "Milliliters", value: "mls" },
+  { label: "Liter", value: "l" },
+  { label: "Liters", value: "liters" },
+  { label: "Pint", value: "pint" },
+  { label: "Pints", value: "pints" },
+  { label: "Quart", value: "quart" },
+  { label: "Quarts", value: "quarts" },
+  { label: "Gallon", value: "gallon" },
+  { label: "Gallons", value: "gallons" },
+  { label: "Piece", value: "piece" },
+  { label: "Pieces", value: "pieces" },
+  { label: "Slice", value: "slice" },
+  { label: "Slices", value: "slices" },
+  { label: "Clove", value: "clove" },
+  { label: "Cloves", value: "cloves" },
+  { label: "Pinch", value: "pinch" },
+  { label: "Dash", value: "dash" },
+  { label: "Handful", value: "handful" },
+  { label: "Bunch", value: "bunch" },
+  { label: "Package", value: "package" },
+  { label: "Can", value: "can" },
+  { label: "Jar", value: "jar" },
+  { label: "Bottle", value: "bottle" },
+  { label: "Box", value: "box" },
+  { label: "Bag", value: "bag" },
+];
+
+interface UnitPickerProps {
+  selectedUnit: string;
+  onUnitChange: (unit: string) => void;
+}
+
+const UnitPicker: React.FC<UnitPickerProps> = ({
+  selectedUnit,
+  onUnitChange,
+}) => {
+  const [modalVisible, setModalVisible] = useState(false);
+  const [customUnit, setCustomUnit] = useState("");
+  const [showCustomInput, setShowCustomInput] = useState(false);
+
+  const handleUnitSelect = (unit: string) => {
+    if (unit === "custom") {
+      setShowCustomInput(true);
+      return;
+    }
+    onUnitChange(unit);
+    setModalVisible(false);
+    setShowCustomInput(false);
+    setCustomUnit("");
+  };
+
+  const handleCustomUnitSave = () => {
+    if (customUnit.trim()) {
+      onUnitChange(customUnit.trim());
+      setModalVisible(false);
+      setShowCustomInput(false);
+      setCustomUnit("");
+    }
+  };
+
+  const selectedUnitLabel =
+    COOKING_UNITS.find((unit) => unit.value === selectedUnit)?.label ||
+    selectedUnit ||
+    "unit";
+  const isCustomUnit =
+    selectedUnit && !COOKING_UNITS.find((unit) => unit.value === selectedUnit);
+
+  return (
+    <>
+      <TouchableOpacity
+        style={styles.unitPicker}
+        onPress={() => setModalVisible(true)}
+      >
+        <Text
+          style={[
+            styles.unitPickerText,
+            selectedUnit && styles.unitPickerTextSelected,
+          ]}
+          numberOfLines={1}
+        >
+          {selectedUnitLabel}
+        </Text>
+        <Ionicons name="chevron-down" size={16} color={colors.gray[500]} />
+      </TouchableOpacity>
+
+      <Modal
+        visible={modalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setModalVisible(false)}
+        >
+          <Pressable style={styles.modalContent} onPress={() => {}}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Unit</Text>
+              <TouchableOpacity
+                onPress={() => setModalVisible(false)}
+                style={styles.modalCloseButton}
+              >
+                <Ionicons name="close" size={24} color={colors.gray[600]} />
+              </TouchableOpacity>
+            </View>
+
+            {showCustomInput ? (
+              <View style={styles.customUnitContainer}>
+                <Text style={styles.customUnitLabel}>Enter custom unit:</Text>
+                <TextInput
+                  style={styles.customUnitInput}
+                  value={customUnit}
+                  onChangeText={setCustomUnit}
+                  placeholder="e.g., bunches, containers"
+                  autoFocus
+                  returnKeyType="done"
+                  onSubmitEditing={handleCustomUnitSave}
+                />
+                <View style={styles.customUnitButtons}>
+                  <TouchableOpacity
+                    style={[
+                      styles.customUnitButton,
+                      styles.customUnitButtonCancel,
+                    ]}
+                    onPress={() => {
+                      setShowCustomInput(false);
+                      setCustomUnit("");
+                    }}
+                  >
+                    <Text style={styles.customUnitButtonTextCancel}>
+                      Cancel
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.customUnitButton,
+                      styles.customUnitButtonSave,
+                    ]}
+                    onPress={handleCustomUnitSave}
+                  >
+                    <Text style={styles.customUnitButtonTextSave}>Save</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <ScrollView
+                style={styles.unitList}
+                showsVerticalScrollIndicator={false}
+              >
+                {COOKING_UNITS.map((unit) => (
+                  <Pressable
+                    key={unit.value}
+                    style={[
+                      styles.unitOption,
+                      selectedUnit === unit.value && styles.unitOptionSelected,
+                    ]}
+                    onPress={() => handleUnitSelect(unit.value)}
+                  >
+                    <Text
+                      style={[
+                        styles.unitOptionText,
+                        selectedUnit === unit.value &&
+                          styles.unitOptionTextSelected,
+                      ]}
+                    >
+                      {unit.label}
+                    </Text>
+                    {selectedUnit === unit.value && (
+                      <Ionicons
+                        name="checkmark"
+                        size={20}
+                        color={colors.primary}
+                      />
+                    )}
+                  </Pressable>
+                ))}
+
+                {/* Show current custom unit if it exists */}
+                {isCustomUnit && (
+                  <Pressable
+                    style={[styles.unitOption, styles.unitOptionSelected]}
+                    onPress={() => handleUnitSelect(selectedUnit)}
+                  >
+                    <Text
+                      style={[
+                        styles.unitOptionText,
+                        styles.unitOptionTextSelected,
+                      ]}
+                    >
+                      {selectedUnit} (current)
+                    </Text>
+                    <Ionicons
+                      name="checkmark"
+                      size={20}
+                      color={colors.primary}
+                    />
+                  </Pressable>
+                )}
+
+                {/* Custom unit option */}
+                <Pressable
+                  style={styles.unitOption}
+                  onPress={() => handleUnitSelect("custom")}
+                >
+                  <Text style={styles.unitOptionText}>Custom unit...</Text>
+                  <Ionicons name="add" size={20} color={colors.gray[500]} />
+                </Pressable>
+              </ScrollView>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </>
+  );
+};
 
 interface IngredientsCardProps {
   ingredients: Ingredient[];
@@ -102,13 +341,9 @@ const IngredientsCard: React.FC<IngredientsCardProps> = ({
         </View>
 
         <View style={styles.unitContainer}>
-          <TextInput
-            style={styles.unitInput}
-            value={item.unit}
-            onChangeText={(text) => onUpdate(index, { ...item, unit: text })}
-            placeholder="unit"
-            returnKeyType="next"
-            autoCapitalize="none"
+          <UnitPicker
+            selectedUnit={item.unit}
+            onUnitChange={(unit) => onUpdate(index, { ...item, unit })}
           />
         </View>
 
@@ -306,13 +541,25 @@ const styles = StyleSheet.create({
     width: 80,
     marginRight: spacing.sm,
   },
-  unitInput: {
+  unitPicker: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     borderWidth: 1,
     borderColor: colors.gray[300],
     borderRadius: borderRadius.sm,
     padding: spacing.sm,
-    fontSize: typography.fontSizes.sm,
     minHeight: 40,
+    backgroundColor: colors.white,
+  },
+  unitPickerText: {
+    fontSize: typography.fontSizes.sm,
+    color: colors.dark,
+    flex: 1,
+  },
+  unitPickerTextSelected: {
+    fontWeight: "600",
+    color: colors.dark,
   },
   nameContainer: {
     flex: 1,
@@ -366,7 +613,107 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: typography.fontSizes.sm,
     color: colors.red[500],
+    textAlign: "center",
     marginTop: spacing.sm,
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+  },
+  modalContent: {
+    backgroundColor: colors.white,
+    padding: spacing.md,
+    borderTopLeftRadius: borderRadius.lg,
+    borderTopRightRadius: borderRadius.lg,
+    maxHeight: "50%",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: spacing.md,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.gray[200],
+  },
+  modalTitle: {
+    fontSize: typography.fontSizes.lg,
+    fontWeight: "700",
+    color: colors.dark,
+  },
+  modalCloseButton: {
+    padding: spacing.xs,
+  },
+  unitList: {
+    maxHeight: 300,
+  },
+  unitOption: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
+    borderRadius: borderRadius.sm,
+  },
+  unitOptionSelected: {
+    backgroundColor: colors.primary + "20",
+  },
+  unitOptionText: {
+    fontSize: typography.fontSizes.md,
+    color: colors.dark,
+  },
+  unitOptionTextSelected: {
+    fontWeight: "600",
+    color: colors.primary,
+  },
+  customUnitContainer: {
+    padding: spacing.md,
+  },
+  customUnitLabel: {
+    fontSize: typography.fontSizes.md,
+    fontWeight: "600",
+    color: colors.dark,
+    marginBottom: spacing.sm,
+  },
+  customUnitInput: {
+    borderWidth: 1,
+    borderColor: colors.gray[300],
+    borderRadius: borderRadius.sm,
+    padding: spacing.sm,
+    fontSize: typography.fontSizes.md,
+    minHeight: 40,
+    marginBottom: spacing.md,
+  },
+  customUnitButtons: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: spacing.md,
+  },
+  customUnitButton: {
+    flex: 1,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.sm,
+    alignItems: "center",
+  },
+  customUnitButtonCancel: {
+    backgroundColor: colors.gray[100],
+    borderWidth: 1,
+    borderColor: colors.gray[300],
+  },
+  customUnitButtonSave: {
+    backgroundColor: colors.primary,
+  },
+  customUnitButtonTextCancel: {
+    fontSize: typography.fontSizes.md,
+    color: colors.gray[600],
+    fontWeight: "600",
+  },
+  customUnitButtonTextSave: {
+    fontSize: typography.fontSizes.md,
+    color: colors.white,
+    fontWeight: "600",
   },
 });
 

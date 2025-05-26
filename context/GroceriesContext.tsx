@@ -12,6 +12,7 @@ import {
   removeShoppingItem as removeSupabaseShoppingItem,
   consolidateShoppingListItems,
 } from "@/services/groceriesService";
+import { getUserRecipesWithIngredients } from "@/services/recipeService";
 
 // Type definitions
 export interface GroceryItem {
@@ -42,9 +43,12 @@ interface GroceriesContextType {
   isLoading: boolean;
   error: string | null;
 
-  // New Supabase shopping lists
-  shoppingLists: ShoppingList[];
-  activeShoppingList: ShoppingList | null;
+  // Default shopping list (no more multiple lists)
+  defaultShoppingList: ShoppingList | null;
+
+  // Recipes with ingredients for shopping list
+  recipesWithIngredients: Recipe[];
+  loadRecipesWithIngredients: () => Promise<void>;
 
   // Actions
   setActiveView: (view: "shopping" | "cupboard") => void;
@@ -63,14 +67,17 @@ interface GroceriesContextType {
   removeSelectedRecipe: (recipeId: string) => void;
   clearError: () => void;
 
-  // New Supabase methods
-  createNewShoppingList: (title: string) => Promise<void>;
-  selectShoppingList: (listId: string) => void;
-  addItemToActiveList: (item: Partial<SupabaseShoppingItem>) => Promise<void>;
-  toggleItemInActiveList: (itemId: string) => Promise<void>;
-  removeItemFromActiveList: (itemId: string) => Promise<void>;
-  consolidateActiveList: () => Promise<void>;
-  refreshShoppingLists: () => Promise<void>;
+  // New simplified methods
+  addItemToShoppingList: (item: Partial<SupabaseShoppingItem>) => Promise<void>;
+  updateShoppingItemInList: (
+    itemId: string,
+    updates: Partial<SupabaseShoppingItem>
+  ) => Promise<void>;
+  toggleItemInShoppingList: (itemId: string) => Promise<void>;
+  removeItemFromShoppingList: (itemId: string) => Promise<void>;
+  addRecipeToShoppingList: (recipe: Recipe) => Promise<void>;
+  removeRecipeFromShoppingList: (recipeId: string) => Promise<void>;
+  refreshShoppingList: () => Promise<void>;
 }
 
 const STORAGE_KEYS = {
@@ -96,10 +103,14 @@ export const GroceriesProvider: React.FC<{ children: React.ReactNode }> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // New Supabase state
-  const [shoppingLists, setShoppingLists] = useState<ShoppingList[]>([]);
-  const [activeShoppingList, setActiveShoppingList] =
+  // Default shopping list (no more multiple lists)
+  const [defaultShoppingList, setDefaultShoppingList] =
     useState<ShoppingList | null>(null);
+
+  // Recipes with ingredients for shopping list
+  const [recipesWithIngredients, setRecipesWithIngredients] = useState<
+    Recipe[]
+  >([]);
 
   // Load data from AsyncStorage on mount
   useEffect(() => {
@@ -357,81 +368,31 @@ export const GroceriesProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
-  // New Supabase methods
-  const refreshShoppingLists = async () => {
-    if (!user?.id) return;
-
-    try {
-      setIsLoading(true);
-      const lists = await getShoppingLists(user.id);
-      setShoppingLists(lists);
-    } catch (error) {
-      console.error(
-        "[GroceriesContext] Error refreshing shopping lists:",
-        error
-      );
-      setError("Failed to refresh shopping lists.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const createNewShoppingList = async (title: string) => {
-    if (!user?.id) throw new Error("User not authenticated");
-
-    try {
-      setIsLoading(true);
-      const newList = await createShoppingList(user.id, {
-        title,
-        date: new Date().toISOString().split("T")[0],
-      });
-      setShoppingLists((prev) => [...prev, newList]);
-      setActiveShoppingList(newList);
-    } catch (error) {
-      console.error("[GroceriesContext] Error creating shopping list:", error);
-      setError("Failed to create shopping list.");
-      throw error;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const selectShoppingList = (listId: string) => {
-    const list = shoppingLists.find((l) => l.id === listId);
-    if (list) {
-      setActiveShoppingList(list);
-    }
-  };
-
-  const addItemToActiveList = async (item: Partial<SupabaseShoppingItem>) => {
-    if (!activeShoppingList || !user?.id) return;
+  // New simplified methods
+  const addItemToShoppingList = async (item: Partial<SupabaseShoppingItem>) => {
+    if (!user?.id || !defaultShoppingList) return;
 
     try {
       const newItem = await addSupabaseShoppingItem(
-        activeShoppingList.id,
+        defaultShoppingList.id,
         item
       );
-      setActiveShoppingList((prev) =>
-        prev
-          ? {
-              ...prev,
-              items: [...(prev.items || []), newItem],
-            }
-          : null
-      );
-
-      // Update the list in shoppingLists array
-      setShoppingLists((prev) =>
-        prev.map((list) => {
-          if (list.id === activeShoppingList.id) {
-            return { ...list, items: [...(list.items || []), newItem] };
-          }
-          return list;
-        })
-      );
+      // Convert SupabaseShoppingItem to local ShoppingItem format
+      const localItem: ShoppingItem = {
+        id: newItem.id,
+        name: newItem.name,
+        quantity: newItem.quantity ? parseFloat(newItem.quantity) : undefined,
+        unit: newItem.unit,
+        category: newItem.category,
+        checked: newItem.checked,
+        recipeId: newItem.recipe_id,
+        createdAt: new Date(newItem.created_at),
+        updatedAt: new Date(newItem.updated_at),
+      };
+      setShoppingList((prev) => [...prev, localItem]);
     } catch (error) {
       console.error(
-        "[GroceriesContext] Error adding item to active list:",
+        "[GroceriesContext] Error adding item to shopping list:",
         error
       );
       setError("Failed to add item to shopping list.");
@@ -439,39 +400,65 @@ export const GroceriesProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
-  const toggleItemInActiveList = async (itemId: string) => {
-    if (!activeShoppingList) return;
+  const updateShoppingItemInList = async (
+    itemId: string,
+    updates: Partial<SupabaseShoppingItem>
+  ) => {
+    if (!user?.id) return;
 
     try {
-      const item = activeShoppingList.items?.find((i) => i.id === itemId);
-      if (!item) return;
+      const updatedItem = await updateShoppingItem(itemId, updates);
+      // Convert SupabaseShoppingItem to local ShoppingItem format
+      const localItem: ShoppingItem = {
+        id: updatedItem.id,
+        name: updatedItem.name,
+        quantity: updatedItem.quantity
+          ? parseFloat(updatedItem.quantity)
+          : undefined,
+        unit: updatedItem.unit,
+        category: updatedItem.category,
+        checked: updatedItem.checked,
+        recipeId: updatedItem.recipe_id,
+        createdAt: new Date(updatedItem.created_at),
+        updatedAt: new Date(updatedItem.updated_at),
+      };
+      setShoppingList((prev) =>
+        prev.map((item) => (item.id === itemId ? localItem : item))
+      );
+    } catch (error) {
+      console.error("[GroceriesContext] Error updating shopping item:", error);
+      setError("Failed to update shopping item.");
+      throw error;
+    }
+  };
+
+  const toggleItemInShoppingList = async (itemId: string) => {
+    if (!user?.id) return;
+
+    try {
+      const currentItem = shoppingList.find((item) => item.id === itemId);
+      if (!currentItem) return;
 
       const updatedItem = await updateShoppingItem(itemId, {
-        checked: !item.checked,
+        checked: !currentItem.checked,
       });
 
-      setActiveShoppingList((prev) =>
-        prev
-          ? {
-              ...prev,
-              items:
-                prev.items?.map((i) => (i.id === itemId ? updatedItem : i)) ||
-                [],
-            }
-          : null
-      );
-
-      setShoppingLists((prev) =>
-        prev.map((list) =>
-          list.id === activeShoppingList.id
-            ? {
-                ...list,
-                items:
-                  list.items?.map((i) => (i.id === itemId ? updatedItem : i)) ||
-                  [],
-              }
-            : list
-        )
+      // Convert SupabaseShoppingItem to local ShoppingItem format
+      const localItem: ShoppingItem = {
+        id: updatedItem.id,
+        name: updatedItem.name,
+        quantity: updatedItem.quantity
+          ? parseFloat(updatedItem.quantity)
+          : undefined,
+        unit: updatedItem.unit,
+        category: updatedItem.category,
+        checked: updatedItem.checked,
+        recipeId: updatedItem.recipe_id,
+        createdAt: new Date(updatedItem.created_at),
+        updatedAt: new Date(updatedItem.updated_at),
+      };
+      setShoppingList((prev) =>
+        prev.map((item) => (item.id === itemId ? localItem : item))
       );
     } catch (error) {
       console.error("[GroceriesContext] Error toggling item:", error);
@@ -480,31 +467,12 @@ export const GroceriesProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
-  const removeItemFromActiveList = async (itemId: string) => {
-    if (!activeShoppingList) return;
+  const removeItemFromShoppingList = async (itemId: string) => {
+    if (!user?.id) return;
 
     try {
       await removeSupabaseShoppingItem(itemId);
-
-      setActiveShoppingList((prev) =>
-        prev
-          ? {
-              ...prev,
-              items: prev.items?.filter((i) => i.id !== itemId) || [],
-            }
-          : null
-      );
-
-      setShoppingLists((prev) =>
-        prev.map((list) =>
-          list.id === activeShoppingList.id
-            ? {
-                ...list,
-                items: list.items?.filter((i) => i.id !== itemId) || [],
-              }
-            : list
-        )
-      );
+      setShoppingList((prev) => prev.filter((item) => item.id !== itemId));
     } catch (error) {
       console.error("[GroceriesContext] Error removing item:", error);
       setError("Failed to remove item.");
@@ -512,27 +480,94 @@ export const GroceriesProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
-  const consolidateActiveList = async () => {
-    if (!activeShoppingList) return;
+  const addRecipeToShoppingList = async (recipe: Recipe) => {
+    if (!user?.id || !defaultShoppingList) return;
+
+    try {
+      // Add all ingredients from the recipe
+      for (const ingredient of recipe.ingredients) {
+        await addSupabaseShoppingItem(defaultShoppingList.id, {
+          name: ingredient.name,
+          quantity: ingredient.amount?.toString() || "1",
+          unit: ingredient.unit,
+          category: "Other",
+          recipe_id: recipe.id,
+        });
+      }
+
+      // Refresh the shopping list to get all new items
+      await refreshShoppingList();
+    } catch (error) {
+      console.error(
+        "[GroceriesContext] Error adding recipe to shopping list:",
+        error
+      );
+      setError("Failed to add recipe to shopping list.");
+      throw error;
+    }
+  };
+
+  const removeRecipeFromShoppingList = async (recipeId: string) => {
+    if (!user?.id) return;
+
+    try {
+      // Remove all items with this recipe_id
+      const itemsToRemove = shoppingList.filter(
+        (item) => item.recipeId === recipeId
+      );
+      for (const item of itemsToRemove) {
+        await removeSupabaseShoppingItem(item.id);
+      }
+      setShoppingList((prev) =>
+        prev.filter((item) => item.recipeId !== recipeId)
+      );
+    } catch (error) {
+      console.error("[GroceriesContext] Error removing recipe:", error);
+      setError("Failed to remove recipe.");
+      throw error;
+    }
+  };
+
+  const refreshShoppingList = async () => {
+    if (!user?.id) return;
 
     try {
       setIsLoading(true);
-      await consolidateShoppingListItems(activeShoppingList.id);
+      const lists = await getShoppingLists(user.id);
 
-      // Refresh the shopping list after consolidation
-      const updatedLists = await getShoppingLists(user!.id);
-      const updatedActiveList = updatedLists.find(
-        (list) => list.id === activeShoppingList.id
+      // Get or create default shopping list
+      let defaultList = lists.find((l) => l.title === "My Shopping List");
+      if (!defaultList) {
+        defaultList = await createShoppingList(user.id, {
+          title: "My Shopping List",
+          date: new Date().toISOString().split("T")[0],
+        });
+      }
+
+      setDefaultShoppingList(defaultList);
+
+      // Convert SupabaseShoppingItems to local ShoppingItems
+      const localItems: ShoppingItem[] = (defaultList.items || []).map(
+        (item) => ({
+          id: item.id,
+          name: item.name,
+          quantity: item.quantity ? parseFloat(item.quantity) : undefined,
+          unit: item.unit,
+          category: item.category,
+          checked: item.checked,
+          recipeId: item.recipe_id,
+          createdAt: new Date(item.created_at),
+          updatedAt: new Date(item.updated_at),
+        })
       );
 
-      if (updatedActiveList) {
-        setActiveShoppingList(updatedActiveList);
-        setShoppingLists(updatedLists);
-      }
+      setShoppingList(localItems);
     } catch (error) {
-      console.error("[GroceriesContext] Error consolidating list:", error);
-      setError("Failed to consolidate shopping list.");
-      throw error;
+      console.error(
+        "[GroceriesContext] Error refreshing shopping list:",
+        error
+      );
+      setError("Failed to refresh shopping list.");
     } finally {
       setIsLoading(false);
     }
@@ -541,9 +576,24 @@ export const GroceriesProvider: React.FC<{ children: React.ReactNode }> = ({
   // Load Supabase shopping lists when user changes
   useEffect(() => {
     if (user?.id) {
-      refreshShoppingLists();
+      refreshShoppingList();
     }
   }, [user?.id]);
+
+  const loadRecipesWithIngredients = async () => {
+    if (!user?.id) return;
+
+    try {
+      const recipes = await getUserRecipesWithIngredients(user.id);
+      setRecipesWithIngredients(recipes);
+    } catch (error) {
+      console.error(
+        "[GroceriesContext] Error loading recipes with ingredients:",
+        error
+      );
+      setError("Failed to load recipes with ingredients.");
+    }
+  };
 
   return (
     <GroceriesContext.Provider
@@ -565,15 +615,16 @@ export const GroceriesProvider: React.FC<{ children: React.ReactNode }> = ({
         addSelectedRecipe,
         removeSelectedRecipe,
         clearError,
-        shoppingLists,
-        activeShoppingList,
-        refreshShoppingLists,
-        createNewShoppingList,
-        selectShoppingList,
-        addItemToActiveList,
-        toggleItemInActiveList,
-        removeItemFromActiveList,
-        consolidateActiveList,
+        defaultShoppingList,
+        addItemToShoppingList,
+        updateShoppingItemInList,
+        toggleItemInShoppingList,
+        removeItemFromShoppingList,
+        addRecipeToShoppingList,
+        removeRecipeFromShoppingList,
+        refreshShoppingList,
+        recipesWithIngredients,
+        loadRecipesWithIngredients,
       }}
     >
       {children}

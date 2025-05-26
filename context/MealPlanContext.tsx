@@ -31,6 +31,11 @@ interface MealPlanContextType {
   isLoading: boolean;
   error: string | null;
 
+  // Date selection
+  selectedDate: string;
+  setSelectedDate: (date: string) => void;
+  setCurrentWeek: (week: Date) => void;
+
   // CRUD operations
   addMealToDay: (
     date: string,
@@ -56,6 +61,7 @@ interface MealPlanContextType {
   }) => Promise<void>;
   duplicateWeek: (sourceWeek: Date, targetWeek: Date) => Promise<void>;
   refreshWeek: () => Promise<void>;
+  refreshMealPlan: () => Promise<void>;
 }
 
 const MealPlanContext = createContext<MealPlanContextType | undefined>(
@@ -80,6 +86,9 @@ export const MealPlanProvider: React.FC<MealPlanProviderProps> = ({
   const { user } = useAuth();
   const [currentWeek, setCurrentWeek] = useState<Date>(
     getWeekStart(new Date())
+  );
+  const [selectedDate, setSelectedDate] = useState<string>(
+    new Date().toISOString().split("T")[0]
   );
   const [weekMeals, setWeekMeals] = useState<WeekMeals>({});
   const [isLoading, setIsLoading] = useState(false);
@@ -291,11 +300,18 @@ export const MealPlanProvider: React.FC<MealPlanProviderProps> = ({
     await loadWeekMeals();
   };
 
+  const refreshMealPlan = async (): Promise<void> => {
+    await refreshWeek();
+  };
+
   const value: MealPlanContextType = {
     currentWeek,
     weekMeals,
     isLoading,
     error,
+    selectedDate,
+    setSelectedDate,
+    setCurrentWeek,
     addMealToDay,
     removeMealFromDay,
     moveMeal,
@@ -305,6 +321,7 @@ export const MealPlanProvider: React.FC<MealPlanProviderProps> = ({
     generateShoppingList,
     duplicateWeek,
     refreshWeek,
+    refreshMealPlan,
   };
 
   return (

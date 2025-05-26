@@ -109,6 +109,99 @@ export async function getUserRecipes(userId: string): Promise<Recipe[]> {
   }
 }
 
+// Fetch a user's recipes with ingredients for shopping list view
+export async function getUserRecipesWithIngredients(
+  userId: string
+): Promise<Recipe[]> {
+  console.log(
+    `[recipeService.ts] getUserRecipesWithIngredients: Fetching recipes with ingredients for userId: ${userId}`
+  );
+  try {
+    const { data, error } = await supabase
+      .from("recipes")
+      .select(
+        `
+        id, user_id, title, description, image_url, prep_time, cook_time,
+        servings, is_favorite, created_at, updated_at,
+        recipe_ingredients (
+          id,
+          quantity,
+          unit,
+          ingredients (
+            id,
+            name,
+            emoji
+          )
+        ),
+        recipe_tags (
+          tag_id,
+          tags (
+            id,
+            name
+          )
+        )
+        `
+      )
+      .eq("user_id", userId)
+      .order("updated_at", { ascending: false });
+
+    if (error) {
+      console.error(
+        "[recipeService.ts] getUserRecipesWithIngredients: Error fetching user recipes from Supabase:",
+        JSON.stringify(error, null, 2)
+      );
+      throw error;
+    }
+    if (!data) {
+      console.log(
+        "[recipeService.ts] getUserRecipesWithIngredients: No data returned from Supabase for userId:",
+        userId
+      );
+      return [];
+    }
+
+    const transformedRecipes = data.map((dbRecipe) => {
+      const recipe = transformRecipeListItem(dbRecipe);
+
+      // Add ingredients from the database
+      recipe.ingredients =
+        dbRecipe.recipe_ingredients?.map((ri: any) => {
+          const ingredient = ri.ingredients;
+          return {
+            id: ingredient?.id || ri.id,
+            name: ingredient?.name || "Unknown ingredient",
+            amount: parseFloat(ri.quantity) || 1,
+            unit: ri.unit || "",
+            emoji: ingredient?.emoji,
+          };
+        }) || [];
+
+      // Add tags from the database
+      recipe.tags =
+        dbRecipe.recipe_tags
+          ?.map((rt: any) => rt.tags?.name || "")
+          .filter(Boolean) || [];
+
+      console.log(
+        `[recipeService.ts] Recipe ${recipe.id} has ${recipe.ingredients.length} ingredients and ${recipe.tags.length} tags`
+      );
+      return recipe;
+    });
+
+    console.log(
+      "[recipeService.ts] getUserRecipesWithIngredients: Transformed recipes with ingredients:",
+      transformedRecipes.length
+    );
+    return transformedRecipes;
+  } catch (error) {
+    console.error(
+      "[recipeService.ts] getUserRecipesWithIngredients: Error in service function:",
+      error
+    );
+    throw error;
+  }
+}
+
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000; // 1 second
 
@@ -375,8 +468,179 @@ export class RecipeService {
   static async updateRecipe(
     recipe: Partial<RecipeWithDetails>
   ): Promise<DbRecipe | null> {
-    // Implementation needs to be careful about type conversions
-    return null;
+    if (!recipe.id) {
+      throw new Error("Recipe ID is required for updates");
+    }
+
+    console.log(
+      `[RecipeService] Updating recipe ${recipe.id}: ${recipe.title}`
+    );
+
+    try {
+      // Process the image URL to avoid localhost issues
+      let processedImageUrl = recipe.image_url;
+      if (processedImageUrl && processedImageUrl.includes("localhost")) {
+        try {
+          const url = new URL(processedImageUrl);
+          const originalUrl = decodeURIComponent(
+            url.searchParams.get("url") || ""
+          );
+          if (originalUrl) {
+            processedImageUrl = originalUrl;
+            console.log(
+              `[RecipeService] Converted localhost proxy URL to original: ${originalUrl}`
+            );
+          }
+        } catch (error) {
+          console.warn(
+            `[RecipeService] Failed to extract original URL from proxy: ${error}`
+          );
+        }
+      }
+
+      // Prepare recipe data for database
+      const recipeDataForDb: Partial<DbRecipe> = {
+        title: recipe.title,
+        description: recipe.description,
+        image_url: processedImageUrl,
+        prep_time: recipe.prep_time,
+        cook_time: recipe.cook_time,
+        servings: recipe.servings,
+        is_favorite: recipe.is_favorite,
+        author: recipe.author,
+        source_url: recipe.source_url,
+        updated_at: new Date().toISOString(),
+      };
+
+      // Remove undefined values
+      Object.keys(recipeDataForDb).forEach((keyStr) => {
+        const key = keyStr as keyof typeof recipeDataForDb;
+        if (recipeDataForDb[key] === undefined) {
+          delete recipeDataForDb[key];
+        }
+      });
+
+      // Update the main recipe record
+      const { data: updatedRecipe, error: recipeError } = await supabase
+        .from("recipes")
+        .update(recipeDataForDb)
+        .eq("id", recipe.id)
+        .select()
+        .single();
+
+      if (recipeError) {
+        throw recipeError;
+      }
+
+      console.log(`[RecipeService] Recipe ${recipe.id} updated successfully`);
+
+      // Update related data if provided
+      const results = {
+        recipe: true,
+        ingredients: false,
+        instructions: false,
+        tags: false,
+      };
+
+      // Update ingredients if provided
+      if (recipe.ingredients !== undefined) {
+        try {
+          // Delete existing ingredients
+          await supabase
+            .from("recipe_ingredients")
+            .delete()
+            .eq("recipe_id", recipe.id);
+
+          // Add new ingredients - convert from RecipeWithDetails format to app format
+          if (recipe.ingredients.length > 0) {
+            const appIngredients = recipe.ingredients.map((ri) => ({
+              id: ri.ingredient?.id || ri.ingredient_id,
+              name: ri.ingredient?.name || "Unknown ingredient",
+              amount: parseFloat(ri.quantity) || 1,
+              unit: ri.unit || "",
+            }));
+            await saveRecipeIngredients(recipe.id, appIngredients);
+          }
+          results.ingredients = true;
+          console.log(
+            `[RecipeService] Updated ${recipe.ingredients.length} ingredients`
+          );
+        } catch (error) {
+          console.error(`[RecipeService] Failed to update ingredients:`, error);
+        }
+      } else {
+        results.ingredients = true; // No ingredients to update
+      }
+
+      // Update steps (instructions) if provided
+      if (recipe.steps !== undefined) {
+        try {
+          // Delete existing instructions
+          await supabase
+            .from("recipe_steps")
+            .delete()
+            .eq("recipe_id", recipe.id);
+
+          // Add new instructions
+          if (recipe.steps.length > 0) {
+            const instructions = recipe.steps.map((step) => step.instruction);
+            await saveRecipeInstructions(recipe.id, instructions);
+          }
+          results.instructions = true;
+          console.log(
+            `[RecipeService] Updated ${recipe.steps.length} instructions`
+          );
+        } catch (error) {
+          console.error(
+            `[RecipeService] Failed to update instructions:`,
+            error
+          );
+        }
+      } else {
+        results.instructions = true; // No instructions to update
+      }
+
+      // Update tags if provided
+      if (recipe.tags !== undefined) {
+        try {
+          // Delete existing tags
+          await supabase
+            .from("recipe_tags")
+            .delete()
+            .eq("recipe_id", recipe.id);
+
+          // Add new tags
+          if (recipe.tags.length > 0) {
+            await saveRecipeTags(recipe.id, recipe.tags);
+          }
+          results.tags = true;
+          console.log(`[RecipeService] Updated ${recipe.tags.length} tags`);
+        } catch (error) {
+          console.error(`[RecipeService] Failed to update tags:`, error);
+        }
+      } else {
+        results.tags = true; // No tags to update
+      }
+
+      // Log final results
+      const successCount = Object.values(results).filter(Boolean).length;
+      const totalCount = Object.keys(results).length;
+      console.log(
+        `[RecipeService] Recipe update completed: ${successCount}/${totalCount} components updated successfully`,
+        results
+      );
+
+      // Emit update event
+      emitRecipeUpdated(updatedRecipe);
+
+      return updatedRecipe;
+    } catch (error: any) {
+      console.error(
+        `[RecipeService] Error updating recipe ${recipe.id}:`,
+        error
+      );
+      throw error;
+    }
   }
 
   static async deleteRecipe(recipeId: string): Promise<void> {
@@ -588,6 +852,16 @@ async function saveRecipeIngredients(
     `[RecipeService] Saving ${ingredients.length} ingredients for recipe ${recipeId}`
   );
 
+  // Log each ingredient being saved
+  ingredients.forEach((ingredient, index) => {
+    console.log(`[RecipeService] Ingredient ${index + 1} to save:`, {
+      id: ingredient.id,
+      name: ingredient.name,
+      amount: ingredient.amount,
+      unit: ingredient.unit,
+    });
+  });
+
   // Use a Set to track processed ingredient names to avoid duplicates
   const processedIngredients = new Set<string>();
   const successfullyLinked: string[] = [];
@@ -605,6 +879,10 @@ async function saveRecipeIngredients(
     processedIngredients.add(normalizedName);
 
     try {
+      console.log(
+        `[RecipeService] Processing ingredient: ${ingredient.name} (${ingredient.amount} ${ingredient.unit})`
+      );
+
       // Use upsert to create or get existing ingredient
       const { data: upsertedIngredient, error: upsertError } = await supabase
         .from("ingredients")
@@ -628,20 +906,24 @@ async function saveRecipeIngredients(
       );
 
       // Create the recipe-ingredient relationship with conflict handling
+      const recipeIngredientData = {
+        recipe_id: recipeId,
+        ingredient_id: ingredientId,
+        quantity: ingredient.amount.toString(),
+        unit: ingredient.unit || "",
+      };
+
+      console.log(
+        `[RecipeService] Creating recipe-ingredient link:`,
+        recipeIngredientData
+      );
+
       const { error: linkError } = await supabase
         .from("recipe_ingredients")
-        .upsert(
-          {
-            recipe_id: recipeId,
-            ingredient_id: ingredientId,
-            quantity: ingredient.amount.toString(),
-            unit: ingredient.unit || "",
-          },
-          {
-            onConflict: "recipe_id,ingredient_id",
-            ignoreDuplicates: true,
-          }
-        );
+        .upsert(recipeIngredientData, {
+          onConflict: "recipe_id,ingredient_id",
+          ignoreDuplicates: true,
+        });
 
       if (linkError) {
         // If it's a duplicate constraint error, just log it and continue
@@ -654,7 +936,7 @@ async function saveRecipeIngredients(
         }
       } else {
         console.log(
-          `[RecipeService] Linked ingredient ${ingredient.name} to recipe ${recipeId}`
+          `[RecipeService] Successfully linked ingredient ${ingredient.name} (${ingredient.amount} ${ingredient.unit}) to recipe ${recipeId}`
         );
         successfullyLinked.push(ingredient.name);
       }
@@ -796,3 +1078,203 @@ async function saveRecipeTags(recipeId: string, tags: string[]): Promise<void> {
 
 // Export the getRecipeWithDetails function directly
 export const getRecipeWithDetails = RecipeService.getRecipeWithDetails;
+
+// Export a function to update recipes from the app format
+export const updateRecipeFromApp = async (
+  recipe: Recipe
+): Promise<Recipe | null> => {
+  if (!recipe.id) {
+    throw new Error("Recipe ID is required for updates");
+  }
+
+  console.log(`[RecipeService] Updating recipe from app format: ${recipe.id}`);
+  console.log(
+    `[RecipeService] Recipe has ${recipe.ingredients?.length || 0} ingredients`
+  );
+
+  try {
+    // Process the image URL to avoid localhost issues
+    let processedImageUrl = recipe.imageUrl;
+    if (processedImageUrl && processedImageUrl.includes("localhost")) {
+      try {
+        const url = new URL(processedImageUrl);
+        const originalUrl = decodeURIComponent(
+          url.searchParams.get("url") || ""
+        );
+        if (originalUrl) {
+          processedImageUrl = originalUrl;
+          console.log(
+            `[RecipeService] Converted localhost proxy URL to original: ${originalUrl}`
+          );
+        }
+      } catch (error) {
+        console.warn(
+          `[RecipeService] Failed to extract original URL from proxy: ${error}`
+        );
+      }
+    }
+
+    // Prepare recipe data for database
+    const recipeDataForDb: Partial<DbRecipe> = {
+      title: recipe.title,
+      description: recipe.description,
+      image_url: processedImageUrl,
+      prep_time: recipe.prepTime,
+      cook_time: recipe.cookTime,
+      servings: recipe.servings,
+      is_favorite: recipe.isFavorite,
+      author: recipe.author,
+      source_url: recipe.sourceUrl,
+      updated_at: new Date().toISOString(),
+    };
+
+    // Remove undefined values
+    Object.keys(recipeDataForDb).forEach((keyStr) => {
+      const key = keyStr as keyof typeof recipeDataForDb;
+      if (recipeDataForDb[key] === undefined) {
+        delete recipeDataForDb[key];
+      }
+    });
+
+    console.log(`[RecipeService] Updating main recipe record for ${recipe.id}`);
+
+    // Update the main recipe record
+    const { data: updatedRecipe, error: recipeError } = await supabase
+      .from("recipes")
+      .update(recipeDataForDb)
+      .eq("id", recipe.id)
+      .select()
+      .single();
+
+    if (recipeError) {
+      throw recipeError;
+    }
+
+    console.log(`[RecipeService] Recipe ${recipe.id} updated successfully`);
+
+    // Track success/failure for related data
+    const results = {
+      recipe: true,
+      ingredients: false,
+      instructions: false,
+      tags: false,
+    };
+
+    // Update ingredients if provided
+    if (recipe.ingredients !== undefined) {
+      try {
+        console.log(
+          `[RecipeService] Updating ${recipe.ingredients.length} ingredients`
+        );
+
+        // Delete existing ingredients
+        await supabase
+          .from("recipe_ingredients")
+          .delete()
+          .eq("recipe_id", recipe.id);
+
+        // Add new ingredients using the direct saveRecipeIngredients function
+        if (recipe.ingredients.length > 0) {
+          await saveRecipeIngredients(recipe.id, recipe.ingredients);
+        }
+        results.ingredients = true;
+        console.log(
+          `[RecipeService] Successfully updated ${recipe.ingredients.length} ingredients`
+        );
+      } catch (error) {
+        console.error(`[RecipeService] Failed to update ingredients:`, error);
+      }
+    } else {
+      results.ingredients = true; // No ingredients to update
+    }
+
+    // Update instructions if provided
+    if (recipe.instructions !== undefined) {
+      try {
+        console.log(
+          `[RecipeService] Updating ${recipe.instructions.length} instructions`
+        );
+
+        // Delete existing instructions
+        await supabase.from("recipe_steps").delete().eq("recipe_id", recipe.id);
+
+        // Add new instructions
+        if (recipe.instructions.length > 0) {
+          await saveRecipeInstructions(recipe.id, recipe.instructions);
+        }
+        results.instructions = true;
+        console.log(
+          `[RecipeService] Successfully updated ${recipe.instructions.length} instructions`
+        );
+      } catch (error) {
+        console.error(`[RecipeService] Failed to update instructions:`, error);
+      }
+    } else {
+      results.instructions = true; // No instructions to update
+    }
+
+    // Update tags if provided
+    if (recipe.tags !== undefined) {
+      try {
+        console.log(`[RecipeService] Updating ${recipe.tags.length} tags`);
+
+        // Delete existing tags
+        await supabase.from("recipe_tags").delete().eq("recipe_id", recipe.id);
+
+        // Add new tags
+        if (recipe.tags.length > 0) {
+          await saveRecipeTags(recipe.id, recipe.tags);
+        }
+        results.tags = true;
+        console.log(
+          `[RecipeService] Successfully updated ${recipe.tags.length} tags`
+        );
+      } catch (error) {
+        console.error(`[RecipeService] Failed to update tags:`, error);
+      }
+    } else {
+      results.tags = true; // No tags to update
+    }
+
+    // Log final results
+    const successCount = Object.values(results).filter(Boolean).length;
+    const totalCount = Object.keys(results).length;
+    console.log(
+      `[RecipeService] Recipe update completed: ${successCount}/${totalCount} components updated successfully`,
+      results
+    );
+
+    // Emit update event
+    emitRecipeUpdated(updatedRecipe);
+
+    // Return the updated recipe in app format
+    const updatedAppRecipe: Recipe = {
+      id: updatedRecipe.id,
+      title: updatedRecipe.title,
+      description: updatedRecipe.description || "",
+      imageUrl: processRecipeImageUrl(updatedRecipe.image_url),
+      prepTime: updatedRecipe.prep_time || 0,
+      cookTime: updatedRecipe.cook_time || 0,
+      servings: updatedRecipe.servings || 0,
+      isFavorite: updatedRecipe.is_favorite || false,
+      createdAt: updatedRecipe.created_at,
+      updatedAt: updatedRecipe.updated_at,
+      ingredients: recipe.ingredients || [], // Keep the original ingredients format
+      instructions: recipe.instructions || [], // Keep the original instructions format
+      tags: recipe.tags || [],
+      author: updatedRecipe.author,
+      sourceUrl: updatedRecipe.source_url,
+    };
+
+    console.log(
+      `[RecipeService] Successfully updated recipe: ${updatedAppRecipe.title}`
+    );
+    return updatedAppRecipe;
+  } catch (error) {
+    console.error(
+      `[RecipeService] Error updating recipe from app format:`,
+      error
+    );
+    throw error;
+  }
+};

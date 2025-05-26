@@ -6,8 +6,9 @@ import {
   Text,
   View,
   Alert,
+  ActivityIndicator,
+  Platform,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { APIHealthCheck } from "@/components/debug/APIHealthCheck";
 import { useAPIHealth } from "@/hooks/useAPIHealth";
@@ -870,7 +871,7 @@ Serves 4 • Prep: 5 min • Cook: 15 min
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+    <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>🔧 System Diagnostics</Text>
@@ -1469,7 +1470,7 @@ Serves 4 • Prep: 5 min • Cook: 15 min
           </Text>
         </TouchableOpacity>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 

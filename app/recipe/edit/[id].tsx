@@ -1,16 +1,15 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
+  Text,
   ScrollView,
-  StyleSheet,
   Alert,
   KeyboardAvoidingView,
   Platform,
+  StyleSheet,
   BackHandler,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { useRecipes } from "@/context/RecipeContext";
+import { Stack, useLocalSearchParams, router } from "expo-router";
 import { Recipe, Ingredient } from "@/types";
 import {
   colors,
@@ -20,7 +19,14 @@ import {
   createShadow,
 } from "@/utils/styleUtils";
 import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
-import { validateRecipe, ValidationErrors } from "@/utils/recipeValidation";
+import {
+  validateRecipeForEdit,
+  ValidationErrors,
+} from "@/utils/recipeValidation";
+import {
+  getRecipeWithDetails,
+  updateRecipeFromApp,
+} from "@/services/recipeService";
 
 // Import edit components
 import EditHeader from "@/components/recipe/edit/EditHeader";
@@ -44,8 +50,6 @@ interface EditState {
 
 const RecipeEditScreen: React.FC = () => {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const router = useRouter();
-  const { recipes, updateRecipe } = useRecipes();
 
   const [state, setState] = useState<EditState>({
     recipe: {} as Recipe,
@@ -57,23 +61,46 @@ const RecipeEditScreen: React.FC = () => {
     lastSaved: null,
   });
 
-  // Initialize recipe data
+  // Initialize recipe data by fetching from database
   useEffect(() => {
-    const recipe = recipes.find((r) => r.id === id);
-    if (!recipe) {
-      Alert.alert("Error", "Recipe not found", [
-        { text: "OK", onPress: () => router.back() },
-      ]);
-      return;
-    }
+    const fetchRecipe = async () => {
+      if (!id) {
+        Alert.alert("Error", "No recipe ID provided", [
+          { text: "OK", onPress: () => router.back() },
+        ]);
+        return;
+      }
 
-    setState((prev) => ({
-      ...prev,
-      recipe: { ...recipe },
-      originalRecipe: { ...recipe },
-      isLoading: false,
-    }));
-  }, [id, recipes]);
+      try {
+        console.log(`[RecipeEditScreen] Fetching recipe with ID: ${id}`);
+        const recipe = await getRecipeWithDetails(id);
+
+        if (!recipe) {
+          Alert.alert("Error", "Recipe not found", [
+            { text: "OK", onPress: () => router.back() },
+          ]);
+          return;
+        }
+
+        console.log(
+          `[RecipeEditScreen] Recipe loaded successfully: ${recipe.title}`
+        );
+        setState((prev) => ({
+          ...prev,
+          recipe: { ...recipe },
+          originalRecipe: { ...recipe },
+          isLoading: false,
+        }));
+      } catch (error) {
+        console.error("[RecipeEditScreen] Error fetching recipe:", error);
+        Alert.alert("Error", "Failed to load recipe", [
+          { text: "OK", onPress: () => router.back() },
+        ]);
+      }
+    };
+
+    fetchRecipe();
+  }, [id]);
 
   // Handle back button on Android
   useEffect(() => {
@@ -144,7 +171,7 @@ const RecipeEditScreen: React.FC = () => {
       id: `ingredient-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       name: "",
       amount: 1,
-      unit: "",
+      unit: "piece",
     };
 
     setState((prev) => ({
@@ -244,8 +271,24 @@ const RecipeEditScreen: React.FC = () => {
     setState((prev) => ({ ...prev, isSaving: true }));
 
     try {
+      console.log(
+        `[RecipeEditScreen] Starting save process for recipe: ${state.recipe.title}`
+      );
+      console.log(
+        `[RecipeEditScreen] Recipe has ${
+          state.recipe.ingredients?.length || 0
+        } ingredients:`
+      );
+      state.recipe.ingredients?.forEach((ingredient, index) => {
+        console.log(
+          `[RecipeEditScreen] Ingredient ${index + 1}: ${ingredient.amount} ${
+            ingredient.unit
+          } ${ingredient.name}`
+        );
+      });
+
       // Validate recipe
-      const errors = validateRecipe(state.recipe);
+      const errors = validateRecipeForEdit(state.recipe);
       if (Object.keys(errors).length > 0) {
         setState((prev) => ({ ...prev, errors, isSaving: false }));
         if (showFeedback) {
@@ -263,12 +306,33 @@ const RecipeEditScreen: React.FC = () => {
         updatedAt: new Date().toISOString(),
       };
 
-      await updateRecipe(state.recipe.id, updatedRecipe);
+      console.log(
+        `[RecipeEditScreen] Calling updateRecipeFromApp with recipe:`,
+        {
+          id: updatedRecipe.id,
+          title: updatedRecipe.title,
+          ingredientCount: updatedRecipe.ingredients?.length || 0,
+          instructionCount: updatedRecipe.instructions?.length || 0,
+        }
+      );
+
+      // Use the database update function instead of context
+      const savedRecipe = await updateRecipeFromApp(updatedRecipe);
+
+      if (!savedRecipe) {
+        throw new Error("Failed to save recipe to database");
+      }
+
+      console.log(`[RecipeEditScreen] Recipe saved successfully:`, {
+        id: savedRecipe.id,
+        title: savedRecipe.title,
+        ingredientCount: savedRecipe.ingredients?.length || 0,
+      });
 
       setState((prev) => ({
         ...prev,
-        recipe: updatedRecipe,
-        originalRecipe: { ...updatedRecipe },
+        recipe: savedRecipe,
+        originalRecipe: { ...savedRecipe },
         isDirty: false,
         isSaving: false,
         lastSaved: new Date(),
@@ -283,6 +347,7 @@ const RecipeEditScreen: React.FC = () => {
     } catch (error) {
       setState((prev) => ({ ...prev, isSaving: false }));
 
+      console.error("[RecipeEditScreen] Save error:", error);
       if (showFeedback) {
         Alert.alert(
           "Save Error",
@@ -292,7 +357,6 @@ const RecipeEditScreen: React.FC = () => {
         );
       }
 
-      console.error("Failed to save recipe:", error);
       return false;
     }
   };
@@ -355,7 +419,7 @@ const RecipeEditScreen: React.FC = () => {
 
   return (
     <ErrorBoundary>
-      <SafeAreaView style={styles.container} edges={["top"]}>
+      <View style={styles.container}>
         <KeyboardAvoidingView
           style={styles.keyboardAvoid}
           behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -418,7 +482,7 @@ const RecipeEditScreen: React.FC = () => {
 
           {state.isSaving && <LoadingOverlay message="Saving..." />}
         </KeyboardAvoidingView>
-      </SafeAreaView>
+      </View>
     </ErrorBoundary>
   );
 };
