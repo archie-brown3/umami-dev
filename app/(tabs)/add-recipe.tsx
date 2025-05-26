@@ -25,6 +25,11 @@ import { addRecipeToSupabase } from "@/services/recipeService";
 import { supabase } from "@/lib/supabase";
 import { RecipeCamera } from "@/components/RecipeCamera";
 import { extractTextFromImage } from "@/services/textRecognition";
+import {
+  testInstagramScraping,
+  extractRecipeFromInstagramCaption,
+  extractRecipeFromInstagram,
+} from "@/services/recipeExtractor";
 
 type TabType = "manual" | "url" | "ai" | "instagram";
 
@@ -157,8 +162,58 @@ export default function AddRecipeScreen() {
       setIsLoading(true);
       addLog(`Extracting recipe from ${instagramUrl}...`);
 
-      // Step 1: Extract content from Instagram URL using the API service
-      const extractedData = await extractRecipeFromUrl(instagramUrl);
+      // Step 1: Parse Instagram URL to extract username and post ID
+      let extractedData: Partial<Recipe>;
+
+      // Handle different Instagram URL formats
+      if (instagramUrl.includes("/share/")) {
+        // Share URL format: https://www.instagram.com/share/BBZ133yzEX
+        addLog("Detected Instagram share URL format");
+
+        // Use the testInstagramScraping function directly for share URLs
+        const scrapingResult = await testInstagramScraping(instagramUrl);
+
+        if (scrapingResult.success && scrapingResult.extractedData) {
+          addLog(
+            `Share URL scraping successful - Caption: ${scrapingResult.extractedData.caption.length} chars`
+          );
+
+          // Use the specialized Instagram caption extraction
+          extractedData = await extractRecipeFromInstagramCaption(
+            scrapingResult.extractedData.caption,
+            scrapingResult.extractedData.username,
+            instagramUrl,
+            scrapingResult.extractedData.thumbnail || undefined
+          );
+        } else {
+          throw new Error(
+            `Share URL extraction failed: ${scrapingResult.message}`
+          );
+        }
+      } else if (
+        instagramUrl.includes("/p/") ||
+        instagramUrl.includes("/reel/")
+      ) {
+        // Standard post URL format: https://www.instagram.com/username/p/postId/
+        addLog("Detected standard Instagram post URL format");
+
+        const urlMatch = instagramUrl.match(
+          /instagram\.com\/(?:([^\/]+)\/)?(?:p|reel)\/([^\/\?]+)/
+        );
+        if (urlMatch) {
+          const username = urlMatch[1] || "unknown";
+          const postId = urlMatch[2];
+          addLog(`Extracted username: ${username}, postId: ${postId}`);
+
+          extractedData = await extractRecipeFromInstagram(username, postId);
+        } else {
+          throw new Error("Could not parse Instagram URL format");
+        }
+      } else {
+        // Fallback: try general extraction
+        addLog("Using fallback general extraction for Instagram URL");
+        extractedData = await extractRecipeFromUrl(instagramUrl);
+      }
 
       // Validate we've received proper data
       if (!extractedData) {
@@ -176,6 +231,7 @@ export default function AddRecipeScreen() {
             title: extractedData.title,
             ingredientsCount: extractedData.ingredients?.length || 0,
             instructionsCount: extractedData.instructions?.length || 0,
+            description: extractedData.description?.substring(0, 100) + "...",
           },
           null,
           2
@@ -222,61 +278,35 @@ export default function AddRecipeScreen() {
       if (validationErrors.length > 0) {
         addLog(`Validation failed: ${validationErrors.join(", ")}`);
 
-        // If the only validation error is about ingredients or instructions, offer to proceed anyway
-        if (
-          validationErrors.length === 1 &&
-          (validationErrors[0].includes("ingredient") ||
-            validationErrors[0].includes("instruction"))
-        ) {
+        // Check if the errors are due to extraction failure (generic placeholders)
+        const isExtractionFailure = validationErrors.some(
+          (error) =>
+            error.includes("generic placeholder") ||
+            error.includes("extraction failed") ||
+            error.includes("extraction may have failed")
+        );
+
+        if (isExtractionFailure) {
           Alert.alert(
-            "Incomplete Recipe",
-            `${validationErrors[0]}. Would you like to add them manually later?`,
+            "Instagram Extraction Failed",
+            "The Instagram post couldn't be automatically extracted. This often happens with Instagram's anti-bot measures.\n\nOptions:\n1. Try a different Instagram URL\n2. Copy the recipe text manually and use the 'AI Analysis' tab\n3. Add the recipe manually",
             [
-              {
-                text: "Cancel",
-                style: "cancel",
-                onPress: () => {
-                  setIsLoading(false);
-                },
-              },
-              {
-                text: "Continue Anyway",
-                onPress: async () => {
-                  // If missing ingredients, add a placeholder
-                  if (validationErrors[0].includes("ingredient")) {
-                    normalizedData.ingredients = [
-                      {
-                        id: `placeholder-${Date.now()}`,
-                        name: "Add ingredients manually",
-                        amount: 1,
-                        unit: "item",
-                      },
-                    ];
-                  }
-
-                  // If missing instructions, add a placeholder
-                  if (validationErrors[0].includes("instruction")) {
-                    normalizedData.instructions = [
-                      "Add cooking instructions manually",
-                    ];
-                  }
-
-                  // Continue with recipe creation
-                  await processValidRecipe(normalizedData);
-                },
-              },
+              { text: "Try Different URL", style: "default" },
+              { text: "Manual Entry", onPress: () => setActiveTab("manual") },
+              { text: "AI Analysis", onPress: () => setActiveTab("ai") },
             ]
           );
-          return;
         } else {
-          // For other validation errors, show the standard error
           Alert.alert(
-            "Error",
-            `Recipe is incomplete: ${validationErrors.join(", ")}`
+            "Recipe Validation Failed",
+            `The extracted recipe is incomplete:\n\n${validationErrors.join(
+              "\n"
+            )}\n\nPlease try again or add the recipe manually.`
           );
-          setIsLoading(false);
-          return;
         }
+
+        setIsLoading(false);
+        return;
       }
 
       // Process the valid recipe
@@ -567,50 +597,86 @@ export default function AddRecipeScreen() {
       case "manual":
         return (
           <View style={styles.tabContent}>
-            <Text style={styles.label}>Recipe Title</Text>
-            <TextInput
-              style={styles.input}
-              value={title}
-              onChangeText={setTitle}
-              placeholder="Enter recipe title"
-            />
-
-            <View style={styles.row}>
-              <View style={styles.half}>
-                <Text style={styles.label}>Prep Time (mins)</Text>
-                <TextInput
-                  style={styles.input}
-                  value={prepTime}
-                  onChangeText={setPrepTime}
-                  placeholder="0"
-                  keyboardType="numeric"
-                />
+            {/* New Create Screen Option */}
+            <View style={styles.createOptionCard}>
+              <View style={styles.createOptionHeader}>
+                <Ionicons name="restaurant" size={24} color={colors.primary} />
+                <Text style={styles.createOptionTitle}>
+                  Full Recipe Creator
+                </Text>
               </View>
-
-              <View style={styles.half}>
-                <Text style={styles.label}>Cook Time (mins)</Text>
-                <TextInput
-                  style={styles.input}
-                  value={cookTime}
-                  onChangeText={setCookTime}
-                  placeholder="0"
-                  keyboardType="numeric"
-                />
-              </View>
+              <Text style={styles.createOptionDescription}>
+                Create a complete recipe with ingredients, instructions, photos,
+                and more using our comprehensive editor.
+              </Text>
+              <Pressable
+                style={styles.createButton}
+                onPress={() => router.push("/recipe/create")}
+              >
+                <Ionicons name="add-circle" size={20} color={colors.white} />
+                <Text style={styles.createButtonText}>Create Recipe</Text>
+              </Pressable>
             </View>
 
-            <Text style={styles.label}>Servings</Text>
-            <TextInput
-              style={styles.input}
-              value={servings}
-              onChangeText={setServings}
-              placeholder="1"
-              keyboardType="numeric"
-            />
+            {/* Divider */}
+            <View style={styles.divider}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>OR QUICK ADD</Text>
+              <View style={styles.dividerLine} />
+            </View>
 
-            <Pressable style={styles.button} onPress={handleAddRecipe}>
-              <Text style={styles.buttonText}>Add Recipe</Text>
-            </Pressable>
+            {/* Quick Add Form */}
+            <View style={styles.quickAddSection}>
+              <Text style={styles.quickAddTitle}>Quick Add Recipe</Text>
+              <Text style={styles.quickAddSubtitle}>
+                Add basic recipe details quickly (you can edit later)
+              </Text>
+
+              <Text style={styles.label}>Recipe Title</Text>
+              <TextInput
+                style={styles.input}
+                value={title}
+                onChangeText={setTitle}
+                placeholder="Enter recipe title"
+              />
+
+              <View style={styles.row}>
+                <View style={styles.half}>
+                  <Text style={styles.label}>Prep Time (mins)</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={prepTime}
+                    onChangeText={setPrepTime}
+                    placeholder="0"
+                    keyboardType="numeric"
+                  />
+                </View>
+
+                <View style={styles.half}>
+                  <Text style={styles.label}>Cook Time (mins)</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={cookTime}
+                    onChangeText={setCookTime}
+                    placeholder="0"
+                    keyboardType="numeric"
+                  />
+                </View>
+              </View>
+
+              <Text style={styles.label}>Servings</Text>
+              <TextInput
+                style={styles.input}
+                value={servings}
+                onChangeText={setServings}
+                placeholder="1"
+                keyboardType="numeric"
+              />
+
+              <Pressable style={styles.button} onPress={handleAddRecipe}>
+                <Text style={styles.buttonText}>Quick Add Recipe</Text>
+              </Pressable>
+            </View>
           </View>
         );
 
@@ -888,5 +954,58 @@ const styles = StyleSheet.create({
     marginHorizontal: 10,
     color: colors.gray[500],
     fontSize: 14,
+  },
+  createOptionCard: {
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.gray[200],
+    borderRadius: 8,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
+  },
+  createOptionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: spacing.md,
+  },
+  createOptionTitle: {
+    fontSize: typography.fontSizes.sm,
+    fontWeight: "600",
+    color: colors.gray[900],
+    marginLeft: spacing.md,
+  },
+  createOptionDescription: {
+    fontSize: typography.fontSizes.sm,
+    color: colors.gray[600],
+    marginBottom: spacing.md,
+  },
+  createButton: {
+    backgroundColor: colors.primary,
+    borderRadius: 8,
+    padding: spacing.md,
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    marginTop: spacing.sm,
+  },
+  createButtonText: {
+    color: colors.white,
+    fontWeight: "600",
+    fontSize: typography.fontSizes.md,
+    marginLeft: spacing.xs,
+  },
+  quickAddSection: {
+    padding: spacing.lg,
+  },
+  quickAddTitle: {
+    fontSize: typography.fontSizes.sm,
+    fontWeight: "600",
+    color: colors.gray[900],
+    marginBottom: spacing.md,
+  },
+  quickAddSubtitle: {
+    fontSize: typography.fontSizes.sm,
+    color: colors.gray[600],
+    marginBottom: spacing.md,
   },
 });

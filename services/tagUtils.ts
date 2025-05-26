@@ -12,7 +12,230 @@ export interface ProcessedTags {
   allTags: { tag: string; count: number }[];
 }
 
-// Tag categorization patterns
+// Comprehensive food-related tag patterns for strict validation
+const VALID_FOOD_TAGS = {
+  // Cuisine types
+  cuisine: [
+    "italian",
+    "mexican",
+    "thai",
+    "american",
+    "chinese",
+    "indian",
+    "french",
+    "mediterranean",
+    "asian",
+    "spanish",
+    "japanese",
+    "korean",
+    "greek",
+    "middle eastern",
+    "moroccan",
+    "vietnamese",
+    "german",
+    "british",
+    "cajun",
+    "tex-mex",
+    "fusion",
+    "latin",
+    "caribbean",
+    "african",
+    "scandinavian",
+  ],
+
+  // Dietary restrictions and preferences
+  dietary: [
+    "vegetarian",
+    "vegan",
+    "gluten-free",
+    "dairy-free",
+    "keto",
+    "paleo",
+    "low-carb",
+    "healthy",
+    "low-fat",
+    "sugar-free",
+    "nut-free",
+    "soy-free",
+    "egg-free",
+    "pescatarian",
+    "raw",
+    "whole30",
+    "low-sodium",
+    "diabetic-friendly",
+  ],
+
+  // Meal types
+  mealType: [
+    "breakfast",
+    "lunch",
+    "dinner",
+    "snack",
+    "dessert",
+    "appetizer",
+    "brunch",
+    "side dish",
+    "main course",
+    "salad",
+    "soup",
+    "beverage",
+    "cocktail",
+    "smoothie",
+  ],
+
+  // Difficulty levels
+  difficulty: [
+    "easy",
+    "medium",
+    "hard",
+    "quick",
+    "beginner",
+    "advanced",
+    "simple",
+    "complex",
+    "no cook",
+    "one pot",
+    "30 minute",
+    "15 minute",
+    "slow cook",
+  ],
+
+  // Protein sources
+  protein: [
+    "chicken",
+    "beef",
+    "pork",
+    "fish",
+    "seafood",
+    "salmon",
+    "tuna",
+    "shrimp",
+    "turkey",
+    "lamb",
+    "duck",
+    "tofu",
+    "beans",
+    "lentils",
+    "quinoa",
+    "eggs",
+    "cheese",
+    "nuts",
+    "seeds",
+    "tempeh",
+    "seitan",
+    "high protein",
+  ],
+
+  // Cooking methods
+  cooking: [
+    "baked",
+    "grilled",
+    "fried",
+    "roasted",
+    "steamed",
+    "boiled",
+    "sautéed",
+    "slow-cooked",
+    "pressure cooked",
+    "air fried",
+    "broiled",
+    "braised",
+    "poached",
+    "smoked",
+    "barbecued",
+    "stir-fried",
+    "pan-fried",
+    "deep-fried",
+  ],
+
+  // Flavor profiles
+  flavors: [
+    "spicy",
+    "sweet",
+    "savory",
+    "sour",
+    "salty",
+    "umami",
+    "tangy",
+    "mild",
+    "hot",
+    "smoky",
+    "creamy",
+    "crispy",
+    "crunchy",
+    "tender",
+    "juicy",
+    "rich",
+    "light",
+    "fresh",
+    "zesty",
+    "aromatic",
+    "bold",
+    "delicate",
+  ],
+
+  // Main ingredients
+  mainIngredients: [
+    "chicken",
+    "beef",
+    "pork",
+    "fish",
+    "pasta",
+    "rice",
+    "potato",
+    "tomato",
+    "cheese",
+    "chocolate",
+    "bread",
+    "egg",
+    "milk",
+    "flour",
+    "sugar",
+    "garlic",
+    "onion",
+    "mushroom",
+    "spinach",
+    "avocado",
+    "lemon",
+    "lime",
+    "herbs",
+    "spices",
+  ],
+
+  // Occasions and timing
+  occasions: [
+    "weeknight",
+    "weekend",
+    "holiday",
+    "party",
+    "family",
+    "date night",
+    "potluck",
+    "picnic",
+    "bbq",
+    "comfort food",
+    "summer",
+    "winter",
+    "fall",
+    "spring",
+  ],
+
+  // Nutritional aspects
+  nutrition: [
+    "low calorie",
+    "high fiber",
+    "antioxidant",
+    "vitamin c",
+    "iron rich",
+    "calcium rich",
+    "omega 3",
+    "probiotic",
+    "superfood",
+    "whole grain",
+  ],
+};
+
+// Tag categorization patterns - Updated to be more comprehensive
 const TAG_CATEGORIES = {
   cuisine: {
     name: "Cuisine",
@@ -29,6 +252,21 @@ const TAG_CATEGORIES = {
       "mediterranean",
       "asian",
       "spanish",
+      "japanese",
+      "korean",
+      "greek",
+      "middle eastern",
+      "moroccan",
+      "vietnamese",
+      "german",
+      "british",
+      "cajun",
+      "tex-mex",
+      "fusion",
+      "latin",
+      "caribbean",
+      "african",
+      "scandinavian",
     ],
   },
   dietary: {
@@ -44,6 +282,26 @@ const TAG_CATEGORIES = {
       "paleo",
       "low-carb",
       "healthy",
+      "low-fat",
+      "sugar-free",
+      "nut-free",
+      "soy-free",
+      "egg-free",
+      "pescatarian",
+      "raw",
+      "whole30",
+      "low-sodium",
+      "diabetic-friendly",
+      "low calorie",
+      "high fiber",
+      "antioxidant",
+      "vitamin c",
+      "iron rich",
+      "calcium rich",
+      "omega 3",
+      "probiotic",
+      "superfood",
+      "whole grain",
     ],
   },
   mealType: {
@@ -58,13 +316,36 @@ const TAG_CATEGORIES = {
       "dessert",
       "appetizer",
       "brunch",
+      "side dish",
+      "main course",
+      "salad",
+      "soup",
+      "beverage",
+      "cocktail",
+      "smoothie",
     ],
   },
   difficulty: {
     name: "Difficulty",
     color: "#96CEB4",
     icon: "⭐",
-    patterns: ["easy", "medium", "hard", "quick", "beginner", "advanced"],
+    patterns: [
+      "easy",
+      "medium",
+      "hard",
+      "quick",
+      "beginner",
+      "advanced",
+      "simple",
+      "complex",
+      "no cook",
+      "one pot",
+      "30 minute",
+      "15 minute",
+      "slow cook",
+      "weeknight",
+      "weekend",
+    ],
   },
   protein: {
     name: "Protein",
@@ -76,10 +357,24 @@ const TAG_CATEGORIES = {
       "pork",
       "fish",
       "seafood",
-      "protein",
+      "salmon",
+      "tuna",
+      "shrimp",
+      "turkey",
+      "lamb",
+      "duck",
       "tofu",
       "beans",
       "lentils",
+      "quinoa",
+      "eggs",
+      "cheese",
+      "nuts",
+      "seeds",
+      "tempeh",
+      "seitan",
+      "high protein",
+      "main:",
     ],
   },
   cooking: {
@@ -87,6 +382,24 @@ const TAG_CATEGORIES = {
     color: "#FF9FF3",
     icon: "🔥",
     patterns: [
+      "baked",
+      "grilled",
+      "fried",
+      "roasted",
+      "steamed",
+      "boiled",
+      "sautéed",
+      "slow-cooked",
+      "pressure cooked",
+      "air fried",
+      "broiled",
+      "braised",
+      "poached",
+      "smoked",
+      "barbecued",
+      "stir-fried",
+      "pan-fried",
+      "deep-fried",
       "bake",
       "grill",
       "fry",
@@ -95,6 +408,36 @@ const TAG_CATEGORIES = {
       "boil",
       "sauté",
       "slow-cook",
+    ],
+  },
+  flavors: {
+    name: "Flavors",
+    color: "#A78BFA",
+    icon: "👅",
+    patterns: [
+      "spicy",
+      "sweet",
+      "savory",
+      "sour",
+      "salty",
+      "umami",
+      "tangy",
+      "mild",
+      "hot",
+      "smoky",
+      "creamy",
+      "crispy",
+      "crunchy",
+      "tender",
+      "juicy",
+      "rich",
+      "light",
+      "fresh",
+      "zesty",
+      "aromatic",
+      "bold",
+      "delicate",
+      "flavor:",
     ],
   },
 };
@@ -225,4 +568,230 @@ export function filterRecipesByTags(
       recipeTags.includes(normalizeTagName(selectedTag))
     );
   });
+}
+
+/**
+ * Validate if a tag is food-related and should be allowed
+ */
+export function isValidFoodTag(tag: string): boolean {
+  const normalizedTag = normalizeTagName(tag);
+
+  // Check against all valid food tag categories
+  for (const category of Object.values(VALID_FOOD_TAGS)) {
+    if (
+      category.some(
+        (validTag) =>
+          normalizedTag.includes(validTag) || validTag.includes(normalizedTag)
+      )
+    ) {
+      return true;
+    }
+  }
+
+  // Additional patterns for compound tags
+  const foodPatterns = [
+    /\b(main|side|flavor|difficulty|cuisine|diet|cook|bake|fry|grill|roast)\b/,
+    /\b(protein|carb|fat|calorie|vitamin|mineral|fiber)\b/,
+    /\b(breakfast|lunch|dinner|snack|dessert|appetizer)\b/,
+    /\b(spicy|sweet|sour|salty|savory|umami|tangy|mild|hot)\b/,
+    /\b(easy|medium|hard|quick|slow|simple|complex)\b/,
+    /\b(healthy|fresh|organic|natural|homemade)\b/,
+  ];
+
+  return foodPatterns.some((pattern) => pattern.test(normalizedTag));
+}
+
+/**
+ * Filter and clean tags to only include food-related ones
+ */
+export function filterFoodTags(tags: string[]): string[] {
+  return tags
+    .filter((tag) => tag && tag.trim())
+    .map((tag) => normalizeTagName(tag))
+    .filter((tag) => isValidFoodTag(tag))
+    .map((tag) => formatTagName(tag))
+    .filter((tag, index, array) => array.indexOf(tag) === index); // Remove duplicates
+}
+
+/**
+ * Enhanced validation with detailed feedback for debugging
+ */
+export function validateAndCategorizeTags(tags: string[]): {
+  validTags: string[];
+  invalidTags: string[];
+  categorizedTags: { [category: string]: string[] };
+  feedback: string[];
+} {
+  const validTags: string[] = [];
+  const invalidTags: string[] = [];
+  const categorizedTags: { [category: string]: string[] } = {};
+  const feedback: string[] = [];
+
+  tags.forEach((tag) => {
+    const normalizedTag = normalizeTagName(tag);
+
+    if (isValidFoodTag(normalizedTag)) {
+      const formattedTag = formatTagName(normalizedTag);
+      validTags.push(formattedTag);
+
+      // Categorize the valid tag
+      const category = categorizeTag(normalizedTag);
+      if (!categorizedTags[category]) {
+        categorizedTags[category] = [];
+      }
+      categorizedTags[category].push(formattedTag);
+
+      feedback.push(`✅ "${tag}" → "${formattedTag}" (${category})`);
+    } else {
+      invalidTags.push(tag);
+
+      // Provide specific feedback on why it was rejected
+      if (isGenericDescriptor(normalizedTag)) {
+        feedback.push(`❌ "${tag}" - Generic descriptor (not recipe-specific)`);
+      } else if (isSocialMediaTerm(normalizedTag)) {
+        feedback.push(`❌ "${tag}" - Social media term (not culinary)`);
+      } else if (isNonFoodTerm(normalizedTag)) {
+        feedback.push(`❌ "${tag}" - Non-food related term`);
+      } else {
+        feedback.push(
+          `❌ "${tag}" - Does not match any food category patterns`
+        );
+      }
+    }
+  });
+
+  return {
+    validTags: [...new Set(validTags)], // Remove duplicates
+    invalidTags,
+    categorizedTags,
+    feedback,
+  };
+}
+
+/**
+ * Check if tag is a generic descriptor
+ */
+function isGenericDescriptor(tag: string): boolean {
+  const genericTerms = [
+    "delicious",
+    "amazing",
+    "perfect",
+    "great",
+    "awesome",
+    "wonderful",
+    "fantastic",
+    "incredible",
+    "best",
+    "good",
+    "nice",
+    "yummy",
+    "tasty",
+    "recipe",
+    "food",
+    "dish",
+    "meal",
+    "cooking",
+    "kitchen",
+    "homemade",
+  ];
+
+  return genericTerms.some((term) => tag.includes(term) || term.includes(tag));
+}
+
+/**
+ * Check if tag is a social media term
+ */
+function isSocialMediaTerm(tag: string): boolean {
+  const socialTerms = [
+    "instagram",
+    "facebook",
+    "twitter",
+    "tiktok",
+    "youtube",
+    "social",
+    "share",
+    "like",
+    "follow",
+    "post",
+    "viral",
+    "trending",
+    "hashtag",
+    "influencer",
+    "blogger",
+    "content",
+    "feed",
+    "story",
+    "reel",
+  ];
+
+  return socialTerms.some((term) => tag.includes(term) || term.includes(tag));
+}
+
+/**
+ * Check if tag is non-food related
+ */
+function isNonFoodTerm(tag: string): boolean {
+  const nonFoodTerms = [
+    "photo",
+    "picture",
+    "image",
+    "video",
+    "camera",
+    "filter",
+    "weekend",
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "morning",
+    "afternoon",
+    "evening",
+    "night",
+    "today",
+    "yesterday",
+    "love",
+    "life",
+    "happy",
+    "fun",
+    "enjoy",
+    "relax",
+    "chill",
+  ];
+
+  return nonFoodTerms.some((term) => tag.includes(term) || term.includes(tag));
+}
+
+/**
+ * Enhanced food tag filtering with detailed logging
+ */
+export function filterFoodTagsWithFeedback(tags: string[]): {
+  tags: string[];
+  feedback: string[];
+  stats: {
+    original: number;
+    valid: number;
+    invalid: number;
+    categories: { [key: string]: number };
+  };
+} {
+  const result = validateAndCategorizeTags(tags);
+
+  const stats = {
+    original: tags.length,
+    valid: result.validTags.length,
+    invalid: result.invalidTags.length,
+    categories: Object.fromEntries(
+      Object.entries(result.categorizedTags).map(([cat, tags]) => [
+        cat,
+        tags.length,
+      ])
+    ),
+  };
+
+  return {
+    tags: result.validTags,
+    feedback: result.feedback,
+    stats,
+  };
 }

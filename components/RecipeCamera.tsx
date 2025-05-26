@@ -215,7 +215,20 @@ export const RecipeCamera: React.FC<RecipeCameraProps> = ({
           keyExtractor={(item, index) => `${index}-${item}`}
           renderItem={({ item, index }) => (
             <View style={styles.imageContainer}>
-              <Image source={{ uri: item }} style={styles.previewImage} />
+              <Image
+                source={{ uri: item }}
+                style={styles.previewImage}
+                onError={() => {
+                  console.log(
+                    `[RecipeCamera] Failed to load captured image: ${item}`
+                  );
+                }}
+                onLoad={() => {
+                  console.log(
+                    `[RecipeCamera] Successfully loaded captured image`
+                  );
+                }}
+              />
               <Pressable
                 style={styles.removeImageButton}
                 onPress={() => removeImage(index)}

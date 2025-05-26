@@ -13,7 +13,7 @@ import { useLocalSearchParams, router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, typography } from "../utils/styleUtils";
 import { useRecipes } from "../context/RecipeContext";
-import { Recipe, Ingredient } from "../types/app";
+import { Recipe, Ingredient } from "../types";
 import { scrapeFromUrl, analyzeRecipeText } from "../services/deepseekservice";
 import {
   extractRecipeFromUrl,
@@ -103,7 +103,8 @@ export default function AddRecipeScreen() {
         // Step 3: Create a valid Recipe object from the analyzed data
         const newRecipe: Recipe = {
           id: Date.now().toString(),
-          name: recipeData.name || "Untitled Recipe",
+          title: recipeData.title || recipeData.name || "Untitled Recipe",
+          name: recipeData.name || recipeData.title || "Untitled Recipe",
           description: recipeData.description,
           ingredients: recipeData.ingredients || [],
           instructions: recipeData.instructions || [],
@@ -112,20 +113,22 @@ export default function AddRecipeScreen() {
           servings: recipeData.servings || 2,
           imageUrl: scrapedContent.imageUrl,
           tags: recipeData.tags,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         };
 
         // Step 4: Add the recipe to the user's collection
         addRecipe(newRecipe);
-        addLog(`Recipe added: ${newRecipe.name}`);
+        addLog(`Recipe added: ${newRecipe.title}`);
 
-        // Step 5: Return to the previous screen with success message
+        // Step 5: Return to the recipe detail page with success message
         Alert.alert(
           "Success",
-          `Recipe "${newRecipe.name}" has been successfully added to your collection.`,
+          `Recipe "${newRecipe.title}" has been successfully added to your collection.`,
           [
             {
               text: "OK",
-              onPress: navigateAfterSuccess,
+              onPress: () => navigateAfterSuccess(newRecipe.id),
             },
           ]
         );
@@ -211,12 +214,14 @@ export default function AddRecipeScreen() {
       );
 
       // Create recipe from extracted data
+      const extractedDataAny = extractedData as any; // Type assertion to access dynamic properties
       const newRecipe: Recipe = {
         id: Date.now().toString(),
-        title: extractedData.title || "Instagram Recipe",
-        name: extractedData.title || "Instagram Recipe", // For backward compatibility
-        description: extractedData.caption || "",
-        ingredients: (extractedData.ingredients || []).map(
+        title: extractedDataAny.title || "Instagram Recipe",
+        name: extractedDataAny.title || "Instagram Recipe", // For backward compatibility
+        description:
+          extractedDataAny.description || extractedDataAny.caption || "",
+        ingredients: (extractedDataAny.ingredients || []).map(
           (ing: any, index: number) => ({
             id: `ing-${index}`,
             name:
@@ -225,12 +230,12 @@ export default function AddRecipeScreen() {
             unit: "item",
           })
         ),
-        instructions: extractedData.instructions || [],
-        prepTime: extractedData.prepTime || 0,
-        cookTime: extractedData.cookTime || 0,
-        servings: extractedData.servings || 2,
-        imageUrl: extractedData.media?.[0]?.url,
-        tags: extractedData.tags || [],
+        instructions: extractedDataAny.instructions || [],
+        prepTime: extractedDataAny.prepTime || 0,
+        cookTime: extractedDataAny.cookTime || 0,
+        servings: extractedDataAny.servings || 2,
+        imageUrl: extractedDataAny.imageUrl || extractedDataAny.thumbnail,
+        tags: extractedDataAny.tags || [],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -245,18 +250,16 @@ export default function AddRecipeScreen() {
 
       // Add the recipe
       addRecipe(newRecipe);
-      addLog(`[Instagram] Recipe added: ${newRecipe.name}`);
+      addLog(`[Instagram] Recipe added: ${newRecipe.title}`);
 
-      // Return to the previous screen with success message
+      // Return to the recipe detail page with success message
       Alert.alert(
         "Success",
-        `Recipe "${
-          newRecipe.title || newRecipe.name
-        }" has been successfully added from Instagram.`,
+        `Recipe "${newRecipe.title}" has been successfully added from Instagram.`,
         [
           {
             text: "OK",
-            onPress: navigateAfterSuccess,
+            onPress: () => navigateAfterSuccess(newRecipe.id),
           },
         ]
       );
@@ -326,7 +329,8 @@ export default function AddRecipeScreen() {
     // Create a recipe object that matches Recipe type
     const newRecipe: Recipe = {
       id: Date.now().toString(),
-      name: title,
+      title: title,
+      name: title, // For backward compatibility
       ingredients: [
         {
           id: "ing-1",
@@ -339,27 +343,32 @@ export default function AddRecipeScreen() {
       prepTime: parseInt(prepTime) || 0,
       cookTime: parseInt(cookTime) || 0,
       servings: parseInt(servings) || 1,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
 
     // Add the recipe to context
     addRecipe(newRecipe);
 
-    // Show success message and navigate to previous screen
+    // Show success message and navigate to recipe detail page
     Alert.alert(
       "Success",
-      `Recipe "${newRecipe.name}" has been successfully added to your collection.`,
+      `Recipe "${newRecipe.title}" has been successfully added to your collection.`,
       [
         {
           text: "OK",
-          onPress: navigateAfterSuccess,
+          onPress: () => navigateAfterSuccess(newRecipe.id),
         },
       ]
     );
   };
 
   // Update the success alerts to use the correct navigation method
-  const navigateAfterSuccess = () => {
-    if (isModal) {
+  const navigateAfterSuccess = (recipeId?: string) => {
+    if (recipeId) {
+      // Navigate to the specific recipe that was just created
+      router.push(`/recipe/${recipeId}`);
+    } else if (isModal) {
       router.back();
     } else {
       router.push(previousScreen as any);

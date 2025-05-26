@@ -17,77 +17,8 @@ import {
   emitRecipeUpdated,
   emitRecipeDeleted,
 } from "../utils/eventEmitter";
-
-// Helper function to process image URLs and extract original URLs from proxy URLs
-function processImageUrl(imageUrl: string | undefined): string | undefined {
-  if (!imageUrl) return undefined;
-
-  // If it's a localhost proxy URL, extract the original
-  if (imageUrl.includes("localhost") && imageUrl.includes("image-proxy")) {
-    try {
-      const url = new URL(imageUrl);
-      const originalUrl = decodeURIComponent(url.searchParams.get("url") || "");
-      if (originalUrl) {
-        console.log(
-          `[RecipeService] Converted proxy URL to original: ${originalUrl}`
-        );
-
-        // For Instagram CDN URLs, use a reliable proxy service
-        if (
-          originalUrl.includes("cdninstagram.com") ||
-          originalUrl.includes("fbcdn.net")
-        ) {
-          try {
-            // Use multiple proxy services as fallbacks
-            const proxyServices = [
-              `https://images.weserv.nl/?url=${encodeURIComponent(
-                originalUrl
-              )}&w=640&h=640&fit=cover&output=jpg`,
-              `https://wsrv.nl/?url=${encodeURIComponent(
-                originalUrl
-              )}&w=640&h=640&fit=cover&output=jpg`,
-              originalUrl, // Fallback to original URL
-            ];
-
-            console.log(
-              `[RecipeService] Using proxy service for Instagram CDN: ${proxyServices[0]}`
-            );
-            return proxyServices[0];
-          } catch (proxyError) {
-            console.warn(
-              `[RecipeService] Failed to generate proxy URL: ${proxyError}`
-            );
-            return originalUrl;
-          }
-        }
-
-        return originalUrl;
-      }
-    } catch (error) {
-      console.warn(
-        `[RecipeService] Failed to extract original URL from proxy: ${error}`
-      );
-    }
-  }
-
-  // For direct Instagram CDN URLs, also apply proxy
-  if (imageUrl.includes("cdninstagram.com") || imageUrl.includes("fbcdn.net")) {
-    try {
-      const proxyUrl = `https://images.weserv.nl/?url=${encodeURIComponent(
-        imageUrl
-      )}&w=640&h=640&fit=cover&output=jpg`;
-      console.log(
-        `[RecipeService] Applying proxy to direct Instagram URL: ${proxyUrl}`
-      );
-      return proxyUrl;
-    } catch (error) {
-      console.warn(`[RecipeService] Failed to proxy Instagram URL: ${error}`);
-      return imageUrl;
-    }
-  }
-
-  return imageUrl;
-}
+import { API_ENDPOINTS } from "../constants/api";
+import { processRecipeImageUrl } from "../utils/imageProcessor";
 
 // Simpler transformation for recipe list items
 function transformRecipeListItem(dbRecipe: Partial<DbRecipe>): Recipe {
@@ -95,7 +26,7 @@ function transformRecipeListItem(dbRecipe: Partial<DbRecipe>): Recipe {
     id: dbRecipe.id || "",
     title: dbRecipe.title || "Untitled Recipe",
     description: dbRecipe.description || undefined,
-    imageUrl: processImageUrl(dbRecipe.image_url),
+    imageUrl: processRecipeImageUrl(dbRecipe.image_url),
     prepTime: dbRecipe.prep_time ?? 0,
     cookTime: dbRecipe.cook_time ?? 0,
     servings: dbRecipe.servings ?? 0,
@@ -207,7 +138,7 @@ function transformRecipeToAppFormat(dbRecipe: DbRecipe): Recipe {
     id: dbRecipe.id,
     title: dbRecipe.title,
     description: dbRecipe.description || "",
-    imageUrl: processImageUrl(dbRecipe.image_url) || "",
+    imageUrl: processRecipeImageUrl(dbRecipe.image_url) || "",
     prepTime: dbRecipe.prep_time || 0,
     cookTime: dbRecipe.cook_time || 0,
     servings: dbRecipe.servings || 0,

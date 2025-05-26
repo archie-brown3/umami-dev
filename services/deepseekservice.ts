@@ -2,6 +2,8 @@ import { Recipe, Ingredient } from "../types";
 import { API_ENDPOINTS } from "../constants/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { formatTag } from "./utils";
+import { processInstagramImageUrl } from "../utils/imageProcessor";
+import { filterFoodTags, filterFoodTagsWithFeedback } from "./tagUtils";
 
 // This service handles DeepSeek AI analysis for recipe text formatting
 // Web scraping is now handled in recipeExtractor.ts using the /api/scrape-web endpoint
@@ -110,17 +112,22 @@ export async function scrapeFromUrl(
 
           if (apiResponse) {
             const result = {
-              caption:
-                apiResponse.caption || apiResponse.ingredients.join("\n"),
+              caption: apiResponse.caption || "No caption extracted",
               url,
-              author: extractInstagramUsername(apiResponse.metadata),
-              imageUrl: apiResponse.media?.[0]?.url,
-              mediaUrls: apiResponse.media?.map(
-                (m: { url: string; type: string }) => ({
-                  url: m.url,
-                  isVideo: m.type === "video",
-                })
-              ),
+              author:
+                apiResponse.username ||
+                extractInstagramUsername(
+                  apiResponse.raw_scraped_data?.metadata
+                ),
+              username: apiResponse.username,
+              imageUrl: apiResponse.thumbnail,
+              mediaUrls:
+                apiResponse.raw_scraped_data?.images?.images?.map(
+                  (img: any) => ({
+                    url: img.src || img.url,
+                    isVideo: false,
+                  })
+                ) || [],
             };
             console.log(
               `[Instagram] Processed result with caption length: ${
@@ -204,7 +211,7 @@ export async function scrapeFromUrl(
  * Check if the extraction API service is available
  */
 async function isExtractApiAvailable(): Promise<boolean> {
-  const extractionServiceUrl = API_ENDPOINTS.RECIPE_EXTRACTION_SERVICE_URL;
+  const extractionServiceUrl = API_ENDPOINTS.EXTRACT_API_URL;
   if (!extractionServiceUrl) {
     addServiceLog("Extraction API URL not configured");
     return false;
@@ -388,32 +395,8 @@ function extractInstagramDataFromScrape(
   // Try to extract username from URL
   const username = extractInstagramUsername(scrapedData.metadata);
 
-  // Get potential thumbnail from images
-  let thumbnailUrl = scrapedData.images?.images?.[0]?.src;
-
-  // For Instagram, try to get image from metadata first
-  if (isInstagramUrl(instagramUrl)) {
-    const ogImage = scrapedData.metadata?.open_graph?.image;
-    const twitterImage = scrapedData.metadata?.twitter_card?.image;
-
-    // Prefer og:image or twitter:image for Instagram posts
-    if (ogImage) {
-      thumbnailUrl = processInstagramImageUrl(ogImage);
-      console.log(
-        `[DeepSeekService] Using og:image for Instagram: ${thumbnailUrl}`
-      );
-    } else if (twitterImage) {
-      thumbnailUrl = processInstagramImageUrl(twitterImage);
-      console.log(
-        `[DeepSeekService] Using twitter:image for Instagram: ${thumbnailUrl}`
-      );
-    } else if (thumbnailUrl) {
-      thumbnailUrl = processInstagramImageUrl(thumbnailUrl);
-      console.log(
-        `[DeepSeekService] Processing scraped image for Instagram: ${thumbnailUrl}`
-      );
-    }
-  }
+  // ENHANCED: Smart image selection for Instagram content
+  let thumbnailUrl = selectBestInstagramImage(scrapedData, instagramUrl);
 
   // Extract caption - look for patterns in the scraped text
   let caption = "";
@@ -452,6 +435,109 @@ function extractInstagramDataFromScrape(
   }`);
 
   return result;
+}
+
+/**
+ * NEW: Smart image selection for Instagram content
+ * Prioritizes high-quality images over video thumbnails with play icons
+ */
+function selectBestInstagramImage(
+  scrapedData: any,
+  instagramUrl: string
+): string | undefined {
+  console.log(`[Instagram] Selecting best image for ${instagramUrl}`);
+
+  // Check if this is a reel/video URL
+  const isReel =
+    instagramUrl.includes("/reel/") || instagramUrl.includes("/reels/");
+
+  // Priority 1: Open Graph image (usually highest quality)
+  const ogImage = scrapedData.metadata?.open_graph?.image;
+  if (ogImage) {
+    console.log(`[Instagram] Found og:image: ${ogImage}`);
+
+    // For reels, check if this is a video thumbnail with play icon
+    if (isReel && isVideoThumbnail(ogImage)) {
+      console.log(
+        `[Instagram] og:image appears to be video thumbnail, looking for alternatives`
+      );
+    } else {
+      return processInstagramImageUrl(ogImage);
+    }
+  }
+
+  // Priority 2: Twitter card image
+  const twitterImage = scrapedData.metadata?.twitter_card?.image;
+  if (twitterImage && (!isReel || !isVideoThumbnail(twitterImage))) {
+    console.log(`[Instagram] Using twitter:image: ${twitterImage}`);
+    return processInstagramImageUrl(twitterImage);
+  }
+
+  // Priority 3: Look through all scraped images for the best one
+  const images = scrapedData.images?.images || [];
+  if (images.length > 0) {
+    console.log(
+      `[Instagram] Found ${images.length} scraped images, selecting best`
+    );
+
+    // Filter out obvious video thumbnails and low-quality images
+    const goodImages = images.filter((img: any) => {
+      const url = img.src || img.url;
+      if (!url) return false;
+
+      // Skip video thumbnails
+      if (isVideoThumbnail(url)) return false;
+
+      // Skip very small images (likely icons/avatars)
+      if (img.width && img.height && (img.width < 200 || img.height < 200))
+        return false;
+
+      return true;
+    });
+
+    if (goodImages.length > 0) {
+      // Sort by size (prefer larger images)
+      goodImages.sort((a: any, b: any) => {
+        const aSize = (a.width || 0) * (a.height || 0);
+        const bSize = (b.width || 0) * (b.height || 0);
+        return bSize - aSize;
+      });
+
+      const bestImage = goodImages[0];
+      console.log(
+        `[Instagram] Selected best image: ${bestImage.src || bestImage.url}`
+      );
+      return processInstagramImageUrl(bestImage.src || bestImage.url);
+    }
+  }
+
+  // Fallback: Use og:image even if it's a video thumbnail (better than nothing)
+  if (ogImage) {
+    console.log(
+      `[Instagram] Falling back to og:image despite being video thumbnail`
+    );
+    return processInstagramImageUrl(ogImage);
+  }
+
+  console.log(`[Instagram] No suitable image found`);
+  return undefined;
+}
+
+/**
+ * NEW: Detect if an image URL is likely a video thumbnail with play icon
+ */
+function isVideoThumbnail(imageUrl: string): boolean {
+  if (!imageUrl) return false;
+
+  // Instagram video thumbnails often have specific patterns
+  const videoThumbnailPatterns = [
+    /\/v\/t51\.2885-15\/.*\.jpg.*stp=.*video/i, // Instagram video thumbnail pattern
+    /\/v\/t51\.2885-15\/.*\.jpg.*stp=.*dst-jpg_e35/i, // Another video pattern
+    /thumbnail/i, // Generic thumbnail indicator
+    /preview/i, // Preview image indicator
+  ];
+
+  return videoThumbnailPatterns.some((pattern) => pattern.test(imageUrl));
 }
 
 // Helper function to extract Instagram username from metadata
@@ -501,38 +587,6 @@ function extractInstagramUsername(metadata: any): string | undefined {
   return undefined;
 }
 
-// Helper function to process Instagram image URLs
-function processInstagramImageUrl(
-  imageUrl: string | undefined
-): string | undefined {
-  if (!imageUrl) return undefined;
-
-  console.log(`[DeepSeekService] Processing Instagram image URL: ${imageUrl}`);
-
-  // Check if it's an Instagram CDN URL
-  if (imageUrl.includes("cdninstagram.com") || imageUrl.includes("fbcdn.net")) {
-    console.log("[DeepSeekService] Detected Instagram CDN URL");
-
-    // For Instagram CDN URLs, we can try using an image proxy service
-    // This helps with CORS issues and provides better reliability
-    try {
-      const proxyUrl = `https://images.weserv.nl/?url=${encodeURIComponent(
-        imageUrl
-      )}&w=640&h=640&fit=cover&output=jpg`;
-      console.log(`[DeepSeekService] Generated proxy URL: ${proxyUrl}`);
-      return proxyUrl;
-    } catch (error) {
-      console.warn(
-        "[DeepSeekService] Failed to generate proxy URL, using original:",
-        error
-      );
-      return imageUrl;
-    }
-  }
-
-  return imageUrl;
-}
-
 // Helper function to detect if URL is from Instagram
 function isInstagramUrl(url: string): boolean {
   return url.includes("instagram.com");
@@ -546,7 +600,7 @@ async function scrapeGenericRecipeWebsite(
     addServiceLog(`Starting real web scraping for URL: ${url}`);
 
     // First check if the web scraping API is available
-    const extractionServiceUrl = API_ENDPOINTS.RECIPE_EXTRACTION_SERVICE_URL;
+    const extractionServiceUrl = API_ENDPOINTS.EXTRACT_API_URL;
     if (!extractionServiceUrl) {
       addServiceLog(
         "Web scraping API URL not configured, falling back to DeepSeek"
@@ -603,7 +657,7 @@ async function scrapeGenericRecipeWebsite(
         caption: scrapedData.text?.full_text || "",
         url,
         author: extractAuthorFromMetadata(scrapedData.metadata),
-        imageUrl: scrapedData.images?.images?.[0]?.url,
+        imageUrl: selectBestRecipeImage(scrapedData, url),
         mediaUrls:
           scrapedData.images?.images?.map((img: any) => ({
             url: img.url,
@@ -613,7 +667,9 @@ async function scrapeGenericRecipeWebsite(
       };
 
       addServiceLog(
-        `Transformed scraped data - title: "${result.title}", content length: ${result.caption.length}`
+        `Transformed scraped data - title: "${result.title}", content length: ${
+          result.caption.length
+        }, selected image: ${result.imageUrl ? "yes" : "no"}`
       );
       return result;
     } catch (webScrapingError) {
@@ -765,14 +821,7 @@ export async function analyzeRecipeText(
       processedText = recipeText.substring(0, MAX_LENGTH);
     }
 
-    // SIMPLIFIED: Use single comprehensive analysis instead of splitting
-    // The two-part approach was causing data loss where ingredients/instructions
-    // were returned in the wrong analysis part
-    console.log(
-      `[DeepSeekService] Using single comprehensive analysis approach`
-    );
-
-    // Comprehensive recipe analysis in a single call
+    // Comprehensive recipe analysis in a single call - STREAMLINED VERSION
     const result = await analyzeComprehensiveRecipeInfo(processedText);
 
     console.log(
@@ -807,83 +856,162 @@ export async function analyzeRecipeText(
   }
 }
 
-// Comprehensive recipe analysis in a single call
+// Comprehensive recipe analysis in a single call - STREAMLINED VERSION
 async function analyzeComprehensiveRecipeInfo(text: string) {
-  const prompt = `You are a comprehensive recipe extraction assistant. Extract ALL information from this recipe text and return it as a valid JSON object.
+  // PRE-FILTER: Extract only recipe-relevant content before sending to DeepSeek
+  const relevantContent = extractRelevantRecipeContent(text);
 
-CRITICAL: Include ALL fields below - this is a complete extraction, not partial.
+  console.log(
+    `[DeepSeekService] Filtered content from ${text.length} to ${relevantContent.length} characters`
+  );
 
-Required format - respond with ONLY valid JSON:
+  const prompt = `Analyze this recipe content and extract the actual recipe information. Return ONLY valid JSON with the real recipe data:
+
+${relevantContent}
+
+Extract and return the actual recipe information in this JSON format:
 {
-  "title": "Recipe Title",
-  "description": "Brief description of the recipe",
-  "ingredients": [
-    "1 tablespoon olive oil",
-    "1 pound ground beef",
-    "2 cloves garlic, minced"
-  ],
-  "instructions": [
-    "Heat oil in pan over medium heat",
-    "Cook beef until browned, about 5 minutes", 
-    "Add garlic and cook 1 minute more"
-  ],
-  "prep_time": 15,
-  "cook_time": 30,
-  "servings": 4,
-  "tags": ["Greek", "Chicken", "Quick"],
-  "meal_type": ["Dinner", "Lunch"],
-  "cuisine_type": ["Greek"],
-  "dietary_categories": ["High-Protein", "Mediterranean"]
+  "title": "[EXTRACT THE ACTUAL RECIPE TITLE FROM THE CONTENT]",
+  "description": "[EXTRACT THE ACTUAL RECIPE DESCRIPTION FROM THE CONTENT]",
+  "ingredients": ["[LIST ALL ACTUAL INGREDIENTS WITH AMOUNTS - BE COMPREHENSIVE, INCLUDE EVERY INGREDIENT MENTIONED]"],
+  "instructions": ["[LIST ALL ACTUAL COOKING STEPS - BE COMPREHENSIVE, INCLUDE EVERY STEP]"],
+  "prep_time": [ACTUAL PREP TIME IN MINUTES],
+  "cook_time": [ACTUAL COOK TIME IN MINUTES],
+  "servings": [ACTUAL NUMBER OF SERVINGS],
+  "tags": ["[GENERATE INTELLIGENT RECIPE TAGS - SEE DETAILED RULES BELOW]"]
 }
 
-IMPORTANT RULES:
-1. Extract ALL ingredients as complete strings (with quantities)
-2. Extract ALL instructions as step-by-step strings
-3. Include title, description, prep_time, cook_time, servings
-4. Add appropriate tags and categories
-5. Return ONLY the JSON object, no explanations or code blocks
+CRITICAL TAG GENERATION RULES:
+Analyze the recipe systematically and generate 5-8 relevant tags from these categories:
 
-Recipe text:
-${text}
+1. CUISINE TYPE (based on ingredients/techniques):
+   - Examples: "Italian", "Mexican", "Asian", "Mediterranean", "American", "Indian", "Thai"
+   - Look for: pasta/parmesan (Italian), soy sauce/ginger (Asian), cumin/cilantro (Mexican)
 
-Return ONLY the JSON object, no explanations or code blocks.`;
+2. MAIN PROTEIN/INGREDIENT:
+   - Examples: "Chicken", "Beef", "Fish", "Vegetarian", "Pasta", "Rice"
+   - Use the primary ingredient that defines the dish
+
+3. COOKING METHOD (from instructions):
+   - Examples: "Baked", "Grilled", "Fried", "Slow Cooked", "No Cook", "One Pot"
+   - Analyze the cooking techniques mentioned
+
+4. DIETARY RESTRICTIONS (ingredient analysis):
+   - Examples: "Vegetarian", "Vegan", "Gluten Free", "Dairy Free", "Keto", "Low Carb"
+   - Only include if ingredients clearly support it
+
+5. DIFFICULTY/TIME:
+   - Examples: "Easy", "Quick", "30 Minute", "Beginner"
+   - Based on prep time, cook time, and instruction complexity
+
+6. MEAL TYPE:
+   - Examples: "Breakfast", "Lunch", "Dinner", "Snack", "Dessert", "Appetizer"
+   - Based on the type of dish described
+
+7. FLAVOR PROFILE:
+   - Examples: "Spicy", "Sweet", "Savory", "Creamy", "Fresh"
+   - Only if clearly mentioned in description or ingredients
+
+GOOD TAG EXAMPLES: ["Italian", "Chicken", "Baked", "Easy", "Dinner", "High Protein"]
+BAD TAG EXAMPLES: ["Delicious", "Amazing", "Perfect", "Instagram", "Recipe", "Food"]
+
+DO NOT INCLUDE:
+- Social media terms, usernames, or platform references
+- Generic descriptors like "delicious", "amazing", "perfect"
+- Non-food related words
+- Duplicate concepts (don't use both "Quick" and "Fast")
+
+ONLY return the JSON object, no explanations.`;
 
   const response = await callDeepSeekAPI(prompt);
   return parseDeepSeekResponse(response);
 }
 
-/*
-// OLD: Split recipe analysis into smaller tasks - COMMENTED OUT
-// This approach was causing data loss where ingredients were returned in nutrition analysis
-// and basic analysis wasn't returning the actual recipe data
-async function analyzeBasicRecipeInfo(text: string) {
-  // ... old function commented out
+// NEW: Pre-filter scraped content to extract only recipe-relevant sections
+function extractRelevantRecipeContent(fullText: string): string {
+  const lines = fullText
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+  // Keywords that indicate recipe content
+  const recipeKeywords = [
+    "ingredients",
+    "instructions",
+    "directions",
+    "recipe",
+    "cook",
+    "prep",
+    "tablespoon",
+    "teaspoon",
+    "cup",
+    "pound",
+    "ounce",
+    "minutes",
+    "hours",
+    "heat",
+    "add",
+    "mix",
+    "stir",
+    "bake",
+    "fry",
+    "boil",
+    "serve",
+  ];
+
+  // Extract lines that contain recipe keywords or look like ingredients/instructions
+  const relevantLines = lines.filter((line) => {
+    const lowerLine = line.toLowerCase();
+
+    // Check for recipe keywords
+    if (recipeKeywords.some((keyword) => lowerLine.includes(keyword)))
+      return true;
+
+    // Check for ingredient patterns (number + unit + ingredient)
+    if (
+      /^\d+[\s\/\-]*\d*\s*(cup|tbsp|tsp|pound|oz|gram|kg|ml|liter)s?\s+\w+/.test(
+        lowerLine
+      )
+    )
+      return true;
+
+    // Check for instruction patterns (action verbs)
+    if (
+      /^(heat|add|mix|stir|cook|bake|fry|boil|serve|combine|season|place|remove)\s+/.test(
+        lowerLine
+      )
+    )
+      return true;
+
+    return false;
+  });
+
+  // If we found relevant content, use it. Otherwise, take first 2000 chars of original
+  if (relevantLines.length > 5) {
+    return relevantLines.join("\n").substring(0, 3000); // Limit to 3000 chars
+  }
+
+  return fullText.substring(0, 2000); // Fallback to first 2000 chars
 }
 
-async function analyzeNutritionInfo(text: string) {
-  // ... old function commented out  
-}
-*/
-
-// Helper function for API calls with retries
+// Helper function for API calls with retries - IMPROVED VERSION
 async function callDeepSeekAPI(
   prompt: string,
-  retries = 3
+  retries = 3 // Increased back to 3 for better reliability
 ): Promise<DeepseekResponse> {
   addServiceLog(`Calling DeepSeek API (${prompt.length} chars)`);
 
-  // Use exponential backoff for retries
-  const INITIAL_TIMEOUT = 45000; // 45 seconds initial timeout
-  const MAX_TIMEOUT = 90000; // 90 seconds max timeout
+  // Increased timeouts for more complete processing
+  const INITIAL_TIMEOUT = 35000; // Increased from 20s to 35s
+  const MAX_TIMEOUT = 60000; // Increased from 30s to 60s
 
   for (let i = 0; i < retries; i++) {
     try {
       addServiceLog(`DeepSeek API attempt ${i + 1}/${retries}`);
 
       const controller = new AbortController();
-      const timeout = Math.min(INITIAL_TIMEOUT * Math.pow(1.5, i), MAX_TIMEOUT);
+      const timeout = Math.min(INITIAL_TIMEOUT * Math.pow(1.3, i), MAX_TIMEOUT); // Increased multiplier
 
-      // Set timeout with clear message
       const timeoutId = setTimeout(() => {
         addServiceLog(`DeepSeek API timeout after ${timeout}ms`);
         controller.abort(new Error(`Request timed out after ${timeout}ms`));
@@ -900,13 +1028,12 @@ async function callDeepSeekAPI(
         body: JSON.stringify({
           model: "deepseek-chat",
           messages: [{ role: "user", content: prompt }],
-          temperature: 0.2,
-          max_tokens: 2048,
+          temperature: 0.1, // Keep low for consistency
+          max_tokens: 2048, // Increased back to 2048 for complete recipes
         }),
         signal: controller.signal,
       });
 
-      // Clear timeout as soon as response is received
       clearTimeout(timeoutId);
 
       if (!response.ok) {
@@ -927,16 +1054,12 @@ async function callDeepSeekAPI(
         error instanceof Error ? error.message : String(error);
       addServiceLog(`API call failed: ${errorMessage}`);
 
-      if (error instanceof Error && error.name === "AbortError") {
-        addServiceLog("Request was aborted (timeout)");
-      }
-
       if (i === retries - 1) {
         addServiceLog(`All ${retries} attempts failed`);
         throw error;
       }
 
-      const backoffTime = Math.pow(2, i) * 1000;
+      const backoffTime = 2000 * (i + 1); // Increased backoff time
       addServiceLog(`Retrying in ${backoffTime}ms...`);
       await new Promise((resolve) => setTimeout(resolve, backoffTime));
     }
@@ -944,243 +1067,186 @@ async function callDeepSeekAPI(
   throw new Error("Failed after all retries");
 }
 
-// Helper function to parse DeepSeek response
+// Helper function to parse DeepSeek response - STREAMLINED VERSION
 function parseDeepSeekResponse(response: DeepseekResponse): Partial<Recipe> {
   const content = response.choices[0]?.message?.content || "";
 
   try {
-    console.log(
-      `[DeepSeekService] Raw response content: ${content.substring(0, 500)}...`
-    );
+    console.log(`[DeepSeekService] Parsing response (${content.length} chars)`);
 
-    // First try to extract JSON between code blocks
-    const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-    let jsonString = jsonMatch ? jsonMatch[1].trim() : content.trim();
+    // Quick JSON extraction - try the most common patterns first
+    let jsonString = content.trim();
 
-    console.log(
-      `[DeepSeekService] Initial JSON extraction: ${jsonString.substring(
-        0,
-        300
-      )}...`
-    );
+    // Remove code blocks if present
+    const codeBlockMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    if (codeBlockMatch) {
+      jsonString = codeBlockMatch[1].trim();
+    }
 
-    // If no JSON was found in code blocks, try to find JSON object in the content
+    // Find JSON object if not already isolated
     if (!jsonString.startsWith("{")) {
       const objectMatch = content.match(/{[\s\S]*}/);
-      if (objectMatch) {
-        jsonString = objectMatch[0];
-        console.log(
-          `[DeepSeekService] Extracted JSON object: ${jsonString.substring(
-            0,
-            300
-          )}...`
-        );
-      } else {
-        console.error("Failed to extract JSON from response content:", content);
-        throw new Error("No valid JSON found in response");
-      }
+      jsonString = objectMatch ? objectMatch[0] : jsonString;
     }
 
-    console.log(
-      `[DeepSeekService] Before fixing - JSON length: ${jsonString.length}`
-    );
+    // Simple cleanup - only fix the most common issues
+    jsonString = jsonString
+      .replace(/,\s*}/g, "}") // Remove trailing commas
+      .replace(/,\s*]/g, "]"); // Remove trailing commas in arrays
 
-    // Clean up the JSON string
-    const fixedJsonString = fixCommonJsonErrors(jsonString);
+    console.log(`[DeepSeekService] Attempting to parse JSON...`);
+    const parsedRecipe = JSON.parse(jsonString);
 
-    console.log(
-      `[DeepSeekService] After fixing - JSON length: ${fixedJsonString.length}`
-    );
-    console.log(
-      `[DeepSeekService] Fixed JSON sample: ${fixedJsonString.substring(
-        0,
-        500
-      )}...`
-    );
-
-    // Try to parse the fixed JSON
-    let parsedRecipe: any;
-    try {
-      parsedRecipe = JSON.parse(fixedJsonString);
-      console.log(
-        `[DeepSeekService] Successfully parsed JSON with keys: ${Object.keys(
-          parsedRecipe
-        ).join(", ")}`
-      );
-    } catch (jsonError) {
-      console.error("JSON parse error:", jsonError);
-      console.error("Failed JSON string:", fixedJsonString);
-      throw new Error("Failed to parse DeepSeek response JSON");
-    }
-
-    // Extract information into the Recipe format
-    const result: Partial<Recipe> = {};
-
-    // Basic information
-    result.title = parsedRecipe.title || parsedRecipe.name;
-    result.description = parsedRecipe.description;
-    result.prepTime = parsedRecipe.prep_time || parsedRecipe.prepTime;
-    result.cookTime = parsedRecipe.cook_time || parsedRecipe.cookTime;
-    result.servings = parsedRecipe.servings;
-    result.tags = processNutritionalTags(parsedRecipe);
-
-    // Instructions processing - handle different formats
-    const instructions: string[] = [];
-
-    console.log(
-      `[DeepSeekService] Raw instructions from API: ${JSON.stringify(
-        parsedRecipe.instructions,
-        null,
-        2
-      )}`
-    );
-
-    if (Array.isArray(parsedRecipe.instructions)) {
-      console.log(
-        `[DeepSeekService] Processing instructions as array (${parsedRecipe.instructions.length} items)`
-      );
-      instructions.push(
-        ...parsedRecipe.instructions.map(String).filter(Boolean)
-      );
-    } else if (typeof parsedRecipe.instructions === "string") {
-      console.log(`[DeepSeekService] Processing instructions as string`);
-      // Split by newlines and filter out empty lines
-      instructions.push(
-        ...parsedRecipe.instructions
-          .split("\n")
-          .map((line: string) => line.trim())
-          .filter((line: string) => line.length > 0)
-      );
-    } else if (parsedRecipe.steps && Array.isArray(parsedRecipe.steps)) {
-      console.log(
-        `[DeepSeekService] Processing steps as array (${parsedRecipe.steps.length} items)`
-      );
-      instructions.push(...parsedRecipe.steps.map(String).filter(Boolean));
-    } else {
-      console.log(`[DeepSeekService] No valid instructions format found`);
-    }
-
-    result.instructions = instructions;
-    console.log(
-      `[DeepSeekService] Final processed instructions count: ${instructions.length}`
-    );
-
-    // Process ingredients - handles both array and object formats
-    let ingredients: Ingredient[] = [];
-
-    console.log(
-      `[DeepSeekService] Raw ingredients from API: ${JSON.stringify(
-        parsedRecipe.ingredients,
-        null,
-        2
-      )}`
-    );
-
-    if (Array.isArray(parsedRecipe.ingredients)) {
-      console.log(
-        `[DeepSeekService] Processing ingredients as array (${parsedRecipe.ingredients.length} items)`
-      );
-      ingredients = parsedRecipe.ingredients.map(
-        (ing: any, index: number): Ingredient => {
-          const ingredientText =
-            typeof ing === "string" ? ing : ing?.name || "Unknown ingredient";
-
-          // Enhanced parsing to extract amount, unit, and name properly
-          const { amount, unit, name } = parseIngredientText(ingredientText);
-
-          return {
-            id: `temp-${index}`,
-            name: name.trim(),
-            amount,
-            unit: unit.trim(),
-          };
-        }
-      );
-    }
-    // Handle ingredients as object with sections (the common DeepSeek format)
-    else if (
-      parsedRecipe.ingredients &&
-      typeof parsedRecipe.ingredients === "object" &&
-      !Array.isArray(parsedRecipe.ingredients)
-    ) {
-      console.log(
-        `[DeepSeekService] Processing ingredients as object with sections`
-      );
-      let index = 0;
-
-      // Iterate through each section of ingredients
-      for (const [section, items] of Object.entries(parsedRecipe.ingredients)) {
-        console.log(
-          `[DeepSeekService] Processing section "${section}" with ${
-            Array.isArray(items) ? items.length : 0
-          } items`
-        );
-        if (Array.isArray(items)) {
-          const sectionIngredients = items.map((item: any) => {
+    // Quick transformation to Recipe format
+    const result: Partial<Recipe> = {
+      title: parsedRecipe.title || parsedRecipe.name || "Untitled Recipe",
+      description: parsedRecipe.description || "",
+      prepTime: parsedRecipe.prep_time || parsedRecipe.prepTime || 0,
+      cookTime: parsedRecipe.cook_time || parsedRecipe.cookTime || 0,
+      servings: parsedRecipe.servings || 4,
+      instructions: Array.isArray(parsedRecipe.instructions)
+        ? parsedRecipe.instructions.filter(Boolean)
+        : [],
+      ingredients: Array.isArray(parsedRecipe.ingredients)
+        ? parsedRecipe.ingredients.map((ing: any, index: number) => {
             const ingredientText =
-              typeof item === "string"
-                ? item
-                : item?.name || "Unknown ingredient";
-
-            // Enhanced parsing to extract amount, unit, and name properly
+              typeof ing === "string" ? ing : ing?.name || "Unknown ingredient";
             const { amount, unit, name } = parseIngredientText(ingredientText);
-
             return {
-              id: `temp-${index++}`,
+              id: `temp-${index}`,
               name: name.trim(),
               amount,
               unit: unit.trim(),
             };
-          });
+          })
+        : [],
+      tags: Array.isArray(parsedRecipe.tags)
+        ? (() => {
+            const rawTags = parsedRecipe.tags.filter(Boolean);
+            console.log(
+              `[DeepSeekService] Raw tags from AI: [${rawTags
+                .map((t: string) => `"${t}"`)
+                .join(", ")}]`
+            );
 
-          ingredients = [...ingredients, ...sectionIngredients];
-        }
-      }
-    }
+            const tagResult = filterFoodTagsWithFeedback(rawTags);
 
-    result.ingredients = ingredients;
+            console.log(`[DeepSeekService] Tag filtering results:`);
+            console.log(`  - Original: ${tagResult.stats.original} tags`);
+            console.log(`  - Valid: ${tagResult.stats.valid} tags`);
+            console.log(`  - Invalid: ${tagResult.stats.invalid} tags`);
+            console.log(
+              `  - Categories: ${JSON.stringify(tagResult.stats.categories)}`
+            );
+
+            if (tagResult.feedback.length > 0) {
+              console.log(`[DeepSeekService] Tag validation feedback:`);
+              tagResult.feedback.forEach((feedback) =>
+                console.log(`    ${feedback}`)
+              );
+            }
+
+            console.log(
+              `[DeepSeekService] Final tags: [${tagResult.tags
+                .map((t: string) => `"${t}"`)
+                .join(", ")}]`
+            );
+
+            return tagResult.tags;
+          })()
+        : [],
+    };
+
     console.log(
-      `[DeepSeekService] Final processed ingredients count: ${ingredients.length}`
+      `[DeepSeekService] Successfully parsed: ${
+        result.ingredients?.length || 0
+      } ingredients, ${result.instructions?.length || 0} instructions`
     );
-
-    // Validate the final result before returning
-    const hasTitle = !!result.title;
-    const hasIngredients = ingredients.length > 0;
-    const hasInstructions = instructions.length > 0;
-
-    console.log(
-      `[DeepSeekService] Final result summary: {
-        "ingredientsCount": ${ingredients.length},
-        "instructionsCount": ${instructions.length},
-        "hasTitle": ${hasTitle},
-        "hasIngredients": ${hasIngredients},
-        "hasInstructions": ${hasInstructions}
-      }`
-    );
-
-    // If we don't have critical data, log the raw response for debugging
-    if (!hasIngredients || !hasInstructions) {
-      console.error(
-        `[DeepSeekService] Missing critical data. Raw parsed object keys:`,
-        Object.keys(parsedRecipe)
-      );
-      console.error(
-        `[DeepSeekService] Raw parsed object:`,
-        JSON.stringify(parsedRecipe, null, 2)
-      );
-    }
-
     return result;
   } catch (error) {
     console.error("Failed to parse DeepSeek response:", error);
+    console.error("Raw content:", content);
+
+    // Enhanced fallback - try to extract basic info from the raw content
+    const fallbackTitle =
+      extractTitleFromContent(content) || "Recipe extraction failed";
+    const fallbackDescription =
+      extractDescriptionFromContent(content) ||
+      "The AI couldn't properly extract this recipe. The original content may not contain a complete recipe or may be in an unsupported format.";
+
     return {
-      title: "Failed to parse recipe",
-      description:
-        "The AI couldn't properly extract this recipe. Please try with different text or add manually.",
+      title: fallbackTitle,
+      description: fallbackDescription,
       ingredients: [],
       instructions: [],
+      tags: ["Extraction Failed"],
     };
   }
+}
+
+// Helper function to extract title from raw content as fallback
+function extractTitleFromContent(content: string): string | null {
+  // Try to find a title-like pattern in the content
+  const lines = content
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+  for (const line of lines) {
+    // Skip JSON structure indicators
+    if (
+      line.includes('"title"') ||
+      line.includes("[EXTRACT") ||
+      line.includes("Recipe Name")
+    ) {
+      continue;
+    }
+
+    // Look for lines that could be titles (short, descriptive)
+    if (
+      line.length > 5 &&
+      line.length < 100 &&
+      !line.includes('"') &&
+      !line.includes("{")
+    ) {
+      return line;
+    }
+  }
+
+  return null;
+}
+
+// Helper function to extract description from raw content as fallback
+function extractDescriptionFromContent(content: string): string | null {
+  // Try to find a description-like pattern in the content
+  const lines = content
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+  for (const line of lines) {
+    // Skip JSON structure indicators and generic placeholders
+    if (
+      line.includes('"description"') ||
+      line.includes("[EXTRACT") ||
+      line.includes("Brief description") ||
+      line.includes('"title"')
+    ) {
+      continue;
+    }
+
+    // Look for lines that could be descriptions (longer, descriptive)
+    if (
+      line.length > 20 &&
+      line.length < 300 &&
+      !line.includes('"') &&
+      !line.includes("{")
+    ) {
+      return line;
+    }
+  }
+
+  return null;
 }
 
 // Function to generate a synthetic recipe when all other methods fail
@@ -1231,115 +1297,6 @@ Format it as a recipe post with clear sections for ingredients and steps.`;
     console.error("Error generating synthetic recipe:", error);
     return null;
   }
-}
-
-/**
- * Fix common JSON formatting errors in the DeepSeek response
- */
-function fixCommonJsonErrors(jsonString: string): string {
-  let fixedJson = jsonString;
-
-  // Remove any HTML tags that might have snuck in
-  fixedJson = fixedJson.replace(/<[^>]*>/g, "");
-
-  // Remove any leading/trailing whitespace and non-JSON content
-  fixedJson = fixedJson.trim();
-
-  // If the string starts with text before the JSON, try to extract just the JSON part
-  const jsonStart = fixedJson.indexOf("{");
-  const jsonEnd = fixedJson.lastIndexOf("}");
-  if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
-    fixedJson = fixedJson.substring(jsonStart, jsonEnd + 1);
-  }
-
-  // Handle the specific problematic pattern in instructions
-  // Look for patterns like: "Cook the Ground Beef: "Heat olive oil in a large skillet..."
-  // This is a very targeted fix for the exact issue we're seeing
-
-  // Split into lines to process each instruction separately
-  const lines = fixedJson.split("\n");
-
-  for (let i = 0; i < lines.length; i++) {
-    let line = lines[i].trim();
-
-    // Only process lines that are clearly instruction array items
-    if (
-      line.includes('"') &&
-      line.includes(': "') &&
-      line.includes('" ') &&
-      !line.includes('": "')
-    ) {
-      // This is likely an instruction with embedded quotes
-      // Pattern: "Cook the Ground Beef: "Heat olive oil..." and cook", about 3 minutes..."
-
-      // Find the instruction pattern and fix it carefully
-      const instructionMatch = line.match(
-        /^(\s*"[^"]*: ")([^"]*)"([^"]*)"([^"]*?")/
-      );
-      if (instructionMatch) {
-        const [, prefix, quoted1, middle, quoted2] = instructionMatch;
-        const fixed = `${prefix}${quoted1}\\"${middle}\\"${quoted2}`;
-        lines[i] = line.replace(instructionMatch[0], fixed);
-      }
-    }
-  }
-
-  fixedJson = lines.join("\n");
-
-  // Fix trailing commas
-  fixedJson = fixedJson.replace(/,\s*}/g, "}");
-  fixedJson = fixedJson.replace(/,\s*]/g, "]");
-
-  return fixedJson;
-}
-
-/**
- * Process tags from the recipe data
- */
-function processNutritionalTags(parsedRecipe: any): string[] {
-  // Safely process tags from various possible locations in the response
-  const processTagsArray = (tagsArray: any[] | undefined): string[] => {
-    if (!Array.isArray(tagsArray)) return [];
-    return tagsArray
-      .filter((tag) => tag && typeof tag === "string")
-      .map((tag) => formatTag(tag));
-  };
-
-  // Safely process a single tag
-  const processTag = (tag: any): string | null => {
-    if (!tag || typeof tag !== "string") return null;
-    return formatTag(tag);
-  };
-
-  // Combine all tag-like fields into a comprehensive tags array
-  const allTags = [
-    // Process nutritional tags safely
-    ...processTagsArray(parsedRecipe.nutritional_tags),
-    ...processTagsArray(parsedRecipe.tags),
-
-    // Add dietary categories as tags
-    ...processTagsArray(parsedRecipe.dietary_categories),
-
-    // Add cuisine type - handle both string and array formats
-    ...(Array.isArray(parsedRecipe.cuisine_type)
-      ? processTagsArray(parsedRecipe.cuisine_type)
-      : [processTag(parsedRecipe.cuisine_type)].filter(Boolean)),
-
-    // Add cooking method
-    processTag(parsedRecipe.cooking_method),
-
-    // Add meal type - handle both string and array formats
-    ...(Array.isArray(parsedRecipe.meal_type)
-      ? processTagsArray(parsedRecipe.meal_type)
-      : [processTag(parsedRecipe.meal_type)].filter(Boolean)),
-
-    // Other possible tag sources
-    processTag(parsedRecipe.main_ingredient),
-    processTag(parsedRecipe.occasion),
-  ].filter(Boolean) as string[]; // Remove any null/undefined values
-
-  // Remove duplicates
-  return [...new Set(allTags)];
 }
 
 // Helper function to parse ingredient text and extract amount, unit, and name
@@ -1426,4 +1383,576 @@ function parseIngredientText(ingredientText: string): {
     unit: "",
     name: ingredientText.trim(),
   };
+}
+
+/**
+ * NEW: Smart image selection for recipe websites
+ * Analyzes multiple images and selects the most likely recipe image
+ */
+export function selectBestRecipeImage(
+  scrapedData: any,
+  url: string
+): string | undefined {
+  console.log(`[ImageSelection] Selecting best image for ${url}`);
+
+  // Priority 1: Open Graph image (usually the main/featured image)
+  const ogImage = scrapedData.metadata?.open_graph?.image;
+  if (ogImage && isValidImageUrl(ogImage)) {
+    console.log(`[ImageSelection] Using og:image: ${ogImage}`);
+    return ogImage;
+  }
+
+  // Priority 2: Twitter card image
+  const twitterImage = scrapedData.metadata?.twitter_card?.image;
+  if (twitterImage && isValidImageUrl(twitterImage)) {
+    console.log(`[ImageSelection] Using twitter:image: ${twitterImage}`);
+    return twitterImage;
+  }
+
+  // Priority 3: Analyze all scraped images
+  const images = scrapedData.images?.images || [];
+  if (images.length === 0) {
+    console.log(`[ImageSelection] No images found`);
+    return undefined;
+  }
+
+  console.log(`[ImageSelection] Found ${images.length} images, analyzing...`);
+
+  // Score each image based on recipe relevance
+  const scoredImages = images
+    .map((img: any) => {
+      const imageUrl = img.src || img.url;
+      if (!imageUrl || !isValidImageUrl(imageUrl)) return null;
+
+      let score = 0;
+      const alt = (img.alt || "").toLowerCase();
+      const className = (img.class || img.className || "").toLowerCase();
+      const width = img.width || 0;
+      const height = img.height || 0;
+
+      // Size scoring (prefer larger images, but not too large)
+      const area = width * height;
+      if (area > 50000 && area < 1000000) score += 30; // Good size range
+      else if (area > 20000) score += 15; // Decent size
+      else if (area < 5000) score -= 20; // Too small (likely icon/avatar)
+
+      // Aspect ratio scoring (prefer roughly square or landscape)
+      if (width > 0 && height > 0) {
+        const aspectRatio = width / height;
+        if (aspectRatio >= 0.8 && aspectRatio <= 1.5)
+          score += 20; // Good aspect ratio
+        else if (aspectRatio > 3 || aspectRatio < 0.3) score -= 15; // Bad aspect ratio
+      }
+
+      // Alt text scoring (look for recipe-related keywords)
+      const recipeKeywords = [
+        "recipe",
+        "food",
+        "dish",
+        "meal",
+        "cooking",
+        "ingredient",
+        "kitchen",
+        "delicious",
+        "tasty",
+        "homemade",
+        "fresh",
+      ];
+      const negativeKeywords = [
+        "logo",
+        "icon",
+        "avatar",
+        "profile",
+        "banner",
+        "ad",
+        "advertisement",
+        "social",
+        "share",
+        "button",
+        "navigation",
+        "menu",
+      ];
+
+      recipeKeywords.forEach((keyword) => {
+        if (alt.includes(keyword)) score += 15;
+      });
+
+      negativeKeywords.forEach((keyword) => {
+        if (alt.includes(keyword) || className.includes(keyword)) score -= 25;
+      });
+
+      // Class name scoring
+      const goodClasses = [
+        "recipe",
+        "food",
+        "dish",
+        "featured",
+        "main",
+        "hero",
+        "primary",
+      ];
+      const badClasses = [
+        "logo",
+        "icon",
+        "avatar",
+        "sidebar",
+        "footer",
+        "header",
+        "nav",
+      ];
+
+      goodClasses.forEach((cls) => {
+        if (className.includes(cls)) score += 10;
+      });
+
+      badClasses.forEach((cls) => {
+        if (className.includes(cls)) score -= 20;
+      });
+
+      // URL pattern scoring
+      if (imageUrl.includes("recipe") || imageUrl.includes("food")) score += 10;
+      if (imageUrl.includes("logo") || imageUrl.includes("icon")) score -= 15;
+
+      return { url: imageUrl, score, alt, width, height };
+    })
+    .filter(Boolean)
+    .sort((a: any, b: any) => b.score - a.score);
+
+  if (scoredImages.length > 0) {
+    const bestImage = scoredImages[0];
+    console.log(
+      `[ImageSelection] Selected best image with score ${bestImage.score}: ${bestImage.url}`
+    );
+    console.log(
+      `[ImageSelection] Image details: ${bestImage.width}x${bestImage.height}, alt: "${bestImage.alt}"`
+    );
+    return bestImage.url;
+  }
+
+  // Fallback: Use first image if no scoring worked
+  const fallbackImage = images[0]?.src || images[0]?.url;
+  if (fallbackImage && isValidImageUrl(fallbackImage)) {
+    console.log(
+      `[ImageSelection] Using fallback (first image): ${fallbackImage}`
+    );
+    return fallbackImage;
+  }
+
+  console.log(`[ImageSelection] No suitable image found`);
+  return undefined;
+}
+
+/**
+ * NEW: Validate if an image URL is usable
+ */
+function isValidImageUrl(url: string): boolean {
+  if (!url || typeof url !== "string") return false;
+
+  // Check for valid image extensions
+  const imageExtensions = /\.(jpg|jpeg|png|gif|webp|svg)(\?|$)/i;
+  if (imageExtensions.test(url)) return true;
+
+  // Check for data URLs
+  if (url.startsWith("data:image/")) return true;
+
+  // Check for URLs that might be images (common patterns)
+  if (url.includes("image") || url.includes("photo") || url.includes("picture"))
+    return true;
+
+  // Reject obvious non-images
+  const nonImagePatterns = [
+    /\.(js|css|html|xml|json|txt|pdf|doc)(\?|$)/i,
+    /javascript:/i,
+    /mailto:/i,
+    /tel:/i,
+  ];
+
+  return !nonImagePatterns.some((pattern) => pattern.test(url));
+}
+
+// Test function to verify AI prompt improvements
+export async function testRecipeExtractionFix(): Promise<{
+  success: boolean;
+  message: string;
+  result?: Partial<Recipe>;
+}> {
+  try {
+    console.log("🧪 Testing recipe extraction fix...");
+
+    // Test with a simple recipe text
+    const testRecipeText = `
+    Chocolate Chip Cookies
+    
+    These are the best homemade chocolate chip cookies! Soft, chewy, and loaded with chocolate chips.
+    
+    Ingredients:
+    - 2 1/4 cups all-purpose flour
+    - 1 tsp baking soda
+    - 1 tsp salt
+    - 1 cup butter, softened
+    - 3/4 cup granulated sugar
+    - 3/4 cup brown sugar
+    - 2 large eggs
+    - 2 tsp vanilla extract
+    - 2 cups chocolate chips
+    
+    Instructions:
+    1. Preheat oven to 375°F
+    2. Mix flour, baking soda, and salt in a bowl
+    3. Cream butter and sugars until fluffy
+    4. Beat in eggs and vanilla
+    5. Gradually add flour mixture
+    6. Stir in chocolate chips
+    7. Drop spoonfuls on baking sheet
+    8. Bake for 9-11 minutes
+    
+    Prep time: 15 minutes
+    Cook time: 10 minutes
+    Serves: 24 cookies
+    `;
+
+    const result = await analyzeRecipeText(testRecipeText);
+
+    // Check if we got generic placeholder text
+    const hasGenericTitle =
+      !result.title ||
+      result.title.toLowerCase().includes("recipe name") ||
+      result.title.toLowerCase().includes("untitled recipe");
+
+    const hasGenericDescription =
+      !result.description ||
+      result.description.toLowerCase().includes("brief description");
+
+    const hasValidIngredients =
+      result.ingredients &&
+      result.ingredients.length > 0 &&
+      !result.ingredients.every((ing) =>
+        ing.name.toLowerCase().includes("unknown ingredient")
+      );
+
+    const hasValidInstructions =
+      result.instructions &&
+      result.instructions.length > 0 &&
+      !result.instructions.every((inst) => inst.toLowerCase().includes("step"));
+
+    if (hasGenericTitle || hasGenericDescription) {
+      return {
+        success: false,
+        message: `❌ Still getting generic placeholders - Title: "${result.title}", Description: "${result.description}"`,
+        result,
+      };
+    }
+
+    if (!hasValidIngredients || !hasValidInstructions) {
+      return {
+        success: false,
+        message: `❌ Missing valid ingredients (${
+          result.ingredients?.length || 0
+        }) or instructions (${result.instructions?.length || 0})`,
+        result,
+      };
+    }
+
+    return {
+      success: true,
+      message: `✅ Recipe extraction working correctly! Title: "${
+        result.title
+      }", Ingredients: ${result.ingredients?.length || 0}, Instructions: ${
+        result.instructions?.length || 0
+      }`,
+      result,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: `❌ Test failed with error: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    };
+  }
+}
+
+// Test function to verify Instagram extraction and recipe processing
+export async function testInstagramExtractionFlow(): Promise<{
+  success: boolean;
+  message: string;
+  extractedData?: any;
+  recipeResult?: Partial<Recipe>;
+}> {
+  try {
+    console.log("🧪 Testing complete Instagram extraction flow...");
+
+    const testUrl = "https://www.instagram.com/share/BBZ133yzEX";
+
+    // Step 1: Test scraping
+    console.log("Step 1: Testing scrapeFromUrl...");
+    const scrapedContent = await scrapeFromUrl(testUrl);
+
+    if (!scrapedContent) {
+      return {
+        success: false,
+        message: "❌ scrapeFromUrl returned null",
+      };
+    }
+
+    console.log(
+      `Step 1 ✅: Scraped content with caption length: ${
+        scrapedContent.caption?.length || 0
+      }`
+    );
+
+    // Step 2: Test recipe analysis
+    console.log("Step 2: Testing analyzeRecipeText...");
+    const recipeResult = await analyzeRecipeText(scrapedContent.caption);
+
+    console.log(`Step 2 ✅: Recipe analysis complete`);
+    console.log(`- Title: "${recipeResult.title}"`);
+    console.log(`- Ingredients: ${recipeResult.ingredients?.length || 0}`);
+    console.log(`- Instructions: ${recipeResult.instructions?.length || 0}`);
+
+    // Check for success criteria
+    const hasValidTitle =
+      recipeResult.title &&
+      !recipeResult.title.toLowerCase().includes("recipe name") &&
+      !recipeResult.title.toLowerCase().includes("untitled recipe");
+
+    const hasValidIngredients =
+      recipeResult.ingredients && recipeResult.ingredients.length > 0;
+
+    const hasValidInstructions =
+      recipeResult.instructions && recipeResult.instructions.length > 0;
+
+    if (!hasValidTitle || !hasValidIngredients || !hasValidInstructions) {
+      return {
+        success: false,
+        message: `❌ Recipe processing failed - Title: ${
+          hasValidTitle ? "✅" : "❌"
+        }, Ingredients: ${hasValidIngredients ? "✅" : "❌"}, Instructions: ${
+          hasValidInstructions ? "✅" : "❌"
+        }`,
+        extractedData: scrapedContent,
+        recipeResult,
+      };
+    }
+
+    return {
+      success: true,
+      message: `✅ Complete Instagram extraction flow working! Caption: ${scrapedContent.caption.length} chars, Recipe: "${recipeResult.title}" with ${recipeResult.ingredients?.length} ingredients and ${recipeResult.instructions?.length} instructions`,
+      extractedData: scrapedContent,
+      recipeResult,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: `❌ Test failed with error: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    };
+  }
+}
+
+// Test function to verify enhanced tagging system
+export async function testEnhancedTaggingSystem(): Promise<{
+  success: boolean;
+  message: string;
+  results?: Array<{
+    recipeType: string;
+    generatedTags: string[];
+    validTags: string[];
+    invalidTags: string[];
+    categories: { [key: string]: number };
+    quality: string;
+  }>;
+}> {
+  try {
+    console.log("🧪 Testing Enhanced Tagging System...");
+
+    const testRecipes = [
+      {
+        type: "Italian Pasta",
+        content: `Creamy Garlic Parmesan Pasta
+        
+        A rich and creamy pasta dish with garlic, parmesan cheese, and fresh herbs.
+        
+        Ingredients:
+        - 400g spaghetti
+        - 4 cloves garlic, minced
+        - 1 cup heavy cream
+        - 1 cup parmesan cheese, grated
+        - 2 tbsp olive oil
+        - Fresh basil leaves
+        - Salt and black pepper
+        
+        Instructions:
+        1. Cook spaghetti according to package directions
+        2. Heat olive oil in a large pan
+        3. Add garlic and cook for 1 minute
+        4. Pour in cream and bring to a simmer
+        5. Add cooked pasta and toss
+        6. Stir in parmesan cheese until melted
+        7. Season with salt and pepper
+        8. Garnish with fresh basil
+        
+        Prep: 10 minutes, Cook: 15 minutes, Serves: 4`,
+      },
+      {
+        type: "Asian Stir Fry",
+        content: `Quick Chicken Teriyaki Stir Fry
+        
+        A healthy and quick Asian-inspired stir fry with chicken and vegetables.
+        
+        Ingredients:
+        - 500g chicken breast, sliced
+        - 2 tbsp soy sauce
+        - 1 tbsp sesame oil
+        - 1 tsp fresh ginger, grated
+        - 2 cloves garlic, minced
+        - 1 bell pepper, sliced
+        - 1 cup broccoli florets
+        - 2 tbsp teriyaki sauce
+        - 1 tbsp vegetable oil
+        - Green onions for garnish
+        
+        Instructions:
+        1. Heat vegetable oil in a wok or large pan
+        2. Add chicken and cook until golden
+        3. Add garlic and ginger, stir for 30 seconds
+        4. Add vegetables and stir-fry for 3-4 minutes
+        5. Add soy sauce and teriyaki sauce
+        6. Toss everything together
+        7. Garnish with green onions
+        
+        Prep: 15 minutes, Cook: 10 minutes, Serves: 3`,
+      },
+      {
+        type: "Vegan Dessert",
+        content: `No-Bake Chocolate Avocado Mousse
+        
+        A healthy, vegan chocolate mousse made with avocados and dates.
+        
+        Ingredients:
+        - 2 ripe avocados
+        - 1/4 cup cocoa powder
+        - 6 medjool dates, pitted
+        - 1/4 cup almond milk
+        - 1 tsp vanilla extract
+        - Pinch of sea salt
+        - Fresh berries for topping
+        
+        Instructions:
+        1. Soak dates in warm water for 10 minutes
+        2. Drain dates and add to food processor
+        3. Add avocados, cocoa powder, almond milk, vanilla, and salt
+        4. Process until smooth and creamy
+        5. Taste and adjust sweetness if needed
+        6. Chill in refrigerator for 2 hours
+        7. Serve topped with fresh berries
+        
+        Prep: 15 minutes, Chill: 2 hours, Serves: 4`,
+      },
+    ];
+
+    const results = [];
+
+    for (const testRecipe of testRecipes) {
+      console.log(`\n🔍 Testing: ${testRecipe.type}`);
+
+      const recipeResult = await analyzeRecipeText(testRecipe.content);
+
+      // Import the enhanced tag validation
+      const { validateAndCategorizeTags } = await import("./tagUtils");
+      const tagAnalysis = validateAndCategorizeTags(recipeResult.tags || []);
+
+      // Calculate quality score
+      let qualityScore = 0;
+      const maxScore = 5;
+
+      // Check for cuisine tag
+      if (tagAnalysis.categorizedTags.cuisine?.length > 0) qualityScore++;
+
+      // Check for protein/main ingredient tag
+      if (tagAnalysis.categorizedTags.protein?.length > 0) qualityScore++;
+
+      // Check for cooking method tag
+      if (tagAnalysis.categorizedTags.cooking?.length > 0) qualityScore++;
+
+      // Check for dietary tag
+      if (tagAnalysis.categorizedTags.dietary?.length > 0) qualityScore++;
+
+      // Check for meal type tag
+      if (tagAnalysis.categorizedTags.mealType?.length > 0) qualityScore++;
+
+      const qualityPercentage = (qualityScore / maxScore) * 100;
+      let quality = "Poor";
+      if (qualityPercentage >= 80) quality = "Excellent";
+      else if (qualityPercentage >= 60) quality = "Good";
+      else if (qualityPercentage >= 40) quality = "Fair";
+
+      const result = {
+        recipeType: testRecipe.type,
+        generatedTags: recipeResult.tags || [],
+        validTags: tagAnalysis.validTags,
+        invalidTags: tagAnalysis.invalidTags,
+        categories: Object.fromEntries(
+          Object.entries(tagAnalysis.categorizedTags).map(([cat, tags]) => [
+            cat,
+            tags.length,
+          ])
+        ),
+        quality,
+      };
+
+      results.push(result);
+
+      console.log(
+        `  Generated Tags: [${result.generatedTags
+          .map((t) => `"${t}"`)
+          .join(", ")}]`
+      );
+      console.log(
+        `  Valid Tags: [${result.validTags.map((t) => `"${t}"`).join(", ")}]`
+      );
+      console.log(
+        `  Invalid Tags: [${result.invalidTags
+          .map((t) => `"${t}"`)
+          .join(", ")}]`
+      );
+      console.log(`  Categories: ${JSON.stringify(result.categories)}`);
+      console.log(`  Quality: ${quality} (${qualityScore}/${maxScore})`);
+    }
+
+    // Overall assessment
+    const averageQuality =
+      results.reduce((sum, r) => {
+        const score =
+          r.quality === "Excellent"
+            ? 4
+            : r.quality === "Good"
+            ? 3
+            : r.quality === "Fair"
+            ? 2
+            : 1;
+        return sum + score;
+      }, 0) / results.length;
+
+    const overallQuality =
+      averageQuality >= 3.5
+        ? "Excellent"
+        : averageQuality >= 2.5
+        ? "Good"
+        : "Needs Improvement";
+
+    return {
+      success: true,
+      message: `✅ Enhanced tagging system test completed! Overall quality: ${overallQuality}. Tested ${results.length} recipe types with detailed tag analysis.`,
+      results,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: `❌ Enhanced tagging system test failed: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    };
+  }
 }

@@ -1,6 +1,17 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Recipe } from "../types";
+import { useAuth } from "./AuthContext";
+import {
+  ShoppingList,
+  ShoppingItem as SupabaseShoppingItem,
+  getShoppingLists,
+  createShoppingList,
+  addShoppingItem as addSupabaseShoppingItem,
+  updateShoppingItem,
+  removeShoppingItem as removeSupabaseShoppingItem,
+  consolidateShoppingListItems,
+} from "@/services/groceriesService";
 
 // Type definitions
 export interface GroceryItem {
@@ -31,6 +42,10 @@ interface GroceriesContextType {
   isLoading: boolean;
   error: string | null;
 
+  // New Supabase shopping lists
+  shoppingLists: ShoppingList[];
+  activeShoppingList: ShoppingList | null;
+
   // Actions
   setActiveView: (view: "shopping" | "cupboard") => void;
   addShoppingItem: (
@@ -47,6 +62,15 @@ interface GroceriesContextType {
   addSelectedRecipe: (recipe: Recipe) => void;
   removeSelectedRecipe: (recipeId: string) => void;
   clearError: () => void;
+
+  // New Supabase methods
+  createNewShoppingList: (title: string) => Promise<void>;
+  selectShoppingList: (listId: string) => void;
+  addItemToActiveList: (item: Partial<SupabaseShoppingItem>) => Promise<void>;
+  toggleItemInActiveList: (itemId: string) => Promise<void>;
+  removeItemFromActiveList: (itemId: string) => Promise<void>;
+  consolidateActiveList: () => Promise<void>;
+  refreshShoppingLists: () => Promise<void>;
 }
 
 const STORAGE_KEYS = {
@@ -62,6 +86,7 @@ const GroceriesContext = createContext<GroceriesContextType | undefined>(
 export const GroceriesProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
+  const { user } = useAuth();
   const [shoppingList, setShoppingList] = useState<ShoppingItem[]>([]);
   const [cupboardItems, setCupboardItems] = useState<CupboardItem[]>([]);
   const [selectedRecipes, setSelectedRecipes] = useState<Recipe[]>([]);
@@ -70,6 +95,11 @@ export const GroceriesProvider: React.FC<{ children: React.ReactNode }> = ({
   );
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // New Supabase state
+  const [shoppingLists, setShoppingLists] = useState<ShoppingList[]>([]);
+  const [activeShoppingList, setActiveShoppingList] =
+    useState<ShoppingList | null>(null);
 
   // Load data from AsyncStorage on mount
   useEffect(() => {
@@ -327,6 +357,194 @@ export const GroceriesProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
+  // New Supabase methods
+  const refreshShoppingLists = async () => {
+    if (!user?.id) return;
+
+    try {
+      setIsLoading(true);
+      const lists = await getShoppingLists(user.id);
+      setShoppingLists(lists);
+    } catch (error) {
+      console.error(
+        "[GroceriesContext] Error refreshing shopping lists:",
+        error
+      );
+      setError("Failed to refresh shopping lists.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const createNewShoppingList = async (title: string) => {
+    if (!user?.id) throw new Error("User not authenticated");
+
+    try {
+      setIsLoading(true);
+      const newList = await createShoppingList(user.id, {
+        title,
+        date: new Date().toISOString().split("T")[0],
+      });
+      setShoppingLists((prev) => [...prev, newList]);
+      setActiveShoppingList(newList);
+    } catch (error) {
+      console.error("[GroceriesContext] Error creating shopping list:", error);
+      setError("Failed to create shopping list.");
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const selectShoppingList = (listId: string) => {
+    const list = shoppingLists.find((l) => l.id === listId);
+    if (list) {
+      setActiveShoppingList(list);
+    }
+  };
+
+  const addItemToActiveList = async (item: Partial<SupabaseShoppingItem>) => {
+    if (!activeShoppingList || !user?.id) return;
+
+    try {
+      const newItem = await addSupabaseShoppingItem(
+        activeShoppingList.id,
+        item
+      );
+      setActiveShoppingList((prev) =>
+        prev
+          ? {
+              ...prev,
+              items: [...(prev.items || []), newItem],
+            }
+          : null
+      );
+
+      // Update the list in shoppingLists array
+      setShoppingLists((prev) =>
+        prev.map((list) => {
+          if (list.id === activeShoppingList.id) {
+            return { ...list, items: [...(list.items || []), newItem] };
+          }
+          return list;
+        })
+      );
+    } catch (error) {
+      console.error(
+        "[GroceriesContext] Error adding item to active list:",
+        error
+      );
+      setError("Failed to add item to shopping list.");
+      throw error;
+    }
+  };
+
+  const toggleItemInActiveList = async (itemId: string) => {
+    if (!activeShoppingList) return;
+
+    try {
+      const item = activeShoppingList.items?.find((i) => i.id === itemId);
+      if (!item) return;
+
+      const updatedItem = await updateShoppingItem(itemId, {
+        checked: !item.checked,
+      });
+
+      setActiveShoppingList((prev) =>
+        prev
+          ? {
+              ...prev,
+              items:
+                prev.items?.map((i) => (i.id === itemId ? updatedItem : i)) ||
+                [],
+            }
+          : null
+      );
+
+      setShoppingLists((prev) =>
+        prev.map((list) =>
+          list.id === activeShoppingList.id
+            ? {
+                ...list,
+                items:
+                  list.items?.map((i) => (i.id === itemId ? updatedItem : i)) ||
+                  [],
+              }
+            : list
+        )
+      );
+    } catch (error) {
+      console.error("[GroceriesContext] Error toggling item:", error);
+      setError("Failed to update item.");
+      throw error;
+    }
+  };
+
+  const removeItemFromActiveList = async (itemId: string) => {
+    if (!activeShoppingList) return;
+
+    try {
+      await removeSupabaseShoppingItem(itemId);
+
+      setActiveShoppingList((prev) =>
+        prev
+          ? {
+              ...prev,
+              items: prev.items?.filter((i) => i.id !== itemId) || [],
+            }
+          : null
+      );
+
+      setShoppingLists((prev) =>
+        prev.map((list) =>
+          list.id === activeShoppingList.id
+            ? {
+                ...list,
+                items: list.items?.filter((i) => i.id !== itemId) || [],
+              }
+            : list
+        )
+      );
+    } catch (error) {
+      console.error("[GroceriesContext] Error removing item:", error);
+      setError("Failed to remove item.");
+      throw error;
+    }
+  };
+
+  const consolidateActiveList = async () => {
+    if (!activeShoppingList) return;
+
+    try {
+      setIsLoading(true);
+      await consolidateShoppingListItems(activeShoppingList.id);
+
+      // Refresh the shopping list after consolidation
+      const updatedLists = await getShoppingLists(user!.id);
+      const updatedActiveList = updatedLists.find(
+        (list) => list.id === activeShoppingList.id
+      );
+
+      if (updatedActiveList) {
+        setActiveShoppingList(updatedActiveList);
+        setShoppingLists(updatedLists);
+      }
+    } catch (error) {
+      console.error("[GroceriesContext] Error consolidating list:", error);
+      setError("Failed to consolidate shopping list.");
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Load Supabase shopping lists when user changes
+  useEffect(() => {
+    if (user?.id) {
+      refreshShoppingLists();
+    }
+  }, [user?.id]);
+
   return (
     <GroceriesContext.Provider
       value={{
@@ -347,6 +565,15 @@ export const GroceriesProvider: React.FC<{ children: React.ReactNode }> = ({
         addSelectedRecipe,
         removeSelectedRecipe,
         clearError,
+        shoppingLists,
+        activeShoppingList,
+        refreshShoppingLists,
+        createNewShoppingList,
+        selectShoppingList,
+        addItemToActiveList,
+        toggleItemInActiveList,
+        removeItemFromActiveList,
+        consolidateActiveList,
       }}
     >
       {children}

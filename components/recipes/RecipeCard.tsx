@@ -4,6 +4,7 @@ import { View, Text, StyleSheet, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors } from "../../utils/styleUtils";
 import { formatTagName } from "../../services/tagUtils";
+import { useImageLoading } from "../../hooks/useImageLoading";
 
 interface RecipeCardProps {
   recipe: Recipe;
@@ -11,6 +12,20 @@ interface RecipeCardProps {
 }
 
 export const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onPress }) => {
+  // Use the new image loading hook to handle all image loading logic
+  const {
+    currentImageUrl,
+    imageError,
+    handleImageError,
+    handleImageLoad,
+    getImageSource,
+  } = useImageLoading(recipe.imageUrl, {
+    componentName: "RecipeCard",
+    placeholderWidth: 400,
+    placeholderHeight: 300,
+    enableFallbacks: true,
+  });
+
   // Compute total cooking time
   const totalTime = (recipe.prepTime || 0) + (recipe.cookTime || 0);
   const tags = recipe.tags || [];
@@ -18,7 +33,7 @@ export const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onPress }) => {
   const visibleTags = tags.slice(0, maxTagsToShow);
   const extraTagCount = tags.length - maxTagsToShow;
 
-  // Debug to check recipe data
+  // Debug to check recipe data (only log once per recipe)
   console.log(
     "RecipeCard rendering recipe:",
     recipe.id,
@@ -32,17 +47,10 @@ export const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onPress }) => {
     <View style={styles.container}>
       <View style={styles.imageContainer}>
         <Image
-          source={{
-            uri:
-              recipe.imageUrl ||
-              "https://via.placeholder.com/400x300/EAEAEA/999999?text=No+Image",
-          }}
+          source={getImageSource()}
           style={styles.image}
-          onError={() => {
-            console.log(
-              `[RecipeCard] Image failed to load: ${recipe.imageUrl}`
-            );
-          }}
+          onError={handleImageError}
+          onLoad={handleImageLoad}
         />
         <View style={styles.timeContainer}>
           <Ionicons name="time-outline" size={16} color="#fff" />

@@ -9,6 +9,7 @@ import {
   ScrollView,
   ActivityIndicator,
   RefreshControl,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -35,16 +36,19 @@ export default function RecipesScreen() {
   const [isLoading, setIsLoading] = React.useState(true);
   const [isRefreshing, setIsRefreshing] = React.useState(false);
   const [isMigratingTags, setIsMigratingTags] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   const { user } = useAuth();
   const filtersScrollRef = useRef<ScrollView>(null);
 
-  // Simple fetch function
+  // Enhanced fetch function with better error handling
   const fetchRecipes = async (showRefreshIndicator = false) => {
     if (!user?.id) {
       setRecipes([]);
       setFilteredRecipes([]);
       setIsLoading(false);
       setIsRefreshing(false);
+      setError(null);
       return;
     }
 
@@ -55,6 +59,8 @@ export default function RecipesScreen() {
     } else {
       setIsLoading(true);
     }
+
+    setError(null);
 
     try {
       const fetchedRecipesFromService = await getUserRecipes(user.id);
@@ -77,11 +83,42 @@ export default function RecipesScreen() {
 
       setRecipes(conformingRecipes);
       setFilteredRecipes(conformingRecipes);
+      setRetryCount(0); // Reset retry count on success
       console.log(
         `[RecipesScreen] Successfully loaded ${conformingRecipes.length} recipes`
       );
     } catch (error) {
       console.error("[RecipesScreen] Error fetching recipes:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      // Check if it's a network error
+      const isNetworkError =
+        errorMessage.includes("Network request failed") ||
+        errorMessage.includes("Unable to connect") ||
+        errorMessage.includes("Failed to fetch");
+
+      if (isNetworkError) {
+        setError(
+          "Unable to connect to the server. Please check your internet connection and try again."
+        );
+
+        // Auto-retry for network errors (up to 3 times)
+        if (retryCount < 3 && !showRefreshIndicator) {
+          console.log(
+            `[RecipesScreen] Auto-retrying in 3 seconds... (attempt ${
+              retryCount + 1
+            }/3)`
+          );
+          setTimeout(() => {
+            setRetryCount((prev) => prev + 1);
+            fetchRecipes(false);
+          }, 3000);
+          return;
+        }
+      } else {
+        setError(`Failed to load recipes: ${errorMessage}`);
+      }
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -113,16 +150,26 @@ export default function RecipesScreen() {
   // Focus effect (simple version)
   useFocusEffect(
     useCallback(() => {
-      if (user?.id && recipes.length > 0) {
-        console.log("[RecipesScreen] Screen focused, refreshing...");
+      // Only refresh if we don't have recipes loaded yet
+      if (user?.id && recipes.length === 0 && !isLoading && !error) {
+        console.log(
+          "[RecipesScreen] Screen focused, no recipes loaded, fetching..."
+        );
         fetchRecipes();
       }
-    }, [user?.id])
+    }, [user?.id, recipes.length, isLoading, error])
   );
 
   // Pull-to-refresh handler
   const onRefresh = () => {
+    setRetryCount(0); // Reset retry count for manual refresh
     fetchRecipes(true);
+  };
+
+  // Manual retry handler
+  const handleRetry = () => {
+    setRetryCount(0);
+    fetchRecipes(false);
   };
 
   // Manual tag migration function for testing
@@ -259,7 +306,43 @@ export default function RecipesScreen() {
           <ActivityIndicator size="large" color={colors.primary[500]} />
           <Text style={{ marginTop: 10, color: colors.gray[600] }}>
             Loading recipes...
+            {retryCount > 0 && ` (Retry ${retryCount}/3)`}
           </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Error state
+  if (error && recipes.length === 0) {
+    return (
+      <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>My Recipes</Text>
+        </View>
+        <View style={styles.errorContainer}>
+          <Ionicons
+            name="cloud-offline-outline"
+            size={64}
+            color={colors.gray[400]}
+            style={styles.errorIcon}
+          />
+          <Text style={styles.errorTitle}>Connection Error</Text>
+          <Text style={styles.errorMessage}>{error}</Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={handleRetry}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator size="small" color={colors.white} />
+            ) : (
+              <>
+                <Ionicons name="refresh" size={20} color={colors.white} />
+                <Text style={styles.retryButtonText}>Try Again</Text>
+              </>
+            )}
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
@@ -499,6 +582,37 @@ const styles = StyleSheet.create({
   debugButtonText: {
     marginLeft: 4,
     color: colors.gray[700],
+    fontWeight: "500",
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 16,
+  },
+  errorIcon: {
+    marginBottom: 16,
+  },
+  errorTitle: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: colors.dark,
+    marginBottom: 8,
+  },
+  errorMessage: {
+    color: colors.gray[600],
+    marginBottom: 16,
+  },
+  retryButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    backgroundColor: colors.primary,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    marginLeft: 8,
+    color: colors.white,
     fontWeight: "500",
   },
 });

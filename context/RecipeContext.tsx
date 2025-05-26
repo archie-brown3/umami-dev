@@ -2,6 +2,10 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Recipe, MealPlan, RecipeContextType } from "@/types";
 import { generateId } from "@/lib/lib/utils";
+import { addRecipeToSupabase } from "@/services/recipeService";
+import { useAuth } from "./AuthContext";
+import { emitRecipeCreated } from "@/utils/eventEmitter";
+import { extractRecipeFromUrl } from "../services/recipeExtractor";
 
 // Create a more specific type for daily meal plan structure
 interface DayMeals {
@@ -31,6 +35,7 @@ export function RecipeProvider({ children }: { children: React.ReactNode }) {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [mealPlans, setMealPlans] = useState<MealPlan[]>([]);
   const [mealPlan, setMealPlan] = useState<MealPlanState>({ dayMeals: {} });
+  const { user } = useAuth();
 
   // Load data from AsyncStorage on mount
   useEffect(() => {
@@ -60,21 +65,148 @@ export function RecipeProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Recipe CRUD operations
-  const addRecipe = async (recipe: Recipe) => {
+  const addRecipe = async (recipeData: Partial<Recipe>): Promise<Recipe> => {
     try {
-      const newRecipe = {
-        ...recipe,
-        id: recipe.id || generateId(),
+      console.log("[RecipeContext] Adding recipe:", recipeData.title);
+
+      // If this is a URL-based recipe, use the enhanced extractor
+      if (recipeData.sourceUrl && !recipeData.ingredients?.length) {
+        console.log(
+          "[RecipeContext] Extracting recipe from URL with enhanced extractor"
+        );
+
+        try {
+          const extractedRecipe = await extractRecipeFromUrl(
+            recipeData.sourceUrl
+          );
+
+          // Merge with any provided data
+          const finalRecipe: Recipe = {
+            ...extractedRecipe,
+            ...recipeData,
+            id: extractedRecipe.id,
+            title: recipeData.title || extractedRecipe.title,
+            description: recipeData.description || extractedRecipe.description,
+          };
+
+          // Save to Supabase with enhanced data
+          if (user?.id) {
+            const savedRecipe = await addRecipeToSupabase(finalRecipe, user.id);
+            if (savedRecipe) {
+              // Transform back to Recipe format and update local state
+              const transformedRecipe = transformSupabaseToRecipe(
+                savedRecipe,
+                finalRecipe
+              );
+              const updatedRecipes = [...recipes, transformedRecipe];
+              setRecipes(updatedRecipes);
+              await AsyncStorage.setItem(
+                "recipes",
+                JSON.stringify(updatedRecipes)
+              );
+              emitRecipeCreated(transformedRecipe);
+              return transformedRecipe;
+            } else {
+              throw new Error("Failed to save recipe to Supabase");
+            }
+          } else {
+            // Fallback to AsyncStorage if user not authenticated
+            const updatedRecipes = [...recipes, finalRecipe];
+            setRecipes(updatedRecipes);
+            await AsyncStorage.setItem(
+              "recipes",
+              JSON.stringify(updatedRecipes)
+            );
+            emitRecipeCreated(finalRecipe);
+            return finalRecipe;
+          }
+        } catch (extractionError) {
+          console.error(
+            "[RecipeContext] Enhanced extraction failed:",
+            extractionError
+          );
+          throw new Error(
+            `Failed to extract recipe: ${
+              extractionError instanceof Error
+                ? extractionError.message
+                : String(extractionError)
+            }`
+          );
+        }
+      }
+
+      // For manual recipes or when extraction isn't needed
+      const recipe: Recipe = {
+        id:
+          recipeData.id ||
+          `recipe-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        title: recipeData.title || "Untitled Recipe",
+        description: recipeData.description || "",
+        ingredients: recipeData.ingredients || [],
+        instructions: recipeData.instructions || [],
+        prepTime: recipeData.prepTime || 0,
+        cookTime: recipeData.cookTime || 0,
+        servings: recipeData.servings || 4,
+        imageUrl: recipeData.imageUrl,
+        sourceUrl: recipeData.sourceUrl,
+        author: recipeData.author,
+        tags: recipeData.tags || [],
+        createdAt: recipeData.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       };
 
-      const updatedRecipes = [...recipes, newRecipe];
-      setRecipes(updatedRecipes);
-      await AsyncStorage.setItem("recipes", JSON.stringify(updatedRecipes));
-      return newRecipe;
+      if (user?.id) {
+        const savedRecipe = await addRecipeToSupabase(recipe, user.id);
+        if (savedRecipe) {
+          // Transform back to Recipe format and update local state
+          const transformedRecipe = transformSupabaseToRecipe(
+            savedRecipe,
+            recipe
+          );
+          const updatedRecipes = [...recipes, transformedRecipe];
+          setRecipes(updatedRecipes);
+          await AsyncStorage.setItem("recipes", JSON.stringify(updatedRecipes));
+          emitRecipeCreated(transformedRecipe);
+          return transformedRecipe;
+        } else {
+          throw new Error("Failed to save recipe to Supabase");
+        }
+      } else {
+        // Fallback to AsyncStorage if user not authenticated
+        const updatedRecipes = [...recipes, recipe];
+        setRecipes(updatedRecipes);
+        await AsyncStorage.setItem("recipes", JSON.stringify(updatedRecipes));
+        emitRecipeCreated(recipe);
+        return recipe;
+      }
     } catch (error) {
-      console.error("Error adding recipe:", error);
+      console.error("[RecipeContext] Error adding recipe:", error);
       throw error;
     }
+  };
+
+  // Helper function to transform Supabase recipe back to Recipe format
+  const transformSupabaseToRecipe = (
+    savedRecipe: any,
+    originalRecipe: Recipe
+  ): Recipe => {
+    return {
+      id: savedRecipe.id,
+      title: savedRecipe.title,
+      description: savedRecipe.description || "",
+      imageUrl: savedRecipe.image_url,
+      prepTime: savedRecipe.prep_time || 0,
+      cookTime: savedRecipe.cook_time || 0,
+      servings: savedRecipe.servings || 1,
+      isFavorite: savedRecipe.is_favorite || false,
+      createdAt: savedRecipe.created_at,
+      updatedAt: savedRecipe.updated_at,
+      ingredients: originalRecipe.ingredients || [],
+      instructions: originalRecipe.instructions || [],
+      tags: originalRecipe.tags || [],
+      author: savedRecipe.author,
+      sourceUrl: savedRecipe.source_url,
+    };
   };
 
   const removeRecipe = async (id: string) => {

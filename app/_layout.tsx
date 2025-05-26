@@ -60,6 +60,8 @@ function RootLayoutNav() {
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+
+        {/* Recipe Detail Screen */}
         <Stack.Screen
           name="recipe/[id]"
           options={{
@@ -68,6 +70,29 @@ function RootLayoutNav() {
             presentation: "card",
           }}
         />
+
+        {/* Recipe Edit Screen */}
+        <Stack.Screen
+          name="recipe/edit/[id]"
+          options={{
+            headerShown: false,
+            presentation: "modal",
+            animation: "slide_from_bottom",
+            gestureEnabled: false, // Prevent accidental dismissal
+          }}
+        />
+
+        {/* Recipe Create Screen */}
+        <Stack.Screen
+          name="recipe/create"
+          options={{
+            headerShown: false,
+            presentation: "modal",
+            animation: "slide_from_bottom",
+            gestureEnabled: false, // Prevent accidental dismissal
+          }}
+        />
+
         <Stack.Screen
           name="profile"
           options={{
@@ -76,6 +101,8 @@ function RootLayoutNav() {
             presentation: "card",
           }}
         />
+
+        {/* Legacy Add Recipe Screen (keep for backward compatibility) */}
         <Stack.Screen
           name="add-recipe"
           options={{
@@ -84,6 +111,7 @@ function RootLayoutNav() {
             animation: "slide_from_bottom",
           }}
         />
+
         <Stack.Screen
           name="api-test"
           options={{

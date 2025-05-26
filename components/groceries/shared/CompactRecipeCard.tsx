@@ -4,6 +4,7 @@ import { View, Text, StyleSheet, Image, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, borderRadius } from "../../../utils/styleUtils";
 import { formatTagName } from "../../../services/tagUtils";
+import { useImageLoading } from "../../../hooks/useImageLoading";
 
 interface CompactRecipeCardProps {
   recipe: Recipe;
@@ -18,6 +19,20 @@ export const CompactRecipeCard: React.FC<CompactRecipeCardProps> = ({
   onDelete,
   showDeleteButton = true,
 }) => {
+  // Use the new image loading hook to handle all image loading logic
+  const {
+    currentImageUrl,
+    imageError,
+    handleImageError,
+    handleImageLoad,
+    getImageSource,
+  } = useImageLoading(recipe.imageUrl, {
+    componentName: "CompactRecipeCard",
+    placeholderWidth: 140,
+    placeholderHeight: 80,
+    enableFallbacks: true,
+  });
+
   // Compute total cooking time
   const totalTime = (recipe.prepTime || 0) + (recipe.cookTime || 0);
   const tags = recipe.tags || [];
@@ -32,17 +47,10 @@ export const CompactRecipeCard: React.FC<CompactRecipeCardProps> = ({
     >
       <View style={styles.imageContainer}>
         <Image
-          source={{
-            uri:
-              recipe.imageUrl ||
-              "https://via.placeholder.com/200x120/EAEAEA/999999?text=No+Image",
-          }}
+          source={getImageSource()}
           style={styles.image}
-          onError={() => {
-            console.log(
-              `[CompactRecipeCard] Image failed to load: ${recipe.imageUrl}`
-            );
-          }}
+          onError={handleImageError}
+          onLoad={handleImageLoad}
         />
 
         {/* Time badge */}

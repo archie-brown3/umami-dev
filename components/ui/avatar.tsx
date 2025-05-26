@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { View, Image, Text, StyleSheet } from "react-native";
 
 interface AvatarProps {
@@ -16,9 +16,23 @@ interface AvatarImageProps {
 }
 
 export function AvatarImage({ src, style }: AvatarImageProps) {
-  if (!src) return null;
+  const [imageError, setImageError] = useState(false);
 
-  return <Image source={{ uri: src }} style={[styles.image, style]} />;
+  if (!src || imageError) return null;
+
+  return (
+    <Image
+      source={{ uri: src }}
+      style={[styles.image, style]}
+      onError={() => {
+        console.log(`[AvatarImage] Image failed to load: ${src}`);
+        setImageError(true);
+      }}
+      onLoad={() => {
+        console.log(`[AvatarImage] Image loaded successfully: ${src}`);
+      }}
+    />
+  );
 }
 
 interface AvatarFallbackProps {
