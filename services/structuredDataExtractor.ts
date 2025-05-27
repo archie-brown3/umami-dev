@@ -316,46 +316,163 @@ function parseIngredientText(ingredientText: string): {
   unit: string;
   name: string;
 } {
-  // Enhanced regex patterns for ingredient parsing
+  // Clean the input text
+  const cleanText = ingredientText.trim();
+
+  // Enhanced regex patterns to handle various ingredient formats
   const patterns = [
-    // Pattern 1: "2 cups flour" or "1/2 cup sugar"
-    /^([\d\/.]+(?:\s*-\s*[\d\/.]+)?)\s+([a-zA-Z]+(?:\s+[a-zA-Z]+)?)\s+(.+)$/,
-    // Pattern 2: "2 tablespoons olive oil"
-    /^([\d\/.]+(?:\s*-\s*[\d\/.]+)?)\s+(tablespoons?|teaspoons?|tbsp|tsp|cups?|ounces?|oz|pounds?|lbs?|grams?|g|kilograms?|kg|cloves?|slices?|pieces?)\s+(.+)$/i,
-    // Pattern 3: "~2 cups flour" (with tilde)
-    /^~?([\d\/.]+(?:\s*-\s*[\d\/.]+)?)\s+([a-zA-Z]+(?:\s+[a-zA-Z]+)?)\s+(.+)$/,
-    // Pattern 4: Just number and ingredient "2 eggs"
+    // Pattern 1: "2 cups flour" or "1/2 cup sugar" - quantity + unit + ingredient
+    /^([\d\/.]+(?:\s*-\s*[\d\/.]+)?)\s+(cups?|tbsps?|tsps?|tablespoons?|teaspoons?|ounces?|ozs?|pounds?|lbs?|grams?|gs?|kilograms?|kgs?|milliliters?|mls?|liters?|ls?|pints?|quarts?|gallons?|cloves?|slices?|pieces?|pinches?|dashes?|handfuls?|bunches?|packages?|cans?|bottles?|jars?)\s+(.+)$/i,
+
+    // Pattern 2: "2 large eggs" or "3 medium onions" - quantity + size + ingredient
+    /^([\d\/.]+(?:\s*-\s*[\d\/.]+)?)\s+(small|medium|large|extra\s+large|jumbo)\s+(.+)$/i,
+
+    // Pattern 3: "~2 cups flour" (with tilde or approximation)
+    /^[~≈]?([\d\/.]+(?:\s*-\s*[\d\/.]+)?)\s+(cups?|tbsps?|tsps?|tablespoons?|teaspoons?|ounces?|ozs?|pounds?|lbs?|grams?|gs?|kilograms?|kgs?|milliliters?|mls?|liters?|ls?|pints?|quarts?|gallons?|cloves?|slices?|pieces?|pinches?|dashes?|handfuls?|bunches?|packages?|cans?|bottles?|jars?)\s+(.+)$/i,
+
+    // Pattern 4: Just number and ingredient "2 eggs" or "3 carrots"
     /^([\d\/.]+(?:\s*-\s*[\d\/.]+)?)\s+(.+)$/,
   ];
 
-  // Try each pattern
+  // Try each pattern in order of specificity
   for (const pattern of patterns) {
-    const match = ingredientText.match(pattern);
+    const match = cleanText.match(pattern);
     if (match) {
-      const [, quantity, unitOrName, nameOrEmpty] = match;
+      const [, quantity, unitOrSize, nameOrEmpty] = match;
 
-      // If we have 4 groups (quantity, unit, name), it's a full match
+      // If we have a third group (name), it means we matched quantity + unit/size + name
       if (nameOrEmpty) {
-        return {
-          amount: parseFloat(quantity.replace(/~/g, "")) || 1,
-          unit: unitOrName.trim(),
-          name: nameOrEmpty.trim(),
-        };
+        // Check if the second group is a valid unit or size descriptor
+        const commonUnits = [
+          "cup",
+          "cups",
+          "tbsp",
+          "tbsps",
+          "tsp",
+          "tsps",
+          "tablespoon",
+          "tablespoons",
+          "teaspoon",
+          "teaspoons",
+          "oz",
+          "ozs",
+          "ounce",
+          "ounces",
+          "g",
+          "gs",
+          "gram",
+          "grams",
+          "kg",
+          "kgs",
+          "kilogram",
+          "kilograms",
+          "lb",
+          "lbs",
+          "pound",
+          "pounds",
+          "ml",
+          "mls",
+          "milliliter",
+          "milliliters",
+          "l",
+          "ls",
+          "liter",
+          "liters",
+          "pint",
+          "pints",
+          "quart",
+          "quarts",
+          "gallon",
+          "gallons",
+          "clove",
+          "cloves",
+          "slice",
+          "slices",
+          "piece",
+          "pieces",
+          "pinch",
+          "pinches",
+          "dash",
+          "dashes",
+          "handful",
+          "handfuls",
+          "bunch",
+          "bunches",
+          "package",
+          "packages",
+          "can",
+          "cans",
+          "bottle",
+          "bottles",
+          "jar",
+          "jars",
+        ];
+
+        const sizeDescriptors = [
+          "small",
+          "medium",
+          "large",
+          "extra large",
+          "jumbo",
+        ];
+
+        const isUnit = commonUnits.some(
+          (unit) =>
+            unitOrSize.toLowerCase().replace(/s$/, "") ===
+            unit.toLowerCase().replace(/s$/, "")
+        );
+
+        const isSize = sizeDescriptors.some(
+          (size) => unitOrSize.toLowerCase() === size.toLowerCase()
+        );
+
+        if (isUnit) {
+          return {
+            amount: parseFloat(quantity.replace(/[~≈]/g, "")) || 1,
+            unit: unitOrSize.trim(),
+            name: nameOrEmpty.trim(),
+          };
+        } else if (isSize) {
+          return {
+            amount: parseFloat(quantity.replace(/[~≈]/g, "")) || 1,
+            unit: "",
+            name: `${unitOrSize} ${nameOrEmpty}`.trim(),
+          };
+        }
       }
 
-      // If we only have quantity and name (no unit)
+      // If we only have quantity and name (no unit), or the unit wasn't recognized
+      const ingredientName = nameOrEmpty || unitOrSize;
+
+      // Special handling: if the "quantity" looks like it might be part of the ingredient name
+      // (e.g., "1 large onion" where "1" is the actual quantity but "large" is part of the name)
+      const parsedQuantity = parseFloat(quantity.replace(/[~≈]/g, ""));
+
       return {
-        amount: parseFloat(quantity.replace(/~/g, "")) || 1,
+        amount: parsedQuantity || 1,
         unit: "",
-        name: unitOrName.trim(),
+        name: ingredientName.trim(),
       };
     }
   }
 
-  // Fallback: if no pattern matches, treat as just a name
+  // Advanced fallback: check if the text contains embedded quantities that should be preserved
+  // Example: "chicken breast (2 pieces)" should not extract "2" as the main quantity
+  const embeddedQuantityPattern = /^(.+?)\s*\(.*?\d+.*?\)(.*)$/;
+  const embeddedMatch = cleanText.match(embeddedQuantityPattern);
+
+  if (embeddedMatch) {
+    return {
+      amount: 1,
+      unit: "",
+      name: cleanText, // Keep the full text including the embedded quantity
+    };
+  }
+
+  // Final fallback: if no pattern matches, treat as just a name with quantity 1
   return {
     amount: 1,
     unit: "",
-    name: ingredientText.trim(),
+    name: cleanText,
   };
 }

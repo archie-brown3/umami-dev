@@ -14,33 +14,52 @@ import {
   ActivityIndicator,
   Dimensions,
   Share,
+  SafeAreaView,
 } from "react-native";
+import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, router, Stack } from "expo-router";
 import { colors, spacing, typography, borderRadius } from "@/utils/styleUtils";
 import { Ionicons } from "@expo/vector-icons";
 import { Recipe } from "@/types";
-import { getRecipeWithDetails } from "@/services/recipeService";
+import {
+  getRecipeWithDetails,
+  toggleRecipeFavorite,
+} from "@/services/recipeService";
 import { supabase } from "@/lib/supabase";
-import { formatTagName } from "@/services/tagUtils";
+import {
+  formatTagName,
+  getTagCategoryColor,
+  categorizeTag,
+  TAG_CATEGORIES,
+} from "@/services/tagUtils";
 import RecipeIngredientRow from "@/components/recipes/RecipeIngredientRow";
+import ServingScaler from "@/components/recipes/ServingScaler";
+import { scaleIngredientAmount, isRecipeScaled } from "@/utils/recipeScaling";
+import { useGroceries } from "@/context/GroceriesContext";
+import { useRecipes } from "@/context/RecipeContext";
+import { emitRecipeUpdated } from "@/utils/eventEmitter";
 
 const RETRY_DELAY = 2000; // 2 seconds
 
 export default function RecipeDetailScreen() {
-  const { id } = useLocalSearchParams();
+  const params = useLocalSearchParams();
+  const recipeId = Array.isArray(params.id) ? params.id[0] : params.id;
   const { width } = useWindowDimensions();
   const [menuVisible, setMenuVisible] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [recipe, setRecipe] = useState<Recipe | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [imageError, setImageError] = useState(false);
-
-  const recipeId = Array.isArray(id) ? id[0] : id;
+  const [currentServings, setCurrentServings] = useState<number>(4); // Default to 4 servings
+  const [isTogglingFavorite, setIsTogglingFavorite] = useState(false);
+  const [showAllTags, setShowAllTags] = useState(false);
+  const { addItemToShoppingList } = useGroceries();
+  const { updateRecipe } = useRecipes();
 
   const fetchRecipeDetails = async () => {
-    setLoading(true);
+    setIsLoading(true);
     setError(null);
     try {
       console.log(
@@ -49,6 +68,7 @@ export default function RecipeDetailScreen() {
       const details = await getRecipeWithDetails(recipeId as string);
       if (details) {
         setRecipe(details);
+        setCurrentServings(details.servings || 4); // Set current servings to recipe's original servings
         setRetryCount(0); // Reset retry count on success
         console.log(
           "[RecipeDetailScreen] Recipe details fetched:",
@@ -79,7 +99,7 @@ export default function RecipeDetailScreen() {
         }, RETRY_DELAY);
       }
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
@@ -90,9 +110,9 @@ export default function RecipeDetailScreen() {
   }, [recipeId]);
 
   // Loading state with retry information
-  if (loading) {
+  if (isLoading) {
     return (
-      <View style={styles.safeArea}>
+      <SafeAreaView style={styles.safeArea}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.header}>
           <TouchableOpacity
@@ -124,7 +144,7 @@ export default function RecipeDetailScreen() {
             </Text>
           )}
         </View>
-      </View>
+      </SafeAreaView>
     );
   }
 
@@ -137,7 +157,7 @@ export default function RecipeDetailScreen() {
       error?.includes("Unable to connect");
 
     return (
-      <View style={styles.safeArea}>
+      <SafeAreaView style={styles.safeArea}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.header}>
           <TouchableOpacity
@@ -179,7 +199,7 @@ export default function RecipeDetailScreen() {
             </TouchableOpacity>
           )}
         </View>
-      </View>
+      </SafeAreaView>
     );
   }
 
@@ -233,9 +253,51 @@ export default function RecipeDetailScreen() {
     );
   };
 
+  // Handle favorite toggle
+  const handleToggleFavorite = async () => {
+    if (!recipe || isTogglingFavorite) return;
+
+    setIsTogglingFavorite(true);
+    try {
+      const newFavoriteStatus = !recipe.isFavorite;
+      const updatedStatus = await toggleRecipeFavorite(
+        recipeId as string,
+        newFavoriteStatus
+      );
+
+      // Update local state
+      setRecipe((prev) =>
+        prev ? { ...prev, isFavorite: updatedStatus } : null
+      );
+
+      // Update recipe in context
+      await updateRecipe(recipeId as string, { isFavorite: updatedStatus });
+
+      // Provide user feedback
+      Alert.alert(
+        "Success",
+        updatedStatus ? "Added to favorites!" : "Removed from favorites"
+      );
+
+      // Haptic feedback
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      // Emit recipe updated event
+      emitRecipeUpdated(recipeId as string);
+    } catch (error) {
+      console.error("Error toggling favorite:", error);
+      Alert.alert(
+        "Error",
+        "Failed to update favorite status. Please try again."
+      );
+    } finally {
+      setIsTogglingFavorite(false);
+    }
+  };
+
   if (deleting) {
     return (
-      <View style={styles.safeArea}>
+      <SafeAreaView style={styles.safeArea}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.header}>
           <TouchableOpacity
@@ -251,12 +313,12 @@ export default function RecipeDetailScreen() {
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>Deleting recipe...</Text>
         </View>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea}>
       {/* Disable the native header */}
       <Stack.Screen
         options={{
@@ -269,24 +331,55 @@ export default function RecipeDetailScreen() {
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.back()}
+          activeOpacity={0.7}
         >
-          <Ionicons name="chevron-back" size={24} color="#000" />
+          <Ionicons name="chevron-back" size={24} color={colors.dark} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Details</Text>
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
-          <TouchableOpacity style={styles.favoriteButton}>
-            <Ionicons
-              name={recipe.isFavorite ? "heart" : "heart-outline"}
-              size={24}
-              color={recipe.isFavorite ? colors.red[500] : "#000"}
-            />
+        <Text style={styles.headerTitle}>Recipe Details</Text>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={async () => {
+              try {
+                await Share.share({
+                  message: `Check out this recipe: ${recipe.title}`,
+                  title: recipe.title,
+                });
+              } catch (error) {
+                console.error("Error sharing recipe:", error);
+              }
+            }}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="share-outline" size={22} color={colors.dark} />
           </TouchableOpacity>
           <TouchableOpacity
-            style={{ marginLeft: 12, padding: 4 }}
+            style={styles.actionButton}
+            onPress={handleToggleFavorite}
+            activeOpacity={0.7}
+            disabled={isTogglingFavorite}
+          >
+            {isTogglingFavorite ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Ionicons
+                name={recipe.isFavorite ? "heart" : "heart-outline"}
+                size={22}
+                color={recipe.isFavorite ? colors.red[500] : colors.dark}
+              />
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.actionButton}
             onPress={() => setMenuVisible(true)}
             accessibilityLabel="More options"
+            activeOpacity={0.7}
           >
-            <Ionicons name="ellipsis-horizontal" size={24} color="#000" />
+            <Ionicons
+              name="ellipsis-horizontal"
+              size={22}
+              color={colors.dark}
+            />
           </TouchableOpacity>
         </View>
       </View>
@@ -349,6 +442,63 @@ export default function RecipeDetailScreen() {
         </Pressable>
       </Modal>
 
+      {/* Tags Modal */}
+      <Modal
+        visible={showAllTags}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowAllTags(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.tagsModal}>
+            <View style={styles.tagsModalHeader}>
+              <Text style={styles.tagsModalTitle}>
+                All Tags ({recipe?.tags?.length || 0})
+              </Text>
+              <TouchableOpacity
+                style={styles.tagsModalClose}
+                onPress={() => setShowAllTags(false)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="close" size={24} color={colors.dark} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              style={styles.tagsModalContent}
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={styles.allTagsGrid}>
+                {recipe?.tags?.map((tag, index) => {
+                  const categoryColor = getTagCategoryColor(tag);
+                  return (
+                    <View
+                      key={`${tag}-${index}`}
+                      style={[
+                        styles.tagChipLarge,
+                        {
+                          backgroundColor: categoryColor + "20",
+                          borderColor: categoryColor + "40",
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.tagChipTextLarge,
+                          { color: categoryColor },
+                        ]}
+                      >
+                        {formatTagName(tag)}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         {/* Recipe Image with overlay text */}
         {recipe.imageUrl && !imageError ? (
@@ -387,31 +537,79 @@ export default function RecipeDetailScreen() {
         {/* Recipe Title and Meta */}
         <View style={styles.titleContainer}>
           <Text style={styles.title}>{recipe.title || "Untitled Recipe"}</Text>
-          <Text style={styles.metaText}>
-            {totalTime > 0 ? `${totalTime} Mins | ` : ""} {recipe.servings || 1}{" "}
-            serving{recipe.servings === 1 ? "" : "s"}
-          </Text>
 
-          {/* Recipe Tags */}
-          {(() => {
-            console.log(`[RecipeDetail] Checking tags:`, recipe.tags);
-            return recipe.tags && recipe.tags.length > 0 ? (
-              <View style={styles.tagsContainer}>
-                {recipe.tags.slice(0, 6).map((tag, index) => (
-                  <View key={`${tag}-${index}`} style={styles.tagChip}>
-                    <Text style={styles.tagChipText}>{formatTagName(tag)}</Text>
-                  </View>
-                ))}
-                {recipe.tags.length > 6 && (
-                  <View style={styles.moreTagsChip}>
+          {/* Servings with +/- controls */}
+          <View style={styles.servingsContainer}>
+            <Text style={styles.metaText}>
+              {totalTime > 0 ? `${totalTime} Mins | ` : ""}
+            </Text>
+            <TouchableOpacity
+              style={styles.servingButton}
+              onPress={() =>
+                setCurrentServings(Math.max(1, currentServings - 1))
+              }
+              activeOpacity={0.7}
+            >
+              <Ionicons name="remove" size={16} color={colors.primary[600]} />
+            </TouchableOpacity>
+            <Text style={styles.servingsText}>
+              {currentServings} serving{currentServings === 1 ? "" : "s"}
+            </Text>
+            <TouchableOpacity
+              style={styles.servingButton}
+              onPress={() => setCurrentServings(currentServings + 1)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="add" size={16} color={colors.primary[600]} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Compact Tags */}
+          {recipe.tags && recipe.tags.length > 0 && (
+            <View style={styles.compactTagsContainer}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.tagsScrollContent}
+              >
+                {recipe.tags.slice(0, 8).map((tag, index) => {
+                  const categoryColor = getTagCategoryColor(tag);
+                  return (
+                    <View
+                      key={`${tag}-${index}`}
+                      style={[
+                        styles.compactTagChip,
+                        {
+                          backgroundColor: categoryColor + "15",
+                          borderColor: categoryColor + "30",
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.compactTagText,
+                          { color: categoryColor },
+                        ]}
+                      >
+                        {formatTagName(tag)}
+                      </Text>
+                    </View>
+                  );
+                })}
+                {recipe.tags.length > 8 && (
+                  <TouchableOpacity
+                    style={styles.moreTagsChip}
+                    onPress={() => setShowAllTags(true)}
+                    activeOpacity={0.7}
+                  >
                     <Text style={styles.moreTagsText}>
-                      +{recipe.tags.length - 6} more
+                      +{recipe.tags.length - 8}
                     </Text>
-                  </View>
+                  </TouchableOpacity>
                 )}
-              </View>
-            ) : null;
-          })()}
+              </ScrollView>
+            </View>
+          )}
         </View>
 
         {/* Author Section - Only display if author info exists */}
@@ -441,17 +639,99 @@ export default function RecipeDetailScreen() {
 
         {/* Ingredients */}
         <View style={styles.ingredientsSection}>
-          <Text style={styles.sectionTitle}>Ingredients</Text>
+          <View style={styles.sectionHeaderWithButton}>
+            <Text style={styles.sectionTitle}>Ingredients</Text>
+            {recipe?.ingredients && recipe.ingredients.length > 0 && (
+              <TouchableOpacity
+                style={styles.compactAddAllButton}
+                onPress={async () => {
+                  try {
+                    let addedCount = 0;
+                    const errors: string[] = [];
+
+                    // Add each ingredient to the shopping list
+                    for (const ingredient of recipe.ingredients) {
+                      try {
+                        const scaledAmount = scaleIngredientAmount(
+                          ingredient.amount,
+                          recipe.servings || 4,
+                          currentServings
+                        );
+
+                        await addItemToShoppingList({
+                          name: ingredient.name,
+                          quantity: scaledAmount.toString(),
+                          unit: ingredient.unit || "",
+                          category: "ingredients",
+                        });
+
+                        addedCount++;
+                      } catch (error) {
+                        console.error(
+                          `Error adding ingredient ${ingredient.name}:`,
+                          error
+                        );
+                        errors.push(ingredient.name);
+                      }
+                    }
+
+                    // Show success/error feedback
+                    if (addedCount === recipe.ingredients.length) {
+                      Alert.alert(
+                        "Success",
+                        `All ${addedCount} ingredients added to your shopping list!`
+                      );
+                    } else if (addedCount > 0) {
+                      Alert.alert(
+                        "Partially Added",
+                        `${addedCount} of ${
+                          recipe.ingredients.length
+                        } ingredients added. ${
+                          errors.length
+                        } failed: ${errors.join(", ")}`
+                      );
+                    } else {
+                      Alert.alert(
+                        "Error",
+                        "Failed to add ingredients to shopping list. Please try again."
+                      );
+                    }
+                  } catch (error) {
+                    console.error("Error adding all ingredients:", error);
+                    Alert.alert(
+                      "Error",
+                      "Failed to add ingredients to shopping list. Please try again."
+                    );
+                  }
+                }}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="add-circle" size={14} color={colors.white} />
+                <Text style={styles.compactAddAllButtonText}>Add All</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
           {recipe?.ingredients && recipe.ingredients.length > 0 ? (
-            recipe.ingredients.map((ingredient, index) => (
-              <RecipeIngredientRow
-                key={ingredient.id || index.toString()}
-                ingredient={ingredient}
-                recipeId={recipe.id}
-                showStatus={true}
-                showAddToShoppingList={true}
-              />
-            ))
+            recipe.ingredients.map((ingredient, index) => {
+              const scaledAmount = scaleIngredientAmount(
+                ingredient.amount,
+                recipe.servings || 4,
+                currentServings
+              );
+
+              return (
+                <RecipeIngredientRow
+                  key={ingredient.id || index.toString()}
+                  ingredient={ingredient}
+                  recipeId={recipe.id}
+                  showStatus={true}
+                  showAddToShoppingList={true}
+                  scaledAmount={scaledAmount}
+                  isScaled={false} // Remove visual feedback
+                />
+              );
+            })
           ) : (
             <View style={styles.noDataContainer}>
               <Text style={styles.noDataText}>No ingredients found</Text>
@@ -482,19 +762,22 @@ export default function RecipeDetailScreen() {
         <View style={styles.buttonSpacer} />
       </ScrollView>
 
-      {/* Get Cooking Button */}
-      <View style={styles.buttonContainer}>
+      {/* Get Cooking Button - Made more visible */}
+      <View style={styles.floatingButtonContainer}>
         <TouchableOpacity
           style={styles.getCookingButton}
           onPress={() => router.push(`/cooking/${recipeId}`)}
+          activeOpacity={0.8}
         >
           <View style={styles.buttonContent}>
-            <Ionicons name="flame" size={20} color={colors.white} />
-            <Text style={styles.buttonText}>Get Cooking</Text>
+            <Ionicons name="flame" size={24} color={colors.black} />
+            <Text style={[styles.buttonText, { color: colors.black }]}>
+              Start Cooking
+            </Text>
           </View>
         </TouchableOpacity>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -513,15 +796,14 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
-    paddingTop: spacing.lg,
     backgroundColor: colors.white,
     borderBottomWidth: 1,
-    borderBottomColor: colors.gray[100],
+    borderBottomColor: colors.gray[200],
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   headerTitle: {
     fontSize: 20,
@@ -584,6 +866,61 @@ const styles = StyleSheet.create({
     color: colors.gray[600],
     fontWeight: "500",
   },
+  servingsContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: spacing.xs,
+  },
+  servingButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.primary[100],
+    justifyContent: "center",
+    alignItems: "center",
+    marginHorizontal: spacing.sm,
+  },
+  servingsText: {
+    fontSize: 16,
+    color: colors.gray[600],
+    fontWeight: "500",
+    minWidth: 80,
+    textAlign: "center",
+  },
+  compactTagsContainer: {
+    marginTop: spacing.md,
+  },
+  tagsScrollContent: {
+    paddingRight: spacing.lg,
+  },
+  compactTagChip: {
+    backgroundColor: colors.primary[100],
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.primary[200],
+    marginRight: spacing.xs,
+  },
+  compactTagText: {
+    fontSize: 11,
+    fontWeight: "500",
+    color: colors.primary[700],
+  },
+  moreTagsChip: {
+    backgroundColor: colors.gray[100],
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.gray[200],
+    marginRight: spacing.xs,
+  },
+  moreTagsText: {
+    fontSize: 11,
+    fontWeight: "500",
+    color: colors.gray[600],
+  },
   authorSection: {
     flexDirection: "row",
     alignItems: "center",
@@ -630,11 +967,30 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     marginBottom: spacing.sm,
   },
+  sectionHeaderWithButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingBottom: spacing.md,
+  },
   sectionTitle: {
     fontSize: 20,
     fontWeight: "700",
     color: colors.dark,
-    marginBottom: spacing.lg,
+  },
+  compactAddAllButton: {
+    backgroundColor: colors.primary[600],
+    paddingVertical: 6,
+    paddingHorizontal: spacing.sm,
+    borderRadius: borderRadius.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  compactAddAllButtonText: {
+    color: colors.white,
+    fontSize: 12,
+    fontWeight: "600",
   },
   instructionsSection: {
     paddingHorizontal: spacing.lg,
@@ -678,46 +1034,40 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
   },
   buttonSpacer: {
-    height: 120,
+    height: 100,
   },
-  buttonContainer: {
+  floatingButtonContainer: {
     position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.lg,
-    backgroundColor: colors.white,
-    borderTopWidth: 1,
-    borderTopColor: colors.gray[200],
+    bottom: spacing.lg,
+    left: spacing.lg,
+    right: spacing.lg,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 12,
   },
   getCookingButton: {
     backgroundColor: colors.primary[600],
-    borderRadius: 16,
+    borderRadius: 20,
     paddingVertical: spacing.lg,
     paddingHorizontal: spacing.lg,
     alignItems: "center",
     shadowColor: colors.primary[600],
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
   },
   buttonContent: {
     flexDirection: "row",
     alignItems: "center",
+    gap: spacing.sm,
   },
   buttonText: {
     color: colors.white,
     fontSize: 18,
     fontWeight: "700",
-    marginLeft: spacing.md,
   },
   errorText: {
     marginTop: spacing.md,
@@ -764,37 +1114,7 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
   },
   tagsContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    flexWrap: "wrap",
-    marginTop: spacing.md,
-    gap: spacing.sm,
-  },
-  tagChip: {
-    backgroundColor: colors.primary[100],
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: colors.primary[200],
-  },
-  tagChipText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: colors.primary[700],
-  },
-  moreTagsChip: {
-    backgroundColor: colors.gray[100],
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: colors.gray[200],
-  },
-  moreTagsText: {
-    fontSize: 13,
-    fontWeight: "500",
-    color: colors.gray[600],
+    display: "none", // Hide the old categorized tags
   },
   retryButton: {
     marginTop: spacing.md,
@@ -819,5 +1139,111 @@ const styles = StyleSheet.create({
     color: colors.dark,
     fontSize: typography.fontSizes.md,
     fontWeight: "600",
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  actionButton: {
+    padding: spacing.sm,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.gray[50],
+  },
+  tagsHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingBottom: spacing.md,
+  },
+  tagsHeaderText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: colors.dark,
+  },
+  tagsHeaderAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  viewAllText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.primary[600],
+  },
+  tagsGrid: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    marginTop: spacing.md,
+    gap: spacing.sm,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  tagsModal: {
+    backgroundColor: colors.white,
+    borderRadius: 12,
+    padding: spacing.lg,
+    maxWidth: Dimensions.get("window").width * 0.9,
+    maxHeight: Dimensions.get("window").height * 0.9,
+  },
+  tagsModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingBottom: spacing.md,
+  },
+  tagsModalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: colors.dark,
+  },
+  tagsModalClose: {
+    padding: spacing.sm,
+    borderRadius: 12,
+    backgroundColor: colors.gray[100],
+  },
+  tagsModalContent: {
+    flex: 1,
+  },
+  allTagsGrid: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  tagChipLarge: {
+    padding: spacing.sm,
+    borderWidth: 2,
+    borderColor: colors.primary[200],
+    borderRadius: 20,
+  },
+  tagChipTextLarge: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.primary[700],
+  },
+  tagCategorySection: {
+    marginBottom: spacing.lg,
+  },
+  tagCategoryHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: spacing.sm,
+  },
+  tagCategoryIcon: {
+    fontSize: 16,
+    marginRight: spacing.xs,
+  },
+  tagCategoryName: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.gray[600],
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
 });

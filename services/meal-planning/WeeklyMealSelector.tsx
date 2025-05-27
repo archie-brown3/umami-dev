@@ -1,9 +1,15 @@
 import React, { useEffect } from "react";
 import { format, addDays, startOfWeek } from "date-fns";
 import { useRecipes } from "../../context/RecipeContext";
-import { cn } from "../../lib/utils";
-import { Plus } from "../../lib/icons";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { colors, spacing, typography } from "../../utils/styleUtils";
 
 interface WeeklyMealSelectorProps {
   recipeId: string;
@@ -53,7 +59,7 @@ export default function WeeklyMealSelector({
         style={styles.emptySlot}
         onPress={() => onSlotSelect(day, mealType)}
       >
-        <Plus size={20} color="#64748b" />
+        <Ionicons name="add" size={20} color="#64748b" />
       </TouchableOpacity>
     );
   }

@@ -73,6 +73,41 @@ This is a mobile application designed to help users discover, save, and manage r
 - **Ignoring Supabase Errors**: Always handle potential errors from Supabase calls (e.g., `data, error = await supabase...`).
 - **Hardcoding Sensitive Information**: Use environment variables (`.env`) for API keys, Supabase URLs, etc.
 
+## Common Error Patterns and Solutions
+
+### Invalid Hook Call Error
+
+**Error Message**: `"Invalid hook call. Hooks can only be called inside of the body of a function component"`
+
+**Common Causes**:
+
+1. **Context Provider Missing**: A component is trying to use a context hook (like `useAuth()`) but the corresponding provider is not wrapping it
+2. **Provider Order Issues**: Context providers are nested in the wrong order in `app/_layout.tsx`
+3. **Syntax Errors in Context**: Syntax errors in context files can cause the entire provider to fail
+4. **Multiple React Versions**: Having multiple versions of React installed (check with `npm ls react`)
+
+**Debugging Steps**:
+
+1. Check that all context providers are properly nested in `app/_layout.tsx`
+2. Verify that the component using the hook is wrapped by the corresponding provider
+3. Look for syntax errors in context files (missing try/catch blocks, import errors)
+4. Ensure only one version of React is installed
+5. Clear cache with `npx expo start --clear`
+
+**Example Fix**:
+
+```tsx
+// ❌ Wrong - using hook outside provider
+function MyComponent() {
+  const { user } = useAuth(); // Error if not wrapped by AuthProvider
+}
+
+// ✅ Correct - ensure provider wraps component
+<AuthProvider>
+  <MyComponent />
+</AuthProvider>;
+```
+
 ---
 
 **Note to AI Agent:** Update this `rules.md` document during development when project structure, features, or backend integration changes.

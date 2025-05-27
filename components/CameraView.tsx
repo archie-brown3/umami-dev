@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import { StyleSheet, View, Text, Pressable, Alert } from "react-native";
-import { Camera, CameraType } from "expo-camera";
+import {
+  CameraView as ExpoCameraView,
+  CameraType,
+  useCameraPermissions,
+} from "expo-camera";
 import * as MediaLibrary from "expo-media-library";
 import * as ImageManipulator from "expo-image-manipulator";
 import { Ionicons } from "@expo/vector-icons";
@@ -15,19 +19,18 @@ export const CameraView: React.FC<CameraViewProps> = ({
   onCapture,
   onClose,
 }) => {
-  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
-  const [type, setType] = useState(CameraType.back);
-  const cameraRef = useRef<Camera | null>(null);
+  const [permission, requestPermission] = useCameraPermissions();
+  const [type, setType] = useState<CameraType>("back");
+  const cameraRef = useRef<ExpoCameraView | null>(null);
 
   useEffect(() => {
     (async () => {
-      const { status } = await Camera.requestCameraPermissionsAsync();
+      if (!permission?.granted) {
+        await requestPermission();
+      }
       const mediaStatus = await MediaLibrary.requestPermissionsAsync();
-      setHasPermission(
-        status === "granted" && mediaStatus.status === "granted"
-      );
     })();
-  }, []);
+  }, [permission, requestPermission]);
 
   const takePicture = async () => {
     if (!cameraRef.current) return;
@@ -37,6 +40,8 @@ export const CameraView: React.FC<CameraViewProps> = ({
         quality: 1,
         base64: false,
       });
+
+      if (!photo) return;
 
       // Optimize the image
       const manipulatedImage = await ImageManipulator.manipulateAsync(
@@ -61,7 +66,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
     }
   };
 
-  if (hasPermission === null) {
+  if (!permission) {
     return (
       <View style={styles.container}>
         <Text>Requesting camera permission...</Text>
@@ -69,24 +74,25 @@ export const CameraView: React.FC<CameraViewProps> = ({
     );
   }
 
-  if (hasPermission === false) {
+  if (!permission.granted) {
     return (
       <View style={styles.container}>
         <Text>No access to camera</Text>
+        <Pressable onPress={requestPermission}>
+          <Text>Grant Permission</Text>
+        </Pressable>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <Camera ref={cameraRef} style={styles.camera} type={type}>
+      <ExpoCameraView ref={cameraRef} style={styles.camera} facing={type}>
         <View style={styles.buttonContainer}>
           <Pressable
             style={styles.flipButton}
             onPress={() =>
-              setType(
-                type === CameraType.back ? CameraType.front : CameraType.back
-              )
+              setType((current) => (current === "back" ? "front" : "back"))
             }
           >
             <Ionicons name="camera-reverse-outline" size={24} color="white" />
@@ -100,7 +106,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
             <Ionicons name="close-outline" size={24} color="white" />
           </Pressable>
         </View>
-      </Camera>
+      </ExpoCameraView>
     </View>
   );
 };

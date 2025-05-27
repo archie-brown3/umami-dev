@@ -9,10 +9,8 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
-
-import { useNetworkStatus } from "../hooks/useNetworkStatus";
-// import { testNativeHttpConnection } from "../../utils/nativeFetch";
-// import { supabase } from "../../services/supabase";
+import { networkManager } from "./networkUtils";
+import { supabase } from "../lib/supabase";
 
 // Constants
 const isIOS = Platform.OS === "ios";
@@ -20,12 +18,9 @@ const TEST_URL = Constants.expoConfig?.extra?.VITE_SUPABASE_URL || "";
 const TEST_KEY = Constants.expoConfig?.extra?.VITE_SUPABASE_ANON_KEY || "";
 
 export function NetworkStatus() {
-  const {
-    isConnected,
-    isOffline,
-    type,
-    lastChecked: hookLastChecked,
-  } = useNetworkStatus();
+  const [isConnected, setIsConnected] = useState(true);
+  const [isOffline, setIsOffline] = useState(false);
+  const [type, setType] = useState<string>("unknown");
   const [supabaseStatus, setSupabaseStatus] = useState<
     "unknown" | "connected" | "disconnected"
   >("unknown");
@@ -34,12 +29,31 @@ export function NetworkStatus() {
   const [showDetails, setShowDetails] = useState(false);
 
   useEffect(() => {
-    if (hookLastChecked !== null && isConnected) {
+    // Monitor network status
+    const unsubscribe = networkManager.addNetworkListener((networkState) => {
+      setIsConnected(networkState.isConnected);
+      setIsOffline(!networkState.isConnected);
+      setType(networkState.type);
+
+      if (networkState.isConnected) {
+        checkSupabaseConnection();
+      } else {
+        setSupabaseStatus("disconnected");
+      }
+    });
+
+    // Initial check
+    const networkState = networkManager.getNetworkState();
+    setIsConnected(networkState.isConnected);
+    setIsOffline(!networkState.isConnected);
+    setType(networkState.type);
+
+    if (networkState.isConnected) {
       checkSupabaseConnection();
-    } else if (isOffline) {
-      setSupabaseStatus("disconnected");
     }
-  }, [hookLastChecked, isConnected, isOffline]);
+
+    return unsubscribe;
+  }, []);
 
   const checkSupabaseConnection = async () => {
     if (isLoading || !isConnected) return;
@@ -47,18 +61,10 @@ export function NetworkStatus() {
     setIsLoading(true);
     try {
       console.log("[NetworkStatus] Testing Supabase connection...");
-      if (isIOS && TEST_URL && TEST_KEY) {
-        const nativeConnectionWorks = await testNativeHttpConnection(
-          TEST_URL,
-          TEST_KEY
-        );
-        setSupabaseStatus(nativeConnectionWorks ? "connected" : "disconnected");
-      } else {
-        const { error } = await supabase
-          .from("recipes")
-          .select("id", { count: "exact", head: true });
-        setSupabaseStatus(error ? "disconnected" : "connected");
-      }
+      const { error } = await supabase
+        .from("recipes")
+        .select("id", { count: "exact", head: true });
+      setSupabaseStatus(error ? "disconnected" : "connected");
     } catch (error) {
       console.error("[NetworkStatus] Connection test error:", error);
       setSupabaseStatus("disconnected");
@@ -81,7 +87,7 @@ export function NetworkStatus() {
     }
   };
 
-  if (hookLastChecked === null) {
+  if (lastChecked === null && isConnected) {
     return null;
   }
 

@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { getMealPlans } from "./mealPlanService";
+import { withNetworkRetry, networkManager } from "@/utils/networkUtils";
 
 // Interfaces matching the database schema
 export interface ShoppingList {
@@ -34,342 +35,703 @@ export interface ShoppingItem {
   updated_at: string;
 }
 
-// Core CRUD operations for shopping lists
+// Enhanced error types for better error handling
+export class GroceriesServiceError extends Error {
+  constructor(
+    message: string,
+    public readonly code: string,
+    public readonly originalError?: any
+  ) {
+    super(message);
+    this.name = "GroceriesServiceError";
+  }
+
+  static fromSupabaseError(error: any): GroceriesServiceError {
+    console.error("[GroceriesService] Supabase error:", error);
+
+    if (error?.code === "PGRST116") {
+      return new GroceriesServiceError(
+        "The requested item was not found",
+        "NOT_FOUND",
+        error
+      );
+    } else if (error?.code === "23505") {
+      return new GroceriesServiceError(
+        "This item already exists",
+        "DUPLICATE_ENTRY",
+        error
+      );
+    } else if (error?.code === "23503") {
+      return new GroceriesServiceError(
+        "Cannot perform this action due to data constraints",
+        "CONSTRAINT_VIOLATION",
+        error
+      );
+    } else if (error?.message?.includes("JWT")) {
+      return new GroceriesServiceError(
+        "Authentication expired. Please log in again.",
+        "AUTH_EXPIRED",
+        error
+      );
+    } else if (error?.message?.includes("network")) {
+      return new GroceriesServiceError(
+        "Network connection failed. Please check your internet connection.",
+        "NETWORK_ERROR",
+        error
+      );
+    } else {
+      return new GroceriesServiceError(
+        error?.message || "An unexpected error occurred",
+        "UNKNOWN_ERROR",
+        error
+      );
+    }
+  }
+}
+
+// Validation functions
+export const validateShoppingList = (list: Partial<ShoppingList>): string[] => {
+  const errors: string[] = [];
+
+  if (!list.title || list.title.trim().length === 0) {
+    errors.push("Shopping list title is required");
+  } else if (list.title.trim().length > 100) {
+    errors.push("Shopping list title must be less than 100 characters");
+  }
+
+  if (list.date && !isValidDate(list.date)) {
+    errors.push("Invalid date format");
+  }
+
+  if (
+    list.total_cost !== undefined &&
+    (list.total_cost < 0 || list.total_cost > 999999)
+  ) {
+    errors.push("Total cost must be between 0 and 999,999");
+  }
+
+  return errors;
+};
+
+export const validateShoppingItem = (item: Partial<ShoppingItem>): string[] => {
+  const errors: string[] = [];
+
+  if (!item.name || item.name.trim().length === 0) {
+    errors.push("Item name is required");
+  } else if (item.name.trim().length > 200) {
+    errors.push("Item name must be less than 200 characters");
+  }
+
+  if (item.quantity && !isValidQuantity(item.quantity)) {
+    errors.push("Invalid quantity format");
+  }
+
+  if (item.unit && item.unit.length > 50) {
+    errors.push("Unit must be less than 50 characters");
+  }
+
+  if (item.category && item.category.length > 100) {
+    errors.push("Category must be less than 100 characters");
+  }
+
+  return errors;
+};
+
+const isValidDate = (dateString: string): boolean => {
+  const date = new Date(dateString);
+  return date instanceof Date && !isNaN(date.getTime());
+};
+
+const isValidQuantity = (quantity: string): boolean => {
+  // Allow numbers, fractions, and common quantity formats
+  const quantityRegex = /^(\d+(\.\d+)?|\d+\/\d+|\d+\s+\d+\/\d+)$/;
+  return quantityRegex.test(quantity.trim());
+};
+
+// Core CRUD operations for shopping lists with enhanced error handling
 export const createShoppingList = async (
   userId: string,
   list: Partial<ShoppingList>
 ): Promise<ShoppingList> => {
-  try {
-    const { data, error } = await supabase
-      .from("shopping_lists")
-      .insert({
-        user_id: userId,
-        title: list.title || "New Shopping List",
-        date: list.date || new Date().toISOString().split("T")[0],
-        total_cost: list.total_cost,
-        total_package_cost: list.total_package_cost,
-        price_confidence: list.price_confidence,
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
-    return { ...data, items: [] };
-  } catch (error) {
-    console.error("Error creating shopping list:", error);
-    throw error;
+  // Validate input
+  const validationErrors = validateShoppingList(list);
+  if (validationErrors.length > 0) {
+    throw new GroceriesServiceError(
+      `Validation failed: ${validationErrors.join(", ")}`,
+      "VALIDATION_ERROR"
+    );
   }
+
+  return withNetworkRetry(
+    async () => {
+      try {
+        console.log("[GroceriesService] Creating shopping list:", list.title);
+
+        const { data, error } = await supabase
+          .from("shopping_lists")
+          .insert({
+            user_id: userId,
+            title: list.title?.trim() || "New Shopping List",
+            date: list.date || new Date().toISOString().split("T")[0],
+            total_cost: list.total_cost,
+            total_package_cost: list.total_package_cost,
+            price_confidence: list.price_confidence,
+          })
+          .select()
+          .single();
+
+        if (error) {
+          throw GroceriesServiceError.fromSupabaseError(error);
+        }
+
+        console.log(
+          "[GroceriesService] Shopping list created successfully:",
+          data.id
+        );
+        return { ...data, items: [] };
+      } catch (error) {
+        if (error instanceof GroceriesServiceError) {
+          throw error;
+        }
+        throw GroceriesServiceError.fromSupabaseError(error);
+      }
+    },
+    { maxRetries: 2 }
+  );
 };
 
 export const getShoppingLists = async (
   userId: string
 ): Promise<ShoppingList[]> => {
-  try {
-    const { data, error } = await supabase
-      .from("shopping_lists")
-      .select(
-        `
-        *,
-        shopping_items (
-          id,
-          shopping_list_id,
-          ingredient_id,
-          name,
-          quantity,
-          unit,
-          category,
-          recipe_id,
-          emoji,
-          cost,
-          package_price,
-          package_cost,
-          price_confidence,
-          checked,
-          created_at,
-          updated_at
-        )
-      `
-      )
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false });
+  return networkManager.getCachedData(
+    `shopping_lists_${userId}`,
+    async () => {
+      return withNetworkRetry(
+        async () => {
+          try {
+            console.log(
+              "[GroceriesService] Fetching shopping lists for user:",
+              userId
+            );
 
-    if (error) throw error;
+            const { data, error } = await supabase
+              .from("shopping_lists")
+              .select(
+                `
+              *,
+              shopping_items (
+                id,
+                shopping_list_id,
+                ingredient_id,
+                name,
+                quantity,
+                unit,
+                category,
+                recipe_id,
+                emoji,
+                cost,
+                package_price,
+                package_cost,
+                price_confidence,
+                checked,
+                created_at,
+                updated_at
+              )
+            `
+              )
+              .eq("user_id", userId)
+              .order("created_at", { ascending: false });
 
-    return data.map((list) => ({
-      ...list,
-      items: list.shopping_items || [],
-    }));
-  } catch (error) {
-    console.error("Error fetching shopping lists:", error);
-    throw error;
-  }
+            if (error) {
+              throw GroceriesServiceError.fromSupabaseError(error);
+            }
+
+            const lists = data.map((list) => ({
+              ...list,
+              items: list.shopping_items || [],
+            }));
+
+            console.log(
+              `[GroceriesService] Fetched ${lists.length} shopping lists`
+            );
+            return lists;
+          } catch (error) {
+            if (error instanceof GroceriesServiceError) {
+              throw error;
+            }
+            throw GroceriesServiceError.fromSupabaseError(error);
+          }
+        },
+        { maxRetries: 3 }
+      );
+    },
+    { ttl: 2 * 60 * 1000 } // Cache for 2 minutes
+  );
 };
 
 export const updateShoppingList = async (
   listId: string,
   updates: Partial<ShoppingList>
 ): Promise<ShoppingList> => {
-  try {
-    const { data, error } = await supabase
-      .from("shopping_lists")
-      .update(updates)
-      .eq("id", listId)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error("Error updating shopping list:", error);
-    throw error;
+  // Validate input
+  const validationErrors = validateShoppingList(updates);
+  if (validationErrors.length > 0) {
+    throw new GroceriesServiceError(
+      `Validation failed: ${validationErrors.join(", ")}`,
+      "VALIDATION_ERROR"
+    );
   }
+
+  return withNetworkRetry(
+    async () => {
+      try {
+        console.log("[GroceriesService] Updating shopping list:", listId);
+
+        const { data, error } = await supabase
+          .from("shopping_lists")
+          .update({
+            ...updates,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", listId)
+          .select()
+          .single();
+
+        if (error) {
+          throw GroceriesServiceError.fromSupabaseError(error);
+        }
+
+        // Clear cache for this user's shopping lists
+        const userId = data.user_id;
+        networkManager.clearCache(`shopping_lists_${userId}`);
+
+        console.log("[GroceriesService] Shopping list updated successfully");
+        return data;
+      } catch (error) {
+        if (error instanceof GroceriesServiceError) {
+          throw error;
+        }
+        throw GroceriesServiceError.fromSupabaseError(error);
+      }
+    },
+    { maxRetries: 2 }
+  );
 };
 
 export const deleteShoppingList = async (listId: string): Promise<void> => {
-  try {
-    const { error } = await supabase
-      .from("shopping_lists")
-      .delete()
-      .eq("id", listId);
+  return withNetworkRetry(
+    async () => {
+      try {
+        console.log("[GroceriesService] Deleting shopping list:", listId);
 
-    if (error) throw error;
-  } catch (error) {
-    console.error("Error deleting shopping list:", error);
-    throw error;
-  }
+        // First get the list to clear cache later
+        const { data: listData } = await supabase
+          .from("shopping_lists")
+          .select("user_id")
+          .eq("id", listId)
+          .single();
+
+        const { error } = await supabase
+          .from("shopping_lists")
+          .delete()
+          .eq("id", listId);
+
+        if (error) {
+          throw GroceriesServiceError.fromSupabaseError(error);
+        }
+
+        // Clear cache for this user's shopping lists
+        if (listData?.user_id) {
+          networkManager.clearCache(`shopping_lists_${listData.user_id}`);
+        }
+
+        console.log("[GroceriesService] Shopping list deleted successfully");
+      } catch (error) {
+        if (error instanceof GroceriesServiceError) {
+          throw error;
+        }
+        throw GroceriesServiceError.fromSupabaseError(error);
+      }
+    },
+    { maxRetries: 2 }
+  );
 };
 
-// Core CRUD operations for shopping items
+// Core CRUD operations for shopping items with enhanced error handling
 export const addShoppingItem = async (
   listId: string,
   item: Partial<ShoppingItem>
 ): Promise<ShoppingItem> => {
-  try {
-    const { data, error } = await supabase
-      .from("shopping_items")
-      .insert({
-        shopping_list_id: listId,
-        ingredient_id: item.ingredient_id,
-        name: item.name || "",
-        quantity: item.quantity || "1",
-        unit: item.unit,
-        category: item.category || "Other",
-        recipe_id: item.recipe_id,
-        emoji: item.emoji,
-        cost: item.cost,
-        package_price: item.package_price,
-        package_cost: item.package_cost,
-        price_confidence: item.price_confidence,
-        checked: item.checked || false,
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error("Error adding shopping item:", error);
-    throw error;
+  // Validate input
+  const validationErrors = validateShoppingItem(item);
+  if (validationErrors.length > 0) {
+    throw new GroceriesServiceError(
+      `Validation failed: ${validationErrors.join(", ")}`,
+      "VALIDATION_ERROR"
+    );
   }
+
+  return withNetworkRetry(
+    async () => {
+      try {
+        console.log("[GroceriesService] Adding shopping item:", item.name);
+
+        const { data, error } = await supabase
+          .from("shopping_items")
+          .insert({
+            shopping_list_id: listId,
+            ingredient_id: item.ingredient_id,
+            name: item.name?.trim() || "",
+            quantity: item.quantity?.trim() || "1",
+            unit: item.unit?.trim(),
+            category: item.category?.trim() || "Other",
+            recipe_id: item.recipe_id,
+            emoji: item.emoji,
+            cost: item.cost,
+            package_price: item.package_price,
+            package_cost: item.package_cost,
+            price_confidence: item.price_confidence,
+            checked: item.checked || false,
+          })
+          .select()
+          .single();
+
+        if (error) {
+          throw GroceriesServiceError.fromSupabaseError(error);
+        }
+
+        // Clear relevant caches
+        networkManager.clearCache("shopping_lists_");
+
+        console.log(
+          "[GroceriesService] Shopping item added successfully:",
+          data.id
+        );
+        return data;
+      } catch (error) {
+        if (error instanceof GroceriesServiceError) {
+          throw error;
+        }
+        throw GroceriesServiceError.fromSupabaseError(error);
+      }
+    },
+    { maxRetries: 2 }
+  );
 };
 
 export const updateShoppingItem = async (
   itemId: string,
   updates: Partial<ShoppingItem>
 ): Promise<ShoppingItem> => {
-  try {
-    const { data, error } = await supabase
-      .from("shopping_items")
-      .update(updates)
-      .eq("id", itemId)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error("Error updating shopping item:", error);
-    throw error;
+  // Validate input
+  const validationErrors = validateShoppingItem(updates);
+  if (validationErrors.length > 0) {
+    throw new GroceriesServiceError(
+      `Validation failed: ${validationErrors.join(", ")}`,
+      "VALIDATION_ERROR"
+    );
   }
+
+  return withNetworkRetry(
+    async () => {
+      try {
+        console.log("[GroceriesService] Updating shopping item:", itemId);
+
+        const { data, error } = await supabase
+          .from("shopping_items")
+          .update({
+            ...updates,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", itemId)
+          .select()
+          .single();
+
+        if (error) {
+          throw GroceriesServiceError.fromSupabaseError(error);
+        }
+
+        // Clear relevant caches
+        networkManager.clearCache("shopping_lists_");
+
+        console.log("[GroceriesService] Shopping item updated successfully");
+        return data;
+      } catch (error) {
+        if (error instanceof GroceriesServiceError) {
+          throw error;
+        }
+        throw GroceriesServiceError.fromSupabaseError(error);
+      }
+    },
+    { maxRetries: 2 }
+  );
 };
 
 export const removeShoppingItem = async (itemId: string): Promise<void> => {
-  try {
-    const { error } = await supabase
-      .from("shopping_items")
-      .delete()
-      .eq("id", itemId);
+  return withNetworkRetry(
+    async () => {
+      try {
+        console.log("[GroceriesService] Removing shopping item:", itemId);
 
-    if (error) throw error;
-  } catch (error) {
-    console.error("Error removing shopping item:", error);
-    throw error;
-  }
+        const { error } = await supabase
+          .from("shopping_items")
+          .delete()
+          .eq("id", itemId);
+
+        if (error) {
+          throw GroceriesServiceError.fromSupabaseError(error);
+        }
+
+        // Clear relevant caches
+        networkManager.clearCache("shopping_lists_");
+
+        console.log("[GroceriesService] Shopping item removed successfully");
+      } catch (error) {
+        if (error instanceof GroceriesServiceError) {
+          throw error;
+        }
+        throw GroceriesServiceError.fromSupabaseError(error);
+      }
+    },
+    { maxRetries: 2 }
+  );
 };
 
-// Generate shopping list from meal plan
+// Enhanced meal plan integration with better error handling
 export const generateShoppingListFromMealPlan = async (
   userId: string,
   dateRange: { start: string; end: string }
 ): Promise<ShoppingList> => {
-  try {
-    // Get meal plans for the date range
-    const mealPlans = await getMealPlans(userId, dateRange);
+  return withNetworkRetry(
+    async () => {
+      try {
+        console.log(
+          "[GroceriesService] Generating shopping list from meal plan"
+        );
 
-    if (mealPlans.length === 0) {
-      throw new Error("No meal plans found for the selected date range");
-    }
+        // Get meal plans for the date range
+        const mealPlans = await getMealPlans(userId, dateRange);
 
-    // Extract all recipe IDs
-    const recipeIds = new Set<string>();
-    mealPlans.forEach((plan) => {
-      plan.items?.forEach((item) => {
-        recipeIds.add(item.recipe_id);
-      });
-    });
+        if (!mealPlans || mealPlans.length === 0) {
+          throw new GroceriesServiceError(
+            "No meal plans found for the selected date range",
+            "NO_MEAL_PLANS"
+          );
+        }
 
-    if (recipeIds.size === 0) {
-      throw new Error("No recipes found in meal plans");
-    }
+        // Get or create default shopping list
+        const lists = await getShoppingLists(userId);
+        let defaultList = lists.find((list) => list.title === "Shopping List");
 
-    // Get recipe ingredients for all recipes
-    const { data: recipeIngredients, error: ingredientsError } = await supabase
-      .from("recipe_ingredients")
-      .select(
-        `
-        recipe_id,
-        quantity,
-        unit,
-        ingredients (
-          id,
-          name,
-          category,
-          emoji
-        )
-      `
-      )
-      .in("recipe_id", Array.from(recipeIds));
-
-    if (ingredientsError) throw ingredientsError;
-
-    // Create shopping list
-    const shoppingList = await createShoppingList(userId, {
-      title: `Shopping List - ${dateRange.start} to ${dateRange.end}`,
-      date: new Date().toISOString().split("T")[0],
-    });
-
-    // Group and consolidate ingredients
-    const consolidatedIngredients = new Map<
-      string,
-      {
-        name: string;
-        category: string;
-        emoji?: string;
-        quantities: { quantity: string; unit?: string; recipeId: string }[];
-      }
-    >();
-
-    recipeIngredients?.forEach((ri) => {
-      if (ri.ingredients && !Array.isArray(ri.ingredients)) {
-        const ingredient = ri.ingredients as {
-          id: string;
-          name: string;
-          category: string;
-          emoji?: string;
-        };
-        const key = ingredient.name.toLowerCase();
-        if (!consolidatedIngredients.has(key)) {
-          consolidatedIngredients.set(key, {
-            name: ingredient.name,
-            category: ingredient.category || "Other",
-            emoji: ingredient.emoji,
-            quantities: [],
+        if (!defaultList) {
+          defaultList = await createShoppingList(userId, {
+            title: "Shopping List",
+            date: new Date().toISOString().split("T")[0],
           });
         }
 
-        consolidatedIngredients.get(key)?.quantities.push({
-          quantity: ri.quantity || "1",
-          unit: ri.unit,
-          recipeId: ri.recipe_id,
-        });
+        // Extract recipe IDs from meal plans
+        const recipeIds = new Set<string>();
+
+        for (const mealPlan of mealPlans) {
+          if (mealPlan.items) {
+            for (const item of mealPlan.items) {
+              recipeIds.add(item.recipe_id);
+            }
+          }
+        }
+
+        if (recipeIds.size === 0) {
+          throw new GroceriesServiceError(
+            "No recipes found in the selected meal plans",
+            "NO_RECIPES"
+          );
+        }
+
+        // Fetch recipe details from Supabase to get ingredients
+        const { data: recipes, error: recipesError } = await supabase
+          .from("recipes")
+          .select(
+            `
+          id,
+          title,
+          recipe_ingredients (
+            id,
+            name,
+            quantity,
+            unit,
+            category
+          )
+        `
+          )
+          .in("id", Array.from(recipeIds));
+
+        if (recipesError) {
+          throw GroceriesServiceError.fromSupabaseError(recipesError);
+        }
+
+        if (!recipes || recipes.length === 0) {
+          throw new GroceriesServiceError(
+            "No recipe details found for the meal plan recipes",
+            "NO_RECIPE_DETAILS"
+          );
+        }
+
+        // Extract ingredients from recipes
+        const ingredientsToAdd: Partial<ShoppingItem>[] = [];
+
+        for (const recipe of recipes) {
+          if (recipe.recipe_ingredients) {
+            for (const ingredient of recipe.recipe_ingredients) {
+              ingredientsToAdd.push({
+                name: ingredient.name,
+                quantity: ingredient.quantity || "1",
+                unit: ingredient.unit,
+                category: ingredient.category || "Other",
+                recipe_id: recipe.id,
+                ingredient_id: ingredient.id,
+              });
+            }
+          }
+        }
+
+        if (ingredientsToAdd.length === 0) {
+          throw new GroceriesServiceError(
+            "No ingredients found in the selected recipes",
+            "NO_INGREDIENTS"
+          );
+        }
+
+        // Add ingredients to shopping list with batch processing
+        const addedItems: ShoppingItem[] = [];
+        const batchSize = 10; // Process in batches to avoid overwhelming the database
+
+        for (let i = 0; i < ingredientsToAdd.length; i += batchSize) {
+          const batch = ingredientsToAdd.slice(i, i + batchSize);
+          const batchPromises = batch.map((ingredient) =>
+            addShoppingItem(defaultList!.id, ingredient)
+          );
+
+          try {
+            const batchResults = await Promise.allSettled(batchPromises);
+            batchResults.forEach((result, index) => {
+              if (result.status === "fulfilled") {
+                addedItems.push(result.value);
+              } else {
+                console.warn(
+                  `[GroceriesService] Failed to add ingredient ${batch[index].name}:`,
+                  result.reason
+                );
+              }
+            });
+          } catch (error) {
+            console.error("[GroceriesService] Batch processing error:", error);
+          }
+        }
+
+        console.log(
+          `[GroceriesService] Added ${addedItems.length}/${ingredientsToAdd.length} ingredients to shopping list`
+        );
+
+        // Return updated shopping list
+        return {
+          ...defaultList,
+          items: [...(defaultList.items || []), ...addedItems],
+        };
+      } catch (error) {
+        if (error instanceof GroceriesServiceError) {
+          throw error;
+        }
+        throw GroceriesServiceError.fromSupabaseError(error);
       }
-    });
-
-    // Add items to shopping list
-    for (const [_, ingredient] of consolidatedIngredients) {
-      // For now, just combine quantities as text
-      // In a more sophisticated version, we'd parse and sum numeric quantities
-      const combinedQuantity = ingredient.quantities
-        .map((q) => `${q.quantity}${q.unit ? ` ${q.unit}` : ""}`)
-        .join(", ");
-
-      await addShoppingItem(shoppingList.id, {
-        name: ingredient.name,
-        quantity: combinedQuantity,
-        category: ingredient.category,
-        emoji: ingredient.emoji,
-        checked: false,
-      });
-    }
-
-    // Return the shopping list with items
-    const updatedList = await getShoppingLists(userId);
-    return (
-      updatedList.find((list) => list.id === shoppingList.id) || shoppingList
-    );
-  } catch (error) {
-    console.error("Error generating shopping list from meal plan:", error);
-    throw error;
-  }
+    },
+    { maxRetries: 2 }
+  );
 };
 
-// Consolidate duplicate items in a shopping list
+// Enhanced consolidation with better duplicate detection
 export const consolidateShoppingListItems = async (
   listId: string
 ): Promise<void> => {
-  try {
-    const { data: items, error } = await supabase
-      .from("shopping_items")
-      .select("*")
-      .eq("shopping_list_id", listId);
+  return withNetworkRetry(
+    async () => {
+      try {
+        console.log("[GroceriesService] Consolidating shopping list items");
 
-    if (error) throw error;
+        const { data: items, error } = await supabase
+          .from("shopping_items")
+          .select("*")
+          .eq("shopping_list_id", listId);
 
-    // Group items by name (case-insensitive)
-    const itemGroups = new Map<string, ShoppingItem[]>();
-    items?.forEach((item) => {
-      const key = item.name.toLowerCase().trim();
-      if (!itemGroups.has(key)) {
-        itemGroups.set(key, []);
-      }
-      itemGroups.get(key)?.push(item);
-    });
+        if (error) {
+          throw GroceriesServiceError.fromSupabaseError(error);
+        }
 
-    // Consolidate groups with multiple items
-    for (const [_, group] of itemGroups) {
-      if (group.length > 1) {
-        // Keep the first item, update its quantity, delete the rest
-        const primaryItem = group[0];
-        const otherItems = group.slice(1);
+        if (!items || items.length === 0) {
+          console.log("[GroceriesService] No items to consolidate");
+          return;
+        }
 
-        // Combine quantities (simple text concatenation for now)
-        const combinedQuantity = group
-          .map((item) => `${item.quantity}${item.unit ? ` ${item.unit}` : ""}`)
-          .join(", ");
+        // Group items by name (case-insensitive) and unit
+        const itemGroups = new Map<string, ShoppingItem[]>();
 
-        // Update primary item
-        await updateShoppingItem(primaryItem.id, {
-          quantity: combinedQuantity,
+        items.forEach((item) => {
+          const key = `${item.name.toLowerCase().trim()}_${(item.unit || "")
+            .toLowerCase()
+            .trim()}`;
+          if (!itemGroups.has(key)) {
+            itemGroups.set(key, []);
+          }
+          itemGroups.get(key)!.push(item);
         });
 
-        // Delete other items
-        for (const item of otherItems) {
-          await removeShoppingItem(item.id);
+        // Process groups with duplicates
+        const consolidationPromises: Promise<any>[] = [];
+
+        itemGroups.forEach((group, key) => {
+          if (group.length > 1) {
+            console.log(
+              `[GroceriesService] Consolidating ${group.length} items for: ${key}`
+            );
+
+            // Keep the first item and merge quantities
+            const [keepItem, ...duplicates] = group;
+
+            // Calculate total quantity (simple addition for now)
+            const totalQuantity = group.reduce((sum, item) => {
+              const qty = parseFloat(item.quantity) || 1;
+              return sum + qty;
+            }, 0);
+
+            // Update the kept item with consolidated quantity
+            consolidationPromises.push(
+              updateShoppingItem(keepItem.id, {
+                quantity: totalQuantity.toString(),
+              })
+            );
+
+            // Remove duplicate items
+            duplicates.forEach((duplicate) => {
+              consolidationPromises.push(removeShoppingItem(duplicate.id));
+            });
+          }
+        });
+
+        if (consolidationPromises.length > 0) {
+          await Promise.allSettled(consolidationPromises);
+          console.log(
+            `[GroceriesService] Completed consolidation with ${consolidationPromises.length} operations`
+          );
+        } else {
+          console.log("[GroceriesService] No duplicates found to consolidate");
         }
+      } catch (error) {
+        if (error instanceof GroceriesServiceError) {
+          throw error;
+        }
+        throw GroceriesServiceError.fromSupabaseError(error);
       }
-    }
-  } catch (error) {
-    console.error("Error consolidating shopping list items:", error);
-    throw error;
-  }
+    },
+    { maxRetries: 2 }
+  );
 };

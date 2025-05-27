@@ -4,6 +4,7 @@ import { StyleSheet, Platform, Dimensions, StatusBar } from "react-native";
 // App colors
 export const colors = {
   primary: "#FF5A5F",
+  primaryLight: "#FF8A8F",
   secondary: "#00A699",
   black: "#000000",
   white: "#FFFFFF",
@@ -56,6 +57,7 @@ export const spacing = {
   lg: 24,
   xl: 32,
   xxl: 48,
+  "2xl": 64,
 };
 
 // Border radius
@@ -175,6 +177,7 @@ export const commonStyles = StyleSheet.create({
 });
 
 export const fontSizes = {
+  xs: 12,
   sm: 14,
   md: 16,
   lg: 20,

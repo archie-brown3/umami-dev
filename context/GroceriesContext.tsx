@@ -11,8 +11,11 @@ import {
   updateShoppingItem,
   removeShoppingItem as removeSupabaseShoppingItem,
   consolidateShoppingListItems,
+  GroceriesServiceError,
 } from "@/services/groceriesService";
 import { getUserRecipesWithIngredients } from "@/services/recipeService";
+import { networkManager, addNetworkListener } from "@/utils/networkUtils";
+import { Alert } from "react-native";
 
 // Type definitions
 export interface GroceryItem {
@@ -42,6 +45,7 @@ interface GroceriesContextType {
   activeView: "shopping" | "cupboard";
   isLoading: boolean;
   error: string | null;
+  isOnline: boolean;
 
   // Default shopping list (no more multiple lists)
   defaultShoppingList: ShoppingList | null;
@@ -67,7 +71,7 @@ interface GroceriesContextType {
   removeSelectedRecipe: (recipeId: string) => void;
   clearError: () => void;
 
-  // New simplified methods
+  // Enhanced methods with better error handling
   addItemToShoppingList: (item: Partial<SupabaseShoppingItem>) => Promise<void>;
   updateShoppingItemInList: (
     itemId: string,
@@ -78,6 +82,7 @@ interface GroceriesContextType {
   addRecipeToShoppingList: (recipe: Recipe) => Promise<void>;
   removeRecipeFromShoppingList: (recipeId: string) => Promise<void>;
   refreshShoppingList: () => Promise<void>;
+  retryFailedOperations: () => Promise<void>;
 }
 
 const STORAGE_KEYS = {
@@ -93,7 +98,14 @@ const GroceriesContext = createContext<GroceriesContextType | undefined>(
 export const GroceriesProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const { user } = useAuth();
+  const authContext = useAuth();
+
+  // Wait for auth to initialize before proceeding
+  if (!authContext) {
+    return <>{children}</>;
+  }
+
+  const { user } = authContext;
   const [shoppingList, setShoppingList] = useState<ShoppingItem[]>([]);
   const [cupboardItems, setCupboardItems] = useState<CupboardItem[]>([]);
   const [selectedRecipes, setSelectedRecipes] = useState<Recipe[]>([]);
@@ -102,6 +114,7 @@ export const GroceriesProvider: React.FC<{ children: React.ReactNode }> = ({
   );
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isOnline, setIsOnline] = useState(true);
 
   // Default shopping list (no more multiple lists)
   const [defaultShoppingList, setDefaultShoppingList] =
@@ -111,6 +124,89 @@ export const GroceriesProvider: React.FC<{ children: React.ReactNode }> = ({
   const [recipesWithIngredients, setRecipesWithIngredients] = useState<
     Recipe[]
   >([]);
+
+  // Network connectivity monitoring
+  useEffect(() => {
+    const unsubscribe = addNetworkListener((networkState) => {
+      setIsOnline(
+        networkState.isConnected && networkState.isInternetReachable !== false
+      );
+
+      // Auto-sync when coming back online
+      if (networkState.isConnected && networkState.isInternetReachable) {
+        console.log(
+          "[GroceriesContext] Network restored, syncing offline actions"
+        );
+        networkManager.syncOfflineActions();
+        refreshShoppingList();
+      }
+    });
+
+    return unsubscribe;
+  }, []);
+
+  // Load Supabase shopping lists when user changes
+  useEffect(() => {
+    if (user?.id) {
+      refreshShoppingList();
+      loadRecipesWithIngredients();
+    }
+  }, [user?.id]);
+
+  // Enhanced error handling function
+  const handleError = (
+    error: any,
+    operation: string,
+    showAlert: boolean = true
+  ) => {
+    console.error(`[GroceriesContext] Error in ${operation}:`, error);
+
+    let userMessage = "An unexpected error occurred";
+
+    if (error instanceof GroceriesServiceError) {
+      switch (error.code) {
+        case "NETWORK_ERROR":
+          userMessage =
+            "Network connection failed. Your changes will be saved and synced when connection is restored.";
+          break;
+        case "AUTH_EXPIRED":
+          userMessage = "Your session has expired. Please log in again.";
+          break;
+        case "VALIDATION_ERROR":
+          userMessage = error.message;
+          break;
+        case "NOT_FOUND":
+          userMessage = "The requested item was not found.";
+          break;
+        default:
+          userMessage = error.message || "An unexpected error occurred";
+      }
+    } else if (
+      error?.message?.includes("network") ||
+      error?.message?.includes("fetch")
+    ) {
+      userMessage =
+        "Network connection failed. Please check your internet connection.";
+    }
+
+    setError(userMessage);
+
+    if (showAlert && error.code !== "NETWORK_ERROR") {
+      Alert.alert("Error", userMessage, [
+        { text: "OK", onPress: () => setError(null) },
+        ...(error.code === "AUTH_EXPIRED"
+          ? [
+              {
+                text: "Log In",
+                onPress: () => {
+                  /* Navigate to login */
+                },
+              },
+            ]
+          : []),
+      ]);
+    }
+  };
 
   // Load data from AsyncStorage on mount
   useEffect(() => {
@@ -154,8 +250,7 @@ export const GroceriesProvider: React.FC<{ children: React.ReactNode }> = ({
           setSelectedRecipes(parsedData);
         }
       } catch (error) {
-        console.error("[GroceriesContext] Error loading data:", error);
-        setError("Failed to load grocery data. Please restart the app.");
+        handleError(error, "loading data", false);
       } finally {
         setIsLoading(false);
       }
@@ -164,45 +259,46 @@ export const GroceriesProvider: React.FC<{ children: React.ReactNode }> = ({
     loadData();
   }, []);
 
+  // Enhanced save functions with error handling
+  const saveShoppingListToStorage = async (data: ShoppingItem[]) => {
+    try {
+      await AsyncStorage.setItem(
+        STORAGE_KEYS.SHOPPING_LIST,
+        JSON.stringify(data)
+      );
+    } catch (error) {
+      console.error("[GroceriesContext] Error saving shopping list:", error);
+      // Don't show alert for storage errors, just log them
+    }
+  };
+
+  const saveCupboardToStorage = async (data: CupboardItem[]) => {
+    try {
+      await AsyncStorage.setItem(
+        STORAGE_KEYS.CUPBOARD_ITEMS,
+        JSON.stringify(data)
+      );
+    } catch (error) {
+      console.error("[GroceriesContext] Error saving cupboard items:", error);
+      // Don't show alert for storage errors, just log them
+    }
+  };
+
   // Save shopping list data to AsyncStorage when it changes
   useEffect(() => {
-    const saveData = async () => {
-      try {
-        await AsyncStorage.setItem(
-          STORAGE_KEYS.SHOPPING_LIST,
-          JSON.stringify(shoppingList)
-        );
-      } catch (error) {
-        console.error("[GroceriesContext] Error saving shopping list:", error);
-        setError("Failed to save shopping list changes.");
-      }
-    };
-
     if (shoppingList.length > 0) {
-      saveData();
+      saveShoppingListToStorage(shoppingList);
     }
   }, [shoppingList]);
 
   // Save cupboard data to AsyncStorage when it changes
   useEffect(() => {
-    const saveData = async () => {
-      try {
-        await AsyncStorage.setItem(
-          STORAGE_KEYS.CUPBOARD_ITEMS,
-          JSON.stringify(cupboardItems)
-        );
-      } catch (error) {
-        console.error("[GroceriesContext] Error saving cupboard items:", error);
-        setError("Failed to save cupboard changes.");
-      }
-    };
-
     if (cupboardItems.length > 0) {
-      saveData();
+      saveCupboardToStorage(cupboardItems);
     }
   }, [cupboardItems]);
 
-  // Save selected recipes data to AsyncStorage when it changes
+  // Save selected recipes to AsyncStorage when they change
   useEffect(() => {
     const saveData = async () => {
       try {
@@ -215,7 +311,6 @@ export const GroceriesProvider: React.FC<{ children: React.ReactNode }> = ({
           "[GroceriesContext] Error saving selected recipes:",
           error
         );
-        setError("Failed to save selected recipes.");
       }
     };
 
@@ -225,6 +320,152 @@ export const GroceriesProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [selectedRecipes]);
 
   const clearError = () => setError(null);
+
+  // Enhanced shopping list operations with better error handling
+  const addItemToShoppingList = async (item: Partial<SupabaseShoppingItem>) => {
+    if (!user?.id) {
+      handleError(
+        new Error("User not authenticated"),
+        "adding item to shopping list"
+      );
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      // Get or create default shopping list
+      let lists = await getShoppingLists(user.id);
+      let defaultList = lists.find((list) => list.title === "Shopping List");
+
+      if (!defaultList) {
+        defaultList = await createShoppingList(user.id, {
+          title: "Shopping List",
+          date: new Date().toISOString().split("T")[0],
+        });
+      }
+
+      await addSupabaseShoppingItem(defaultList.id, item);
+      await refreshShoppingList();
+
+      console.log("[GroceriesContext] Item added successfully");
+    } catch (error) {
+      handleError(error, "adding item to shopping list");
+
+      // Store offline action if network error
+      if (
+        error instanceof GroceriesServiceError &&
+        error.code === "NETWORK_ERROR"
+      ) {
+        await networkManager.persistOfflineAction({
+          type: "ADD_SHOPPING_ITEM",
+          payload: { item },
+        });
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const updateShoppingItemInList = async (
+    itemId: string,
+    updates: Partial<SupabaseShoppingItem>
+  ) => {
+    setIsLoading(true);
+    try {
+      await updateShoppingItem(itemId, updates);
+      await refreshShoppingList();
+
+      console.log("[GroceriesContext] Item updated successfully");
+    } catch (error) {
+      handleError(error, "updating shopping item");
+
+      // Store offline action if network error
+      if (
+        error instanceof GroceriesServiceError &&
+        error.code === "NETWORK_ERROR"
+      ) {
+        await networkManager.persistOfflineAction({
+          type: "UPDATE_SHOPPING_ITEM",
+          payload: { itemId, updates },
+        });
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const toggleItemInShoppingList = async (itemId: string) => {
+    try {
+      // Find the item in the current shopping list
+      const currentItem = defaultShoppingList?.items?.find(
+        (item) => item.id === itemId
+      );
+      if (!currentItem) {
+        throw new Error("Item not found in shopping list");
+      }
+
+      await updateShoppingItemInList(itemId, {
+        checked: !currentItem.checked,
+      });
+    } catch (error) {
+      handleError(error, "toggling shopping item");
+    }
+  };
+
+  const removeItemFromShoppingList = async (itemId: string) => {
+    setIsLoading(true);
+    try {
+      await removeSupabaseShoppingItem(itemId);
+      await refreshShoppingList();
+
+      console.log("[GroceriesContext] Item removed successfully");
+    } catch (error) {
+      handleError(error, "removing item from shopping list");
+
+      // Store offline action if network error
+      if (
+        error instanceof GroceriesServiceError &&
+        error.code === "NETWORK_ERROR"
+      ) {
+        await networkManager.persistOfflineAction({
+          type: "DELETE_SHOPPING_ITEM",
+          payload: { itemId },
+        });
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const refreshShoppingList = async () => {
+    if (!user?.id) return;
+
+    try {
+      const lists = await getShoppingLists(user.id);
+      const defaultList = lists.find((list) => list.title === "Shopping List");
+      setDefaultShoppingList(defaultList || null);
+
+      console.log("[GroceriesContext] Shopping list refreshed");
+    } catch (error) {
+      handleError(error, "refreshing shopping list", false);
+    }
+  };
+
+  const retryFailedOperations = async () => {
+    setIsLoading(true);
+    try {
+      await networkManager.syncOfflineActions();
+      await refreshShoppingList();
+
+      Alert.alert("Success", "All pending changes have been synchronized.", [
+        { text: "OK" },
+      ]);
+    } catch (error) {
+      handleError(error, "retrying failed operations");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const addShoppingItem = (
     item: Omit<ShoppingItem, "id" | "createdAt" | "updatedAt">
@@ -368,217 +609,107 @@ export const GroceriesProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
-  // New simplified methods
-  const addItemToShoppingList = async (item: Partial<SupabaseShoppingItem>) => {
-    if (!user?.id || !defaultShoppingList) return;
-
-    try {
-      const newItem = await addSupabaseShoppingItem(
-        defaultShoppingList.id,
-        item
-      );
-      // Convert SupabaseShoppingItem to local ShoppingItem format
-      const localItem: ShoppingItem = {
-        id: newItem.id,
-        name: newItem.name,
-        quantity: newItem.quantity ? parseFloat(newItem.quantity) : undefined,
-        unit: newItem.unit,
-        category: newItem.category,
-        checked: newItem.checked,
-        recipeId: newItem.recipe_id,
-        createdAt: new Date(newItem.created_at),
-        updatedAt: new Date(newItem.updated_at),
-      };
-      setShoppingList((prev) => [...prev, localItem]);
-    } catch (error) {
-      console.error(
-        "[GroceriesContext] Error adding item to shopping list:",
-        error
-      );
-      setError("Failed to add item to shopping list.");
-      throw error;
-    }
-  };
-
-  const updateShoppingItemInList = async (
-    itemId: string,
-    updates: Partial<SupabaseShoppingItem>
-  ) => {
-    if (!user?.id) return;
-
-    try {
-      const updatedItem = await updateShoppingItem(itemId, updates);
-      // Convert SupabaseShoppingItem to local ShoppingItem format
-      const localItem: ShoppingItem = {
-        id: updatedItem.id,
-        name: updatedItem.name,
-        quantity: updatedItem.quantity
-          ? parseFloat(updatedItem.quantity)
-          : undefined,
-        unit: updatedItem.unit,
-        category: updatedItem.category,
-        checked: updatedItem.checked,
-        recipeId: updatedItem.recipe_id,
-        createdAt: new Date(updatedItem.created_at),
-        updatedAt: new Date(updatedItem.updated_at),
-      };
-      setShoppingList((prev) =>
-        prev.map((item) => (item.id === itemId ? localItem : item))
-      );
-    } catch (error) {
-      console.error("[GroceriesContext] Error updating shopping item:", error);
-      setError("Failed to update shopping item.");
-      throw error;
-    }
-  };
-
-  const toggleItemInShoppingList = async (itemId: string) => {
-    if (!user?.id) return;
-
-    try {
-      const currentItem = shoppingList.find((item) => item.id === itemId);
-      if (!currentItem) return;
-
-      const updatedItem = await updateShoppingItem(itemId, {
-        checked: !currentItem.checked,
-      });
-
-      // Convert SupabaseShoppingItem to local ShoppingItem format
-      const localItem: ShoppingItem = {
-        id: updatedItem.id,
-        name: updatedItem.name,
-        quantity: updatedItem.quantity
-          ? parseFloat(updatedItem.quantity)
-          : undefined,
-        unit: updatedItem.unit,
-        category: updatedItem.category,
-        checked: updatedItem.checked,
-        recipeId: updatedItem.recipe_id,
-        createdAt: new Date(updatedItem.created_at),
-        updatedAt: new Date(updatedItem.updated_at),
-      };
-      setShoppingList((prev) =>
-        prev.map((item) => (item.id === itemId ? localItem : item))
-      );
-    } catch (error) {
-      console.error("[GroceriesContext] Error toggling item:", error);
-      setError("Failed to update item.");
-      throw error;
-    }
-  };
-
-  const removeItemFromShoppingList = async (itemId: string) => {
-    if (!user?.id) return;
-
-    try {
-      await removeSupabaseShoppingItem(itemId);
-      setShoppingList((prev) => prev.filter((item) => item.id !== itemId));
-    } catch (error) {
-      console.error("[GroceriesContext] Error removing item:", error);
-      setError("Failed to remove item.");
-      throw error;
-    }
-  };
-
   const addRecipeToShoppingList = async (recipe: Recipe) => {
-    if (!user?.id || !defaultShoppingList) return;
+    if (!user?.id) {
+      handleError(
+        new Error("User not authenticated"),
+        "adding recipe to shopping list"
+      );
+      return;
+    }
 
+    setIsLoading(true);
     try {
+      // Get or create default shopping list
+      let lists = await getShoppingLists(user.id);
+      let defaultList = lists.find((list) => list.title === "Shopping List");
+
+      if (!defaultList) {
+        defaultList = await createShoppingList(user.id, {
+          title: "Shopping List",
+          date: new Date().toISOString().split("T")[0],
+        });
+      }
+
       // Add all ingredients from the recipe
-      for (const ingredient of recipe.ingredients) {
-        await addSupabaseShoppingItem(defaultShoppingList.id, {
+      const addPromises = recipe.ingredients.map((ingredient) =>
+        addSupabaseShoppingItem(defaultList!.id, {
           name: ingredient.name,
           quantity: ingredient.amount?.toString() || "1",
           unit: ingredient.unit,
           category: "Other",
           recipe_id: recipe.id,
-        });
-      }
-
-      // Refresh the shopping list to get all new items
-      await refreshShoppingList();
-    } catch (error) {
-      console.error(
-        "[GroceriesContext] Error adding recipe to shopping list:",
-        error
-      );
-      setError("Failed to add recipe to shopping list.");
-      throw error;
-    }
-  };
-
-  const removeRecipeFromShoppingList = async (recipeId: string) => {
-    if (!user?.id) return;
-
-    try {
-      // Remove all items with this recipe_id
-      const itemsToRemove = shoppingList.filter(
-        (item) => item.recipeId === recipeId
-      );
-      for (const item of itemsToRemove) {
-        await removeSupabaseShoppingItem(item.id);
-      }
-      setShoppingList((prev) =>
-        prev.filter((item) => item.recipeId !== recipeId)
-      );
-    } catch (error) {
-      console.error("[GroceriesContext] Error removing recipe:", error);
-      setError("Failed to remove recipe.");
-      throw error;
-    }
-  };
-
-  const refreshShoppingList = async () => {
-    if (!user?.id) return;
-
-    try {
-      setIsLoading(true);
-      const lists = await getShoppingLists(user.id);
-
-      // Get or create default shopping list
-      let defaultList = lists.find((l) => l.title === "My Shopping List");
-      if (!defaultList) {
-        defaultList = await createShoppingList(user.id, {
-          title: "My Shopping List",
-          date: new Date().toISOString().split("T")[0],
-        });
-      }
-
-      setDefaultShoppingList(defaultList);
-
-      // Convert SupabaseShoppingItems to local ShoppingItems
-      const localItems: ShoppingItem[] = (defaultList.items || []).map(
-        (item) => ({
-          id: item.id,
-          name: item.name,
-          quantity: item.quantity ? parseFloat(item.quantity) : undefined,
-          unit: item.unit,
-          category: item.category,
-          checked: item.checked,
-          recipeId: item.recipe_id,
-          createdAt: new Date(item.created_at),
-          updatedAt: new Date(item.updated_at),
         })
       );
 
-      setShoppingList(localItems);
-    } catch (error) {
-      console.error(
-        "[GroceriesContext] Error refreshing shopping list:",
-        error
+      await Promise.allSettled(addPromises);
+      await refreshShoppingList();
+
+      console.log(
+        "[GroceriesContext] Recipe added to shopping list successfully"
       );
-      setError("Failed to refresh shopping list.");
+    } catch (error) {
+      handleError(error, "adding recipe to shopping list");
+
+      // Store offline action if network error
+      if (
+        error instanceof GroceriesServiceError &&
+        error.code === "NETWORK_ERROR"
+      ) {
+        await networkManager.persistOfflineAction({
+          type: "ADD_RECIPE_TO_SHOPPING_LIST",
+          payload: { recipe },
+        });
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Load Supabase shopping lists when user changes
-  useEffect(() => {
-    if (user?.id) {
-      refreshShoppingList();
+  const removeRecipeFromShoppingList = async (recipeId: string) => {
+    if (!user?.id || !defaultShoppingList) {
+      handleError(
+        new Error("User not authenticated or no shopping list"),
+        "removing recipe from shopping list"
+      );
+      return;
     }
-  }, [user?.id]);
+
+    setIsLoading(true);
+    try {
+      // Remove all items with this recipe_id
+      const itemsToRemove =
+        defaultShoppingList.items?.filter(
+          (item) => item.recipe_id === recipeId
+        ) || [];
+
+      const removePromises = itemsToRemove.map((item) =>
+        removeSupabaseShoppingItem(item.id)
+      );
+
+      await Promise.allSettled(removePromises);
+      await refreshShoppingList();
+
+      console.log(
+        "[GroceriesContext] Recipe removed from shopping list successfully"
+      );
+    } catch (error) {
+      handleError(error, "removing recipe from shopping list");
+
+      // Store offline action if network error
+      if (
+        error instanceof GroceriesServiceError &&
+        error.code === "NETWORK_ERROR"
+      ) {
+        await networkManager.persistOfflineAction({
+          type: "REMOVE_RECIPE_FROM_SHOPPING_LIST",
+          payload: { recipeId },
+        });
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const loadRecipesWithIngredients = async () => {
     if (!user?.id) return;
@@ -586,12 +717,11 @@ export const GroceriesProvider: React.FC<{ children: React.ReactNode }> = ({
     try {
       const recipes = await getUserRecipesWithIngredients(user.id);
       setRecipesWithIngredients(recipes);
-    } catch (error) {
-      console.error(
-        "[GroceriesContext] Error loading recipes with ingredients:",
-        error
+      console.log(
+        "[GroceriesContext] Recipes with ingredients loaded successfully"
       );
-      setError("Failed to load recipes with ingredients.");
+    } catch (error) {
+      handleError(error, "loading recipes with ingredients", false);
     }
   };
 
@@ -604,6 +734,10 @@ export const GroceriesProvider: React.FC<{ children: React.ReactNode }> = ({
         activeView,
         isLoading,
         error,
+        isOnline,
+        defaultShoppingList,
+        recipesWithIngredients,
+        loadRecipesWithIngredients,
         setActiveView,
         addShoppingItem,
         removeShoppingItem,
@@ -615,7 +749,6 @@ export const GroceriesProvider: React.FC<{ children: React.ReactNode }> = ({
         addSelectedRecipe,
         removeSelectedRecipe,
         clearError,
-        defaultShoppingList,
         addItemToShoppingList,
         updateShoppingItemInList,
         toggleItemInShoppingList,
@@ -623,8 +756,7 @@ export const GroceriesProvider: React.FC<{ children: React.ReactNode }> = ({
         addRecipeToShoppingList,
         removeRecipeFromShoppingList,
         refreshShoppingList,
-        recipesWithIngredients,
-        loadRecipesWithIngredients,
+        retryFailedOperations,
       }}
     >
       {children}

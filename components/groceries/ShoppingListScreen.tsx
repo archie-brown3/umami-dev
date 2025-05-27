@@ -219,16 +219,18 @@ const ShoppingListScreen: React.FC = () => {
                 {section.isRecipe && (
                   <Ionicons
                     name="restaurant-outline"
-                    size={20}
+                    size={18}
                     color={colors.primary}
                     style={styles.sectionIcon}
                   />
                 )}
-                <Text style={styles.sectionHeaderText}>{section.title}</Text>
-                <Text style={styles.sectionItemCount}>
-                  {section.data.length} item
-                  {section.data.length !== 1 ? "s" : ""}
-                </Text>
+                <View style={styles.sectionTextContainer}>
+                  <Text style={styles.sectionHeaderText}>{section.title}</Text>
+                  <Text style={styles.sectionItemCount}>
+                    {section.data.length} item
+                    {section.data.length !== 1 ? "s" : ""}
+                  </Text>
+                </View>
               </View>
             </View>
           )}
@@ -322,9 +324,15 @@ const styles = StyleSheet.create({
   },
   sectionHeader: {
     backgroundColor: colors.white,
-    padding: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: colors.gray[200],
+    borderBottomColor: colors.gray[100],
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   sectionHeaderContent: {
     flexDirection: "row",
@@ -333,14 +341,19 @@ const styles = StyleSheet.create({
   sectionIcon: {
     marginRight: spacing.sm,
   },
+  sectionTextContainer: {
+    flex: 1,
+  },
   sectionHeaderText: {
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
     color: colors.dark,
+    marginBottom: 2,
   },
   sectionItemCount: {
-    fontSize: 14,
-    color: colors.gray[600],
+    fontSize: 12,
+    color: colors.gray[500],
+    fontWeight: "500",
   },
 });
 

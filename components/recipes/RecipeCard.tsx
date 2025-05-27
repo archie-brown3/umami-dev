@@ -1,17 +1,22 @@
 import React from "react";
 import { Recipe } from "../../types";
-import { View, Text, StyleSheet, Image } from "react-native";
+import { View, Text, StyleSheet, Image, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { colors } from "../../utils/styleUtils";
-import { formatTagName } from "../../services/tagUtils";
+import { colors, spacing, borderRadius } from "../../utils/styleUtils";
+import { formatTagName, getTagCategoryColor } from "../../services/tagUtils";
 import { useImageLoading } from "../../hooks/useImageLoading";
 
 interface RecipeCardProps {
   recipe: Recipe;
   onPress?: () => void;
+  onTagPress?: (tag: string) => void;
 }
 
-export const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onPress }) => {
+export const RecipeCard: React.FC<RecipeCardProps> = ({
+  recipe,
+  onPress,
+  onTagPress,
+}) => {
   // Use the new image loading hook to handle all image loading logic
   const {
     currentImageUrl,
@@ -29,7 +34,7 @@ export const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onPress }) => {
   // Compute total cooking time
   const totalTime = (recipe.prepTime || 0) + (recipe.cookTime || 0);
   const tags = recipe.tags || [];
-  const maxTagsToShow = 2;
+  const maxTagsToShow = 3;
   const visibleTags = tags.slice(0, maxTagsToShow);
   const extraTagCount = tags.length - maxTagsToShow;
 
@@ -43,8 +48,17 @@ export const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onPress }) => {
     tags
   );
 
+  const handleTagPress = (tag: string, event: any) => {
+    event.stopPropagation(); // Prevent card press
+    onTagPress?.(tag);
+  };
+
   return (
-    <View style={styles.container}>
+    <TouchableOpacity
+      style={styles.container}
+      onPress={onPress}
+      activeOpacity={0.8}
+    >
       <View style={styles.imageContainer}>
         <Image
           source={getImageSource()}
@@ -52,116 +66,190 @@ export const RecipeCard: React.FC<RecipeCardProps> = ({ recipe, onPress }) => {
           onError={handleImageError}
           onLoad={handleImageLoad}
         />
-        <View style={styles.timeContainer}>
-          <Ionicons name="time-outline" size={16} color="#fff" />
-          <Text style={styles.timeText}>{totalTime} min</Text>
-        </View>
+        {totalTime > 0 && (
+          <View style={styles.timeContainer}>
+            <Ionicons name="time-outline" size={14} color="#fff" />
+            <Text style={styles.timeText}>{totalTime} min</Text>
+          </View>
+        )}
       </View>
+
       <View style={styles.content}>
         <Text style={styles.title} numberOfLines={2} ellipsizeMode="tail">
           {recipe.title || recipe.name || "Untitled Recipe"}
         </Text>
-        {/* Only show tags if they exist */}
+
+        {/* Recipe metadata */}
+        <View style={styles.metaContainer}>
+          <View style={styles.metaRow}>
+            <Ionicons
+              name="restaurant-outline"
+              size={12}
+              color={colors.gray[500]}
+            />
+            <Text style={styles.metaText}>
+              {recipe.servings || 1} serving{recipe.servings === 1 ? "" : "s"}
+            </Text>
+          </View>
+          {recipe.difficulty && (
+            <View style={styles.metaRow}>
+              <Ionicons
+                name="star-outline"
+                size={12}
+                color={colors.gray[500]}
+              />
+              <Text style={styles.metaText}>{recipe.difficulty}</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Tags section - only show if tags exist */}
         {tags.length > 0 && (
-          <View style={styles.tagsRow}>
-            {visibleTags.map((tag, index) => (
-              <View key={`${tag}-${index}`} style={styles.tag}>
-                <Text style={styles.tagText}>{formatTagName(tag)}</Text>
-              </View>
-            ))}
-            {extraTagCount > 0 && (
-              <View style={styles.moreTag}>
-                <Text style={styles.moreTagText}>+{extraTagCount}</Text>
-              </View>
-            )}
+          <View style={styles.tagsContainer}>
+            <View style={styles.tagsRow}>
+              {visibleTags.map((tag, index) => {
+                const categoryColor = getTagCategoryColor(tag);
+                return (
+                  <TouchableOpacity
+                    key={`${tag}-${index}`}
+                    style={[
+                      styles.tag,
+                      {
+                        backgroundColor: categoryColor + "20",
+                        borderColor: categoryColor + "40",
+                      },
+                    ]}
+                    onPress={(event) => handleTagPress(tag, event)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.tagText, { color: categoryColor }]}>
+                      {formatTagName(tag)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+              {extraTagCount > 0 && (
+                <TouchableOpacity
+                  style={styles.moreTag}
+                  onPress={(event) => {
+                    event.stopPropagation();
+                    onTagPress?.("show_all");
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.moreTagText}>+{extraTagCount}</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
         )}
       </View>
-    </View>
+    </TouchableOpacity>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.lg,
     overflow: "hidden",
     shadowColor: "#000",
-    shadowOpacity: 0.13,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
     borderWidth: 1,
-    borderColor: "#F1F5F9",
-    marginBottom: 8,
+    borderColor: colors.gray[100],
+    marginBottom: spacing.md,
     flex: 1,
+    minHeight: 220,
   },
   imageContainer: {
     width: "100%",
-    height: 140,
+    height: 120,
     position: "relative",
+    backgroundColor: colors.gray[50],
   },
   image: {
     width: "100%",
     height: "100%",
     resizeMode: "cover",
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
   },
   timeContainer: {
     position: "absolute",
-    top: 10,
-    left: 10,
-    backgroundColor: "rgba(0,0,0,0.7)",
+    top: spacing.sm,
+    right: spacing.sm,
+    backgroundColor: "rgba(0,0,0,0.75)",
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 100,
+    paddingHorizontal: 8,
+    borderRadius: borderRadius.full,
   },
   timeText: {
     color: "#fff",
     marginLeft: 4,
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "600",
   },
   content: {
-    padding: 16,
+    padding: spacing.md,
+    flex: 1,
   },
   title: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: "700",
-    marginBottom: 10,
+    marginBottom: spacing.sm,
     color: colors.dark,
+    lineHeight: 20,
+  },
+  metaContainer: {
+    marginBottom: spacing.sm,
+  },
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 2,
+  },
+  metaText: {
+    fontSize: 12,
+    color: colors.gray[600],
+    marginLeft: 4,
+    fontWeight: "500",
+  },
+  tagsContainer: {
+    marginTop: spacing.xs,
   },
   tagsRow: {
     flexDirection: "row",
     alignItems: "center",
-    flexWrap: "nowrap",
-    marginTop: 2,
-    gap: 8,
+    flexWrap: "wrap",
+    gap: spacing.xs,
   },
   tag: {
-    backgroundColor: colors.gray[100],
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
-    marginRight: 8,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: borderRadius.sm,
+    borderWidth: 1,
+    marginBottom: 4,
   },
   tagText: {
-    fontSize: 13,
-    color: colors.gray[700],
-    fontWeight: "500",
+    fontSize: 11,
+    fontWeight: "600",
+    textTransform: "capitalize",
   },
   moreTag: {
-    backgroundColor: colors.gray[200],
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
+    backgroundColor: colors.gray[100],
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: borderRadius.sm,
+    borderWidth: 1,
+    borderColor: colors.gray[200],
+    marginBottom: 4,
   },
   moreTagText: {
-    fontSize: 13,
+    fontSize: 11,
     color: colors.gray[600],
-    fontWeight: "500",
+    fontWeight: "600",
   },
 });

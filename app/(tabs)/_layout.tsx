@@ -10,7 +10,10 @@ import {
 import { Tabs, Link, usePathname, router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
 import { colors, spacing, createShadow } from "@/utils/styleUtils";
 import { useColorScheme } from "@/hooks/useColorScheme";
@@ -19,18 +22,26 @@ import { useAuth } from "@/context/AuthContext";
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
+
   if (!user) {
     return null;
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       <Tabs
         screenOptions={{
           headerShown: false,
           tabBarActiveTintColor: colors.primary,
           tabBarInactiveTintColor: colors.gray[500],
-          tabBarStyle: styles.tabBar,
+          tabBarStyle: [
+            styles.tabBar,
+            {
+              height: Platform.OS === "ios" ? 85 + insets.bottom : 70,
+              paddingBottom: Platform.OS === "ios" ? insets.bottom + 20 : 10,
+            },
+          ],
           tabBarLabelStyle: styles.tabBarLabel,
           tabBarIconStyle: styles.tabBarIcon,
           tabBarItemStyle: styles.tabBarItem,
@@ -124,8 +135,6 @@ const styles = StyleSheet.create({
   },
   tabBar: {
     ...createShadow(5, 0.1, 10),
-    height: Platform.OS === "ios" ? 85 : 70,
-    paddingBottom: Platform.OS === "ios" ? 20 : 10,
     paddingTop: 8,
     backgroundColor: colors.white,
     borderTopLeftRadius: 18,
@@ -137,6 +146,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 10,
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
   },
   tabBarLabel: {
     fontSize: 12,

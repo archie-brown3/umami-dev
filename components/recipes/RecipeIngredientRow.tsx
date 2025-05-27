@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { colors, spacing } from "../../utils/styleUtils";
 import { Ingredient } from "../../types";
 import { useGroceries } from "../../context/GroceriesContext";
@@ -8,12 +9,15 @@ import {
   useIngredientStatus,
   useShoppingListStatus,
 } from "../../hooks/useIngredientStatus";
+import { formatScaledAmount } from "../../utils/recipeScaling";
 
 interface RecipeIngredientRowProps {
   ingredient: Ingredient;
   recipeId?: string;
   showStatus?: boolean;
   showAddToShoppingList?: boolean;
+  scaledAmount?: number; // Optional scaled amount to display instead of original
+  isScaled?: boolean; // Whether this ingredient is currently scaled
 }
 
 const RecipeIngredientRow: React.FC<RecipeIngredientRowProps> = ({
@@ -21,8 +25,11 @@ const RecipeIngredientRow: React.FC<RecipeIngredientRowProps> = ({
   recipeId,
   showStatus = true,
   showAddToShoppingList = true,
+  scaledAmount,
+  isScaled,
 }) => {
-  const { addShoppingItem, removeShoppingItem, shoppingList } = useGroceries();
+  const { addItemToShoppingList, removeItemFromShoppingList, shoppingList } =
+    useGroceries();
   const ingredientStatus = useIngredientStatus([ingredient]);
   const isInShoppingList = useShoppingListStatus(ingredient.name);
 
@@ -56,24 +63,39 @@ const RecipeIngredientRow: React.FC<RecipeIngredientRowProps> = ({
     return "restaurant-outline";
   };
 
-  const handleAddToShoppingList = () => {
-    if (isInShoppingList) {
-      // Remove from shopping list
-      const itemToRemove = shoppingList.find(
-        (item) => item.name.toLowerCase() === ingredient.name.toLowerCase()
-      );
-      if (itemToRemove) {
-        removeShoppingItem(itemToRemove.id);
+  const handleAddToShoppingList = async () => {
+    try {
+      // Provide immediate haptic feedback
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+      if (isInShoppingList) {
+        // Remove from shopping list
+        const itemToRemove = shoppingList.find(
+          (item) => item.name.toLowerCase() === ingredient.name.toLowerCase()
+        );
+        if (itemToRemove) {
+          await removeItemFromShoppingList(itemToRemove.id);
+        }
+      } else {
+        // Add to shopping list using the correct Supabase method
+        await addItemToShoppingList({
+          name: ingredient.name,
+          quantity: ingredient.amount?.toString() || "1",
+          unit: ingredient.unit,
+          checked: false,
+          recipe_id: recipeId,
+        });
       }
-    } else {
-      // Add to shopping list
-      addShoppingItem({
-        name: ingredient.name,
-        quantity: ingredient.amount,
-        unit: ingredient.unit,
-        checked: false,
-        recipeId,
-      });
+
+      // Provide success haptic feedback
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error) {
+      console.error(
+        "[RecipeIngredientRow] Error updating shopping list:",
+        error
+      );
+      // Provide error haptic feedback
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
   };
 
@@ -94,9 +116,27 @@ const RecipeIngredientRow: React.FC<RecipeIngredientRowProps> = ({
         </View>
 
         <View style={styles.ingredientTextWrap}>
-          <Text style={styles.ingredientAmountText}>
-            {ingredient.amount} {ingredient.unit}
-          </Text>
+          <View style={styles.amountContainer}>
+            <Text
+              style={[
+                styles.ingredientAmountText,
+                isScaled && styles.scaledAmountText,
+              ]}
+            >
+              {scaledAmount
+                ? formatScaledAmount(scaledAmount)
+                : ingredient.amount}{" "}
+              {ingredient.unit}
+            </Text>
+            {isScaled && (
+              <Ionicons
+                name="resize-outline"
+                size={12}
+                color={colors.blue[600]}
+                style={styles.scaledIcon}
+              />
+            )}
+          </View>
           <Text> </Text>
           <Text style={styles.ingredientNameText}>{ingredient.name}</Text>
 
@@ -165,10 +205,23 @@ const RecipeIngredientRow: React.FC<RecipeIngredientRowProps> = ({
               isInShoppingList && styles.addButtonActive,
             ]}
             onPress={handleAddToShoppingList}
+            activeOpacity={0.7}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityLabel={
+              isInShoppingList
+                ? `Remove ${ingredient.name} from shopping list`
+                : `Add ${ingredient.name} to shopping list`
+            }
+            accessibilityRole="button"
+            accessibilityHint={
+              isInShoppingList
+                ? "Double tap to remove this ingredient from your shopping list"
+                : "Double tap to add this ingredient to your shopping list"
+            }
           >
             <Ionicons
               name={isInShoppingList ? "checkmark" : "add"}
-              size={16}
+              size={18}
               color={isInShoppingList ? colors.white : colors.primary[600]}
             />
           </TouchableOpacity>
@@ -202,10 +255,18 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     alignItems: "center",
   },
+  amountContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
   ingredientAmountText: {
     fontWeight: "500",
     color: colors.dark,
     fontSize: 15,
+  },
+  scaledAmountText: {
+    color: colors.blue[600],
+    fontWeight: "600",
   },
   ingredientNameText: {
     fontWeight: "normal",
@@ -248,18 +309,30 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   addButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: colors.primary[100],
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
     borderColor: colors.primary[300],
+    shadowColor: colors.primary[600],
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
   },
   addButtonActive: {
     backgroundColor: colors.primary[600],
     borderColor: colors.primary[600],
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+    transform: [{ scale: 1.05 }],
+  },
+  scaledIcon: {
+    marginLeft: spacing.xs,
   },
 });
 

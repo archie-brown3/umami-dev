@@ -14,34 +14,11 @@ import { useMealPlan } from "../../context/MealPlanContext";
 import WeeklyCalendar from "../../components/meal-plan/WeeklyCalendar";
 
 export default function MealPlanTab() {
-  const { currentWeek, generateShoppingList, refreshMealPlan, isLoading } =
-    useMealPlan();
+  const { refreshMealPlan, isLoading } = useMealPlan();
 
   useEffect(() => {
     refreshMealPlan();
   }, []);
-
-  const handleGenerateShoppingList = async () => {
-    try {
-      const weekStart = currentWeek.toISOString().split("T")[0];
-      const weekEnd = new Date(currentWeek.getTime() + 6 * 24 * 60 * 60 * 1000)
-        .toISOString()
-        .split("T")[0];
-
-      await generateShoppingList({
-        start: weekStart,
-        end: weekEnd,
-      });
-
-      Alert.alert(
-        "Shopping List Generated",
-        "A shopping list has been created from your meal plan!",
-        [{ text: "OK" }]
-      );
-    } catch (error) {
-      console.error("Failed to generate shopping list:", error);
-    }
-  };
 
   if (isLoading) {
     return (
@@ -56,7 +33,7 @@ export default function MealPlanTab() {
     <View style={styles.container}>
       <Stack.Screen
         options={{
-          title: "Meal Plan",
+          title: "My Meal Plan",
           headerShadowVisible: false,
           headerStyle: {
             backgroundColor: colors.white,
@@ -69,21 +46,18 @@ export default function MealPlanTab() {
           headerRight: () => (
             <View style={styles.headerActions}>
               <TouchableOpacity
-                onPress={handleGenerateShoppingList}
-                style={styles.headerButton}
-              >
-                <Ionicons
-                  name="basket-outline"
-                  size={20}
-                  color={colors.primary}
-                />
-              </TouchableOpacity>
-              <TouchableOpacity
                 onPress={refreshMealPlan}
                 style={styles.headerButton}
               >
                 <Ionicons
                   name="refresh-outline"
+                  size={20}
+                  color={colors.primary}
+                />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.headerButton}>
+                <Ionicons
+                  name="ellipsis-horizontal"
                   size={20}
                   color={colors.primary}
                 />

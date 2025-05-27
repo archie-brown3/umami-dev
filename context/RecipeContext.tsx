@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Recipe, MealPlan, RecipeContextType } from "@/types";
-import { generateId } from "@/lib/lib/utils";
+import { generateId } from "@/lib/utils";
 import { addRecipeToSupabase, getUserRecipes } from "@/services/recipeService";
 import { useAuth } from "./AuthContext";
 import { emitRecipeCreated } from "@/utils/eventEmitter";
@@ -32,10 +32,17 @@ const RecipeContext = createContext<
 
 // Provider component
 export function RecipeProvider({ children }: { children: React.ReactNode }) {
+  const authContext = useAuth();
+
+  // Wait for auth to initialize before proceeding
+  if (!authContext) {
+    return <>{children}</>;
+  }
+
+  const { user } = authContext;
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [mealPlans, setMealPlans] = useState<MealPlan[]>([]);
   const [mealPlan, setMealPlan] = useState<MealPlanState>({ dayMeals: {} });
-  const { user } = useAuth();
 
   // Load data from Supabase when user changes
   useEffect(() => {

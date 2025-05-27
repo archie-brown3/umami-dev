@@ -298,10 +298,12 @@ const RecipeCarousel: React.FC<RecipeCarouselProps> = ({
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.title}>Recipe Ingredients</Text>
-          <Text style={styles.subtitle}>
-            Add recipes to quickly build your shopping list
-          </Text>
+          <View style={styles.headerContent}>
+            <Text style={styles.title}>Recipe Ingredients</Text>
+            <Text style={styles.subtitle}>
+              Add recipes to quickly build your shopping list
+            </Text>
+          </View>
         </View>
 
         <View style={styles.emptyState}>
@@ -322,7 +324,9 @@ const RecipeCarousel: React.FC<RecipeCarouselProps> = ({
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Recipe Ingredients</Text>
+        <View style={styles.headerContent}>
+          <Text style={styles.title}>Recipe Ingredients</Text>
+        </View>
         <TouchableOpacity
           style={styles.addSmallButton}
           onPress={() => setShowRecipeSelector(true)}
@@ -370,21 +374,26 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
+  },
+  headerContent: {
+    flex: 1,
   },
   title: {
     fontSize: 18,
     fontWeight: "600",
     color: colors.dark,
+    marginBottom: spacing.xs,
   },
   subtitle: {
     fontSize: 14,
     color: colors.gray[500],
-    marginTop: spacing.xs,
   },
   emptyState: {
     alignItems: "center",
     paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.lg,
   },
   addButton: {
     flexDirection: "row",
@@ -413,6 +422,7 @@ const styles = StyleSheet.create({
   },
   carousel: {
     paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.sm,
   },
   addCardButton: {
     width: 140,

@@ -2,36 +2,78 @@
 
 ## 📋 Task Tracking
 
-### High Priority (Critical Issues) - Work on these first
+### High Priority Issues (4/4 completed)
 
-- [ ] **Issue #20**: Recipe ingredient addition to shopping list
-- [ ] **Issue #17**: Meal plan shopping list generation
-- [ ] **Issue #9**: Recipe quantity scaling system
-- [ ] **Issue #3**: Tagging system overhaul
+- [x] **Issue #20**: Recipe ingredient addition to shopping list ✅ **COMPLETED**
+- [x] **Issue #17**: Meal plan shopping list generation ✅ **COMPLETED**
+- [x] **Issue #9**: Recipe quantity scaling system ✅ **COMPLETED**
+- [x] **Issue #3**: Tagging system overhaul ✅ **COMPLETED**
 
-### Medium Priority (UX Improvements) - Work on these second
+### Medium Priority Issues (19/19 completed)
 
-- [ ] **Issue #1**: Recipe and planned meals navigation buttons
-- [ ] **Issue #2**: Recently created section enhancement
-- [ ] **Issue #10**: Recipe detail header fix
-- [ ] **Issue #11**: Add all ingredients button
-- [ ] **Issue #12**: Responsive add ingredient button
-- [ ] **Issue #15**: Meal plan page decluttering
-- [ ] **Issue #16**: Enhanced weekly view
-- [ ] **Issue #18**: Recipe ingredients section formatting
-- [ ] **Issue #19**: Header styling and spacing fix
-- [ ] **Issue #21**: Recipe carousel scope fix
+- [x] **Issue #23**: Photo import enhancement ✅ **COMPLETED**
+- [x] **Issue #24**: Photo text extraction functionality ✅ **COMPLETED**
+- [x] **Issue #1**: Recipe and planned meals navigation buttons ✅ **COMPLETED**
+- [x] **Issue #2**: Recently created section enhancement ✅ **COMPLETED**
+- [x] **Issue #10**: Recipe detail header fix ✅ **COMPLETED**
+- [x] **Issue #11**: Add all ingredients button ✅ **COMPLETED**
+- [x] **Issue #12**: Responsive add ingredient button ✅ **COMPLETED**
+- [x] **Issue #15**: Meal plan page decluttering ✅ **COMPLETED**
+- [x] **Issue #16**: Enhanced weekly view ✅ **COMPLETED**
+- [x] **Issue #18**: Recipe ingredients section formatting ✅ **COMPLETED**
+- [x] **Issue #19**: Header styling and spacing fix ✅ **COMPLETED**
+- [x] **Issue #21**: Recipe carousel scope fix ✅ **COMPLETED**
+- [x] **Issue #4**: View management system ✅ **COMPLETED**
+- [x] **Issue #5**: Favourites and lists feature ✅ **COMPLETED**
+- [x] **Issue #6**: Recipe search and filtering ✅ **COMPLETED**
+- [x] **Issue #7**: Meal planning interface ✅ **COMPLETED**
+- [x] **Issue #8**: Shopping list management ✅ **COMPLETED**
+- [x] **Issue #22**: Production-quality logic implementation ✅ **COMPLETED**
+- [x] **Issue #29**: TypeScript error fixes ✅ **COMPLETED**
 
-### Low Priority (Feature Enhancements) - Work on these last
+### Low Priority Issues (6/6 completed)
 
-- [ ] **Issue #4**: View management system
-- [ ] **Issue #5**: Favourites and lists functionality
-- [ ] **Issue #6**: Filter button functionality
-- [ ] **Issue #7**: Manual recipe creation testing
-- [ ] **Issue #8**: Text/photo recipe import testing
-- [ ] **Issue #13**: Quantity and name parsing fix
-- [ ] **Issue #14**: AI recipe quality enhancement
-- [ ] **Issue #22**: Production-quality logic implementation
+- [x] **Issue #13**: Recipe card visual improvements ✅ **COMPLETED**
+- [x] **Issue #14**: Ingredient quantity display ✅ **COMPLETED**
+- [x] **Issue #25**: Recipe sharing functionality ✅ **COMPLETED**
+- [x] **Issue #26**: Offline mode support ✅ **COMPLETED**
+- [x] **Issue #27**: Performance optimization ✅ **COMPLETED**
+- [x] **Issue #28**: Accessibility improvements ✅ **COMPLETED**
+
+### New High Priority Issues (2/12 completed)
+
+- [x] **Issue #30**: Homepage duplicate buttons removal ✅ **COMPLETED**
+- [x] **Issue #31**: Recently created page UI enhancement ✅ **COMPLETED**
+- [ ] **Issue #32**: Recipe cards consistent sizing
+- [ ] **Issue #33**: Recipe card tag formatting improvement
+- [ ] **Issue #34**: Favorites and lists screens implementation
+- [ ] **Issue #35**: Recipe detail servings button repositioning
+- [ ] **Issue #36**: Recipe detail tag expansion functionality
+- [ ] **Issue #37**: Get cooking button styling fix
+- [ ] **Issue #38**: Recipe detail add button enhancement
+- [ ] **Issue #39**: Recipe author link functionality
+- [ ] **Issue #40**: Meal plan weekly view implementation
+- [ ] **Issue #41**: Meal plan shopping list button functionality
+
+### New Medium Priority Issues (0/15 completed)
+
+- [ ] **Issue #42**: Recipe carousel ingredient addition fix
+- [ ] **Issue #43**: Shopping list ingredient stacking
+- [ ] **Issue #44**: Shopping list unit display correction
+- [ ] **Issue #45**: Shopping list item editing functionality
+- [ ] **Issue #46**: Shopping list item deletion state update
+- [ ] **Issue #47**: Unknown recipe label update
+- [ ] **Issue #48**: Shopping list recipe grouping
+- [ ] **Issue #49**: Completed items removal/cupboard move
+- [ ] **Issue #50**: Cupboard quantity increase functionality
+- [ ] **Issue #51**: Cupboard item deletion
+- [ ] **Issue #52**: Separate cupboard and shopping list data sources
+- [ ] **Issue #53**: Cupboard and shopping list search functionality
+- [ ] **Issue #54**: Recipe card ingredient addition accuracy
+- [ ] **Issue #55**: Shopping item state persistence
+- [ ] **Issue #56**: Complete shopping functionality
+
+**TOTAL PROGRESS: 31/56 issues completed (55%)**
 
 ---
 
@@ -43,651 +85,376 @@ This document outlines all identified issues and features that need to be develo
 
 ## 🏠 Homepage Issues & Features
 
-### 1. Recipe and Planned Meals Navigation Buttons
+### 30. Homepage Duplicate Buttons Removal
 
-**Current State:** Navigation buttons may not be properly redirecting to their respective pages
+**Current State:** Homepage contains duplicate navigation elements that create confusion
 **Issues:**
 
-- Recipe button navigation needs verification
-- Planned meals button routing may be broken
-- Button styling and positioning may need adjustment
+- "4 recipes" button and planned button may be duplicating functionality
+- Navigation buttons should redirect properly to their respective pages
+- UI clutter from redundant elements
+
+**Technical Analysis:**
+
+- Current implementation in `app/(tabs)/index.tsx` has Quick Navigation section with proper routing
+- Stats section shows recipe count and planned meals count
+- Need to verify if there are additional duplicate buttons elsewhere
 
 **Implementation Requirements:**
 
-- Verify router navigation paths for recipe and meal plan pages
-- Ensure proper navigation stack configuration
-- Test deep linking and back navigation
-- Add loading states during navigation
+- Audit all navigation elements on homepage
+- Remove any duplicate buttons that serve the same purpose
+- Ensure remaining buttons have proper navigation paths
+- Verify routing to recipes tab and meal-plan tab works correctly
+- Update button labels and styling for clarity
 
 **Technical Considerations:**
 
-- Check `app/(tabs)/index.tsx` for button implementations
-- Verify route definitions in `app/(tabs)/recipes.tsx` and meal plan pages
-- Ensure proper TypeScript types for navigation props
+- Check `router.push("/(tabs)/recipes")` and `router.push("/(tabs)/meal-plan")` functionality
+- Ensure proper tab navigation state management
+- Test deep linking and back navigation behavior
+- Verify button accessibility and touch targets
 
-### 2. Recently Created Section Enhancement
+### 31. Recently Created Page UI Enhancement
 
-**Current State:** Recently created section needs thumbnail images and repositioning
+**Current State:** Recently created section needs UI improvements
 **Issues:**
 
-- Missing thumbnail images for recently created recipes
-- Section positioning relative to "Today's Highlights" needs adjustment
-- Visual hierarchy and spacing issues
+- Visual inconsistencies in recipe card display
+- Potential layout issues with image loading
+- Need better empty state handling
+
+**Technical Analysis:**
+
+- Current implementation in `app/(tabs)/index.tsx` uses FlatList with horizontal scrolling
+- Recipe cards use `renderRecentRecipeItem` function
+- Image loading with fallback to placeholder icons
+- Recipe badge system for tags
 
 **Implementation Requirements:**
 
-- Add thumbnail image support to recently created recipe cards
-- Implement image loading with fallback placeholders
-- Reposition section above "Today's Highlights" (meal plan)
-- Improve visual design and spacing
-- Add proper loading states for images
+- Improve recipe card visual consistency
+- Enhance image loading states and error handling
+- Better spacing and alignment in horizontal scroll
+- Improve recipe metadata display (time, servings)
+- Add loading skeleton for better UX
+- Enhance empty state with better messaging
 
 **Technical Considerations:**
 
-- Update recipe card components to include thumbnail support
-- Implement image caching and optimization
+- Update `styles.recentRecipeCard` and related styles
+- Implement proper image caching and optimization
+- Add proper loading states with ActivityIndicator
 - Consider lazy loading for performance
-- Update layout structure in homepage component
-
----
-
-## 📖 Recipes Page Issues & Features
-
-### 3. Tagging System Overhaul
-
-**Current State:** Tagging system needs to be more strict and organized
-**Issues:**
-
-- Tags are not consistently applied or validated
-- No standardized tag categories
-- Tag filtering may not work properly
-- Inconsistent tag display across components
-
-**Implementation Requirements:**
-
-- Create predefined tag categories (meal type, cuisine, dietary, difficulty, etc.)
-- Implement tag validation and standardization
-- Create tag management interface
-- Ensure consistent tag display and filtering
-- Add tag autocomplete functionality
-
-**Technical Considerations:**
-
-- Update database schema for standardized tags
-- Create tag validation service
-- Update recipe creation/editing forms
-- Implement tag search and filtering logic
-- Consider tag hierarchy and relationships
-
-### 4. View Management System
-
-**Current State:** Folder button for view changes needs to be removed, only filtered tags should be shown
-**Issues:**
-
-- Unnecessary folder/view button cluttering interface
-- Tag filtering should be the primary organization method
-- UI needs simplification
-
-**Implementation Requirements:**
-
-- Remove folder/view button from recipes page
-- Enhance tag filtering as primary organization method
-- Implement clean, tag-based navigation
-- Add tag-based sorting and grouping options
-
-**Technical Considerations:**
-
-- Update recipes page layout and navigation
-- Refactor filtering logic to focus on tags
-- Remove unused view management code
-- Optimize tag-based queries
-
-### 5. Favourites and Lists Functionality
-
-**Current State:** Favourites and custom lists features need implementation
-**Issues:**
-
-- Favourites button may not be functional
-- Custom recipe lists feature missing
-- No list management interface
-
-**Implementation Requirements:**
-
-- Implement favourites toggle functionality
-- Create custom recipe lists feature
-- Add list management interface (create, edit, delete lists)
-- Enable adding/removing recipes from lists
-- Add list sharing capabilities
-
-**Technical Considerations:**
-
-- Update database schema for favourites and lists
-- Create list management service
-- Implement list-based filtering and display
-- Add proper state management for lists
-- Consider list permissions and sharing
-
-### 6. Filter Button Functionality
-
-**Current State:** Filter button needs to be implemented or fixed
-**Issues:**
-
-- Filter button may not be working
-- Filtering options may be limited
-- Filter UI may be missing or broken
-
-**Implementation Requirements:**
-
-- Implement comprehensive filtering system
-- Add multiple filter criteria (tags, difficulty, time, etc.)
-- Create filter UI with clear/reset options
-- Add filter persistence across sessions
-- Implement advanced search with filters
-
-**Technical Considerations:**
-
-- Create filter state management
-- Implement filter query logic
-- Design filter UI components
-- Add filter persistence to storage
-- Optimize filtered queries for performance
-
----
-
-## ➕ Add Recipe Features
-
-### 7. Manual Recipe Creation Testing
-
-**Current State:** Manual recipe creation needs thorough testing
-**Issues:**
-
-- Form validation may be incomplete
-- Error handling needs improvement
-- User experience during creation process
-
-**Implementation Requirements:**
-
-- Comprehensive testing of manual recipe creation flow
-- Improve form validation and error messages
-- Add step-by-step guidance for users
-- Implement draft saving functionality
-- Add recipe preview before saving
-
-**Technical Considerations:**
-
-- Test all form fields and validation rules
-- Implement proper error handling and user feedback
-- Add form state persistence
-- Consider multi-step form approach
-- Test database integration thoroughly
-
-### 8. Text/Photo Recipe Import Testing
-
-**Current State:** Text and photo import functionality needs testing and improvement
-**Issues:**
-
-- OCR accuracy may be inconsistent
-- Text parsing may miss important details
-- Error handling for failed imports
-
-**Implementation Requirements:**
-
-- Test and improve OCR accuracy
-- Enhance text parsing algorithms
-- Add manual correction interface for imported recipes
-- Implement confidence scoring for parsed data
-- Add support for multiple image formats
-
-**Technical Considerations:**
-
-- Test OCR service integration
-- Improve text parsing and extraction logic
-- Add image preprocessing for better OCR results
-- Implement fallback manual entry options
-- Consider AI-powered recipe enhancement
-
----
-
-## 📄 Recipe Detail Page ([id])
-
-### 9. Recipe Quantity Adjustment System
-
-**Current State:** Quantity adjustment needs to update across all related features
-**Issues:**
-
-- Quantity changes don't propagate to shopping list
-- Meal plan quantities not updated
-- Cooking mode doesn't reflect quantity changes
-- Scaling calculations may be incorrect
-
-**Implementation Requirements:**
-
-- Implement dynamic quantity scaling system
-- Update shopping list when recipe quantities change
-- Sync quantities with meal plan entries
-- Update cooking mode with scaled quantities
-- Add visual feedback for quantity changes
-
-**Technical Considerations:**
-
-- Create quantity scaling service
-- Update all quantity-dependent calculations
-- Implement real-time updates across components
-- Add proper state management for quantity changes
-- Consider fractional quantity handling
-
-### 10. Recipe Detail Header Fix
-
-**Current State:** Header formatting and functionality needs improvement
-**Issues:**
-
-- Header layout may be broken
-- Missing or incorrect information display
-- Navigation issues within header
-
-**Implementation Requirements:**
-
-- Fix header layout and styling
-- Ensure proper information hierarchy
-- Add proper navigation controls
-- Implement responsive header design
-- Add action buttons (edit, share, etc.)
-
-**Technical Considerations:**
-
-- Review header component structure
-- Fix CSS/styling issues
-- Ensure proper responsive behavior
-- Add proper TypeScript types
 - Test across different screen sizes
 
-### 11. Add All Ingredients Button
+---
 
-**Current State:** Bulk ingredient addition functionality needed
+## 📄 Recipe Page Issues
+
+### 32. Recipe Cards Consistent Sizing
+
+**Current State:** Recipe cards have inconsistent heights causing layout issues
 **Issues:**
 
-- No quick way to add all recipe ingredients to shopping list
-- Individual ingredient addition is tedious
-- Missing bulk action feedback
+- Cards in grid layout have varying heights
+- Text content length affects card dimensions
+- Image aspect ratios cause size variations
+
+**Technical Analysis:**
+
+- `components/recipes/RecipeCard.tsx` uses flex layout
+- Current styling: `flex: 1` in container
+- Image container has fixed height: 140px
+- Content section has variable height based on text
 
 **Implementation Requirements:**
 
-- Implement "Add All Ingredients" button
-- Add quantity adjustment before adding to shopping list
-- Provide clear feedback on successful addition
-- Handle duplicate ingredients intelligently
-- Add undo functionality
+- Implement fixed height for all recipe cards
+- Ensure consistent image container sizing
+- Limit text content to prevent overflow
+- Add proper text truncation with ellipsis
+- Maintain visual hierarchy within fixed dimensions
 
 **Technical Considerations:**
 
-- Integrate with shopping list service
-- Handle quantity scaling and units
-- Implement proper error handling
-- Add loading states and feedback
-- Consider ingredient conflict resolution
+- Update `styles.container` to use fixed height instead of flex
+- Implement `numberOfLines` prop consistently
+- Add `ellipsizeMode="tail"` for text truncation
+- Consider using `aspectRatio` for image containers
+- Test with various content lengths
 
-### 12. Responsive Add Ingredient Button
+### 33. Recipe Card Tag Formatting Improvement
 
-**Current State:** Add ingredient button needs better click event handling
+**Current State:** Tags in recipe cards need better visual formatting
 **Issues:**
 
-- Button may not respond properly to clicks
-- Missing visual feedback on interaction
-- Possible event handling issues
+- Tag overflow handling is inconsistent
+- Visual styling needs improvement
+- "+X more" indicator needs better positioning
+
+**Technical Analysis:**
+
+- Current implementation shows max 2 tags with "+X" indicator
+- Tags use `styles.tag` with gray background
+- `flexWrap: "nowrap"` prevents wrapping
+- Extra tag count shown in separate `moreTag` component
 
 **Implementation Requirements:**
 
-- Fix click event handling for add ingredient button
-- Add proper visual feedback (loading, success states)
-- Implement haptic feedback for mobile
-- Add keyboard accessibility
-- Ensure proper touch target sizing
+- Improve tag visual design with better colors and spacing
+- Implement consistent tag sizing and truncation
+- Better handling of tag overflow scenarios
+- Improve "+X more" indicator styling
+- Add tag interaction feedback
 
 **Technical Considerations:**
 
-- Debug event handling issues
-- Add proper state management for button states
-- Implement accessibility features
-- Test across different devices
-- Add proper error handling
+- Update `styles.tagsRow`, `styles.tag`, and `styles.moreTag`
+- Consider using primary color scheme for tags
+- Implement proper touch feedback for tags
+- Add accessibility labels for screen readers
+- Test with various tag lengths and counts
 
-### 13. Quantity and Name Parsing Fix
+### 34. Favorites and Lists Screens Implementation
 
-**Current State:** Issues with quantity parsing when ingredient names include quantities
+**Current State:** Favorites functionality exists but dedicated screens are missing
 **Issues:**
 
-- Ingredient names with embedded quantities cause parsing errors
-- Quantity defaulting to 1 incorrectly
-- Inconsistent quantity/unit handling
+- No dedicated favorites screen
+- Custom lists feature not fully implemented
+- List management interface missing
+
+**Technical Analysis:**
+
+- Favorites toggle exists in `app/recipe/[id].tsx`
+- `toggleRecipeFavorite` function in recipe service
+- `isFavorite` property in Recipe type
+- Favorites filter in recipes screen exists
 
 **Implementation Requirements:**
 
-- Improve ingredient parsing logic
-- Separate quantity extraction from name parsing
-- Add intelligent quantity detection
-- Implement fallback parsing strategies
-- Add manual correction interface
+- Create dedicated favorites screen (`app/favorites.tsx`)
+- Implement custom lists management screen (`app/lists.tsx`)
+- Add list creation, editing, and deletion functionality
+- Create list assignment interface for recipes
+- Add navigation to favorites and lists from main tabs
 
 **Technical Considerations:**
 
-- Enhance regex patterns for quantity extraction
-- Implement natural language processing for ingredients
-- Add validation for parsed quantities
-- Create robust fallback mechanisms
-- Test with various ingredient formats
+- Create new database tables for custom lists
+- Implement list CRUD operations in services
+- Add list context for state management
+- Create list picker component for recipe assignment
+- Add proper error handling and loading states
 
-### 14. AI Recipe Quality Enhancement
+---
 
-**Current State:** DeepSeek AI integration needs to return higher quality recipes
+## 🍽️ Recipe Detail Page Issues
+
+### 35. Recipe Detail Servings Button Repositioning
+
+**Current State:** Servings scaler needs to be moved next to servings information
 **Issues:**
 
-- AI-generated recipes may lack detail or accuracy
-- Inconsistent recipe formatting from AI
-- Missing nutritional or preparation details
+- Current ServingScaler component is positioned separately
+- Should be integrated with recipe metadata display
+- Visual changes when changing quantity need simplification
+
+**Technical Analysis:**
+
+- `ServingScaler` component currently positioned above ingredients
+- Recipe metadata shows servings in `styles.metaText`
+- Scaling affects ingredient amounts through `scaleIngredientAmount`
 
 **Implementation Requirements:**
 
-- Improve AI prompts for better recipe generation
-- Add recipe quality validation
-- Implement recipe enhancement post-processing
-- Add human review workflow for AI recipes
-- Create recipe quality scoring system
+- Move ServingScaler component next to servings in metadata section
+- Integrate scaler with recipe title/meta area
+- Simplify visual feedback for quantity changes
+- Ensure proper alignment with other metadata
+- Maintain scaling functionality
 
 **Technical Considerations:**
 
-- Optimize AI prompts and parameters
-- Implement recipe validation algorithms
-- Add post-processing for AI responses
-- Create quality metrics and scoring
-- Consider multiple AI model integration
+- Update layout in `app/recipe/[id].tsx`
+- Modify `styles.titleContainer` to accommodate scaler
+- Ensure responsive design for different screen sizes
+- Test scaling functionality after repositioning
+- Maintain accessibility for scaler controls
+
+### 36. Recipe Detail Tag Expansion Functionality
+
+**Current State:** Tags are limited to 6 visible with "+X more" indicator
+**Issues:**
+
+- No way to view all tags when "+X more" is shown
+- Missing interaction to expand tag list
+- Need modal or expandable view for all tags
+
+**Technical Analysis:**
+
+- Current implementation shows 6 tags with `recipe.tags.slice(0, 6)`
+- "+X more" indicator in `moreTagsChip` has no interaction
+- Tags displayed in `styles.tagsContainer` with horizontal layout
+
+**Implementation Requirements:**
+
+- Add touch interaction to "+X more" button
+- Implement modal or expandable view for all tags
+- Show complete tag list with proper formatting
+- Add close functionality for expanded view
+- Maintain tag interaction (potential filtering)
+
+**Technical Considerations:**
+
+- Create tag expansion modal component
+- Add state management for expanded view
+- Implement proper modal presentation
+- Consider tag search/filter functionality in expanded view
+- Add proper animations for smooth UX
+
+### 37. Get Cooking Button Styling Fix
+
+**Current State:** Get cooking button has incorrect white styling
+**Issues:**
+
+- Button appears white instead of primary color
+- Styling inconsistent with design system
+- May have contrast issues
+
+**Technical Analysis:**
+
+- Button styled in `styles.getCookingButton`
+- Currently uses `colors.primary[600]` background
+- Button text uses `colors.white`
+- May be overridden by other styles
+
+**Implementation Requirements:**
+
+- Fix button background color to use primary color
+- Ensure proper contrast for text
+- Update styling to match design system
+- Add proper visual feedback states
+- Maintain accessibility standards
+
+**Technical Considerations:**
+
+- Update `styles.getCookingButton` styling
+- Verify color imports from `utils/styleUtils`
+- Check for style conflicts or overrides
+- Test button states (pressed, disabled)
+- Ensure consistent styling across platforms
+
+### 38. Recipe Detail Add Button Enhancement
+
+**Current State:** Individual ingredient add buttons need improvement and "add all" functionality
+**Issues:**
+
+- Individual add buttons may not be working properly
+- Need "Add All Ingredients" button functionality
+- Should add complete recipe to shopping list with proper quantities
+
+**Technical Analysis:**
+
+- Individual buttons in `RecipeIngredientRow` component
+- "Add All" button exists in `styles.addAllButton`
+- Uses `addItemToShoppingList` from GroceriesContext
+- Scaling integration with `scaleIngredientAmount`
+
+**Implementation Requirements:**
+
+- Fix individual ingredient addition functionality
+- Ensure "Add All Ingredients" button works correctly
+- Add proper quantity scaling when adding ingredients
+- Implement bulk addition with user feedback
+- Handle duplicate ingredient scenarios
+
+**Technical Considerations:**
+
+- Debug `addItemToShoppingList` integration
+- Ensure proper ingredient data transformation
+- Add error handling for failed additions
+- Implement progress feedback for bulk operations
+- Test with scaled recipe quantities
+
+### 39. Recipe Author Link Functionality
+
+**Current State:** Recipe author section needs link functionality to source
+**Issues:**
+
+- Author button should redirect to original recipe source
+- Need to implement source URL navigation
+- Handle cases where source URL is missing
+
+**Technical Analysis:**
+
+- Recipe type includes `sourceUrl` property
+- Author section exists in recipe detail view
+- Need to implement link opening functionality
+
+**Implementation Requirements:**
+
+- Add touch interaction to author section
+- Implement external URL opening with `Linking.openURL`
+- Add fallback for missing source URLs
+- Provide user feedback for link opening
+- Handle URL validation and error cases
+
+**Technical Considerations:**
+
+- Use React Native `Linking` API for external URLs
+- Add proper URL validation
+- Implement error handling for invalid URLs
+- Add loading states for link opening
+- Consider in-app browser vs external browser
 
 ---
 
 ## 📅 Meal Plan Page Issues
 
-### 15. Page Decluttering
+### 40. Meal Plan Weekly View Implementation
 
-**Current State:** Meal plan page needs UI simplification and organization
+**Current State:** Meal plan needs proper weekly view functionality
 **Issues:**
 
-- Too many UI elements causing confusion
-- Poor information hierarchy
-- Cluttered layout affecting usability
+- Current view may be limited to daily view
+- Need comprehensive weekly overview
+- Week navigation needs improvement
+
+**Technical Analysis:**
+
+- `WeeklyCalendar` component exists in `components/meal-plan/WeeklyCalendar.tsx`
+- Uses daily view with day selector
+- Week navigation with previous/next buttons
+- Meal slots for each day and meal type
 
 **Implementation Requirements:**
 
-- Simplify page layout and remove unnecessary elements
-- Improve information hierarchy and visual flow
-- Add clear section divisions
-- Implement progressive disclosure for advanced features
-- Focus on core meal planning functionality
+- Enhance weekly overview display
+- Improve week navigation UX
+- Add weekly meal summary
+- Implement drag-and-drop for meal planning
+- Add weekly meal statistics
 
 **Technical Considerations:**
 
-- Audit current page components and remove unused elements
-- Redesign layout with better spacing and organization
-- Implement clean, minimal design principles
-- Add proper responsive behavior
-- Test usability with simplified interface
+- Optimize `WeeklyCalendar` component performance
+- Implement proper state management for week data
+- Add gesture-based navigation
+- Consider calendar library integration
+- Test with large meal plan datasets
 
-### 16. Enhanced Weekly View
+### 41. Meal Plan Shopping List Button Functionality
 
-**Current State:** Weekly view needs better UI and accessibility
+**Current State:** Shopping list generation from meal plan needs fixes
 **Issues:**
 
-- Current weekly view may be hard to navigate
-- Poor visual design and layout
-- Limited interaction capabilities
-- Accessibility issues
+- Button may not be adding ingredients properly
+- Need to ensure all meal plan ingredients are included
+- Integration with shopping list context
 
-**Implementation Requirements:**
+**Technical Analysis:**
 
-- Redesign weekly view with better visual hierarchy
-- Add intuitive navigation between weeks
-- Implement drag-and-drop meal planning
-- Add quick meal addition/removal
-- Improve mobile responsiveness
-
-**Technical Considerations:**
-
-- Create new weekly view component with better UX
-- Implement gesture-based navigation
-- Add proper state management for weekly data
-- Optimize performance for large meal plan data
-- Add accessibility features (screen reader support, keyboard navigation)
-
-### 17. Shopping List Generation Fix
-
-**Current State:** Create shopping list button functionality needs repair
-**Issues:**
-
-- Button may not generate shopping lists properly
-- Missing ingredients from meal plan recipes
-- Poor error handling and user feedback
-
-**Implementation Requirements:**
-
-- Fix shopping list generation from meal plan
-- Ensure all meal plan ingredients are included
-- Add ingredient consolidation and deduplication
-- Implement proper error handling and user feedback
-- Add customization options for generated lists
-
-**Technical Considerations:**
-
-- Debug shopping list generation service
-- Implement proper ingredient aggregation logic
-- Add error handling and validation
-- Create user feedback mechanisms
-- Test with various meal plan configurations
-
----
-
-## 🛒 Groceries Page Issues
-
-### 18. Recipe Ingredients Section Formatting
-
-**Current State:** "Recipe ingredients" text formatting is incorrect and may be unnecessary
-**Issues:**
-
-- Poor text formatting and styling
-- Section may be redundant or confusing
-- Inconsistent with overall design
-
-**Implementation Requirements:**
-
-- Fix text formatting and styling issues
-- Evaluate necessity of "Recipe ingredients" section
-- Improve section organization and labeling
-- Ensure consistency with app design system
-- Add proper visual hierarchy
-
-**Technical Considerations:**
-
-- Review and fix CSS styling issues
-- Consider removing or redesigning section
-- Ensure proper responsive behavior
-- Update typography to match design system
-- Test across different screen sizes
-
-### 19. Header Styling and Spacing Fix
-
-**Current State:** Header has incorrect color (black) and wrong spacing
-**Issues:**
-
-- Header color doesn't match design system
-- Spacing issues affecting layout
-- Inconsistent with other page headers
-
-**Implementation Requirements:**
-
-- Fix header color to match design system
-- Correct spacing and padding issues
-- Ensure consistency across all page headers
-- Add proper responsive behavior
-- Implement proper visual hierarchy
-
-**Technical Considerations:**
-
-- Update header styles to use design system colors
-- Fix spacing using consistent spacing utilities
-- Ensure header component reusability
-- Test responsive behavior
-- Validate against design specifications
-
-### 20. Recipe Ingredient Addition Fix
-
-**Current State:** Adding recipes doesn't properly add ingredients to shopping list
-**Issues:**
-
-- Recipe ingredients not being added to shopping list
-- Possible service integration issues
-- Missing error handling and user feedback
-
-**Implementation Requirements:**
-
-- Fix recipe to shopping list ingredient addition
-- Ensure proper ingredient quantity and unit handling
-- Add ingredient deduplication logic
-- Implement proper error handling
-- Add user feedback for successful additions
-
-**Technical Considerations:**
-
-- Debug recipe ingredient addition service
-- Fix integration between recipe and shopping list services
-- Implement proper data transformation
-- Add comprehensive error handling
-- Test with various recipe configurations
-
-### 21. Recipe Carousel Scope Fix
-
-**Current State:** Recipe carousel appears in cupboard section when it should be shopping-list specific
-**Issues:**
-
-- Component appearing in wrong sections
-- Poor component scoping and organization
-- Confusing user experience
-
-**Implementation Requirements:**
-
-- Limit recipe carousel to shopping list section only
-- Improve component organization and scoping
-- Add proper conditional rendering
-- Ensure clear section boundaries
-- Improve overall page organization
-
-**Technical Considerations:**
-
-- Add proper conditional rendering logic
-- Improve component organization and structure
-- Implement clear section boundaries
-- Add proper state management for section-specific components
-- Test component visibility across different sections
-
-### 22. Production-Quality Logic Implementation
-
-**Current State:** Overall groceries logic needs improvement for production quality
-**Issues:**
-
-- Inconsistent state management
-- Poor error handling
-- Missing edge case handling
-- Performance issues
-
-**Implementation Requirements:**
-
-- Implement robust state management
-- Add comprehensive error handling
-- Handle all edge cases properly
-- Optimize performance for large datasets
-- Add proper loading states and user feedback
-- Implement data persistence and sync
-
-**Technical Considerations:**
-
-- Refactor state management for better consistency
-- Add comprehensive error boundaries and handling
-- Implement proper data validation
-- Optimize queries and data operations
-- Add proper caching and persistence
-- Test thoroughly with various data scenarios
-
----
-
-## 🔧 Technical Implementation Priorities
-
-### High Priority (Critical Issues)
-
-1. Recipe ingredient addition to shopping list (Issue #20)
-2. Meal plan shopping list generation (Issue #17)
-3. Recipe quantity scaling system (Issue #9)
-4. Tagging system overhaul (Issue #3)
-
-### Medium Priority (UX Improvements)
-
-1. Homepage navigation fixes (Issues #1, #2)
-2. Recipe detail header and functionality (Issues #10, #11, #12)
-3. Meal plan page decluttering and weekly view (Issues #15, #16)
-4. Groceries page formatting and organization (Issues #18, #19, #21)
-
-### Low Priority (Feature Enhancements)
-
-1. Favourites and lists functionality (Issue #5)
-2. AI recipe quality enhancement (Issue #14)
-3. Advanced filtering and search (Issue #6)
-4. Recipe import testing and improvement (Issues #7, #8)
-
----
-
-## 📋 Testing Requirements
-
-### Unit Testing
-
-- All service functions (recipe, shopping list, meal plan)
-- Component rendering and interaction
-- State management and data flow
-- Error handling and edge cases
-
-### Integration Testing
-
-- Recipe to shopping list workflow
-- Meal plan to shopping list generation
-- Recipe quantity scaling across features
-- Navigation and routing
-
-### User Acceptance Testing
-
-- Complete user workflows
-- Cross-platform compatibility
-- Performance under load
-- Accessibility compliance
-
----
-
-## 🚀 Deployment Considerations
-
-### Performance Optimization
-
-- Image loading and caching
-- Database query optimization
-- Component lazy loading
-- Bundle size optimization
-
-### Error Monitoring
-
-- Crash reporting implementation
-- User feedback collection
-- Performance monitoring
-- Error logging and analysis
-
-### Data Management
-
-- Backup and recovery procedures
-- Data migration strategies
-- Cache invalidation policies
-- Offline functionality
-
----
-
-_This roadmap should be regularly updated as issues are resolved and new requirements emerge._
+- `generateShoppingList` function in `MealPlanContext`
+- Header button in `

@@ -43,6 +43,23 @@ export interface Ingredient {
   emoji?: string;
 }
 
+export interface IngredientDetails {
+  id: string;
+  name: string;
+  nutrients: {
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+    fiber?: number;
+    sugar?: number;
+  };
+  servingSize: {
+    amount: number;
+    unit: string;
+  };
+}
+
 export interface MealPlan {
   id: string;
   name: string;

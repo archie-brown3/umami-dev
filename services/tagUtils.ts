@@ -236,7 +236,7 @@ const VALID_FOOD_TAGS = {
 };
 
 // Tag categorization patterns - Updated to be more comprehensive
-const TAG_CATEGORIES = {
+export const TAG_CATEGORIES = {
   cuisine: {
     name: "Cuisine",
     color: "#FF6B6B",
@@ -440,6 +440,35 @@ const TAG_CATEGORIES = {
       "flavor:",
     ],
   },
+};
+
+// Country flag mapping for cuisine tags
+const CUISINE_FLAGS: { [key: string]: string } = {
+  italian: "🇮🇹",
+  mexican: "🇲🇽",
+  thai: "🇹🇭",
+  american: "🇺🇸",
+  chinese: "🇨🇳",
+  indian: "🇮🇳",
+  french: "🇫🇷",
+  mediterranean: "🌊", // Using ocean wave for Mediterranean region
+  asian: "🌏", // Using Asia-Pacific globe
+  spanish: "🇪🇸",
+  japanese: "🇯🇵",
+  korean: "🇰🇷",
+  greek: "🇬🇷",
+  "middle eastern": "🌍", // Using globe for Middle East region
+  moroccan: "🇲🇦",
+  vietnamese: "🇻🇳",
+  german: "🇩🇪",
+  british: "🇬🇧",
+  cajun: "🇺🇸", // Louisiana/US
+  "tex-mex": "🇺🇸", // Texas/US
+  fusion: "🌐", // Global fusion
+  latin: "🌎", // Latin America
+  caribbean: "🏝️", // Island for Caribbean
+  african: "🌍", // Africa globe
+  scandinavian: "🇸🇪", // Using Sweden flag for Scandinavian
 };
 
 /**
@@ -794,4 +823,9 @@ export function filterFoodTagsWithFeedback(tags: string[]): {
     feedback: result.feedback,
     stats,
   };
+}
+
+export function getCuisineFlag(tag: string): string {
+  const normalizedTag = tag.toLowerCase().trim();
+  return CUISINE_FLAGS[normalizedTag] || "";
 }

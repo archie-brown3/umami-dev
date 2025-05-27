@@ -20,6 +20,8 @@ import {
 } from "@/utils/styleUtils";
 import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
 import { validateRecipe, ValidationErrors } from "@/utils/recipeValidation";
+import { supabase } from "@/lib/supabase";
+import { addRecipeToSupabase } from "@/services/recipeService";
 
 // Import edit components (reused for create)
 import EditHeader from "@/components/recipe/edit/EditHeader";
@@ -98,7 +100,7 @@ const RecipeCreateScreen: React.FC = () => {
             onPress: () => router.back(),
           },
           { text: "Cancel", style: "cancel" },
-          { text: "Save", onPress: handleSave },
+          { text: "Save", onPress: () => handleSave() },
         ]
       );
       return true;
@@ -280,15 +282,30 @@ const RecipeCreateScreen: React.FC = () => {
         return false;
       }
 
-      // Create final recipe with timestamps
+      // Get the current user
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError || !user) {
+        throw new Error("You must be logged in to create recipes");
+      }
+
+      // Create final recipe with timestamps and user ID
       const finalRecipe = {
         ...state.recipe,
+        userId: user.id,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
 
-      // Add recipe to context/database
-      await addRecipe(finalRecipe);
+      // Save recipe to database using the service function
+      const savedRecipe = await addRecipeToSupabase(finalRecipe, user.id);
+
+      if (!savedRecipe) {
+        throw new Error("Failed to save recipe to database");
+      }
 
       // Clear draft from local storage
       const draftKey = `recipe-draft-${state.recipe.id}`;
@@ -296,7 +313,10 @@ const RecipeCreateScreen: React.FC = () => {
 
       setState((prev) => ({
         ...prev,
-        recipe: finalRecipe,
+        recipe: {
+          ...finalRecipe,
+          id: savedRecipe.id, // Use the ID from the database
+        },
         isDirty: false,
         isSaving: false,
         lastSaved: new Date(),
@@ -313,16 +333,17 @@ const RecipeCreateScreen: React.FC = () => {
     } catch (error) {
       setState((prev) => ({ ...prev, isSaving: false }));
 
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error occurred";
+      console.error("Failed to create recipe:", error);
+
       if (showFeedback) {
         Alert.alert(
           "Save Error",
-          error instanceof Error
-            ? error.message
-            : "Failed to create recipe. Please try again."
+          `Failed to create recipe: ${errorMessage}. Please try again.`
         );
       }
 
-      console.error("Failed to create recipe:", error);
       return false;
     }
   };

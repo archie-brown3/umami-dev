@@ -1278,3 +1278,40 @@ export const updateRecipeFromApp = async (
     throw error;
   }
 };
+
+/**
+ * Toggle the favorite status of a recipe
+ * @param recipeId The ID of the recipe to toggle
+ * @param isFavorite The new favorite status
+ * @returns The updated recipe data
+ */
+export const toggleRecipeFavorite = async (
+  recipeId: string,
+  isFavorite: boolean
+): Promise<boolean> => {
+  try {
+    console.log(
+      `[RecipeService] Toggling favorite for recipe ${recipeId} to ${isFavorite}`
+    );
+
+    const { data, error } = await supabase
+      .from("recipes")
+      .update({ is_favorite: isFavorite, updated_at: new Date().toISOString() })
+      .eq("id", recipeId)
+      .select("is_favorite")
+      .single();
+
+    if (error) {
+      console.error("[RecipeService] Error toggling favorite:", error);
+      throw error;
+    }
+
+    console.log(
+      `[RecipeService] Successfully toggled favorite for recipe ${recipeId}`
+    );
+    return data.is_favorite;
+  } catch (error) {
+    console.error("[RecipeService] Error in toggleRecipeFavorite:", error);
+    throw error;
+  }
+};

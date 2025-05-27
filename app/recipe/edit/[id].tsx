@@ -27,6 +27,7 @@ import {
   getRecipeWithDetails,
   updateRecipeFromApp,
 } from "@/services/recipeService";
+import { emitRecipeUpdated } from "@/utils/eventEmitter";
 
 // Import edit components
 import EditHeader from "@/components/recipe/edit/EditHeader";
@@ -131,18 +132,18 @@ const RecipeEditScreen: React.FC = () => {
     return false;
   }, [state.isDirty]);
 
-  // Auto-save functionality
-  const debouncedSave = useDebouncedCallback(async () => {
-    if (state.isDirty && !state.isSaving) {
-      await performSave(false); // Silent save
-    }
-  }, 2000);
+  // Auto-save functionality - DISABLED to require manual save
+  // const debouncedSave = useDebouncedCallback(async () => {
+  //   if (state.isDirty && !state.isSaving) {
+  //     await performSave(false); // Silent save
+  //   }
+  // }, 2000);
 
-  useEffect(() => {
-    if (state.isDirty && !state.isLoading) {
-      debouncedSave();
-    }
-  }, [state.recipe, state.isDirty]);
+  // useEffect(() => {
+  //   if (state.isDirty && !state.isLoading) {
+  //     debouncedSave();
+  //   }
+  // }, [state.recipe, state.isDirty]);
 
   const updateRecipeField = useCallback(
     <K extends keyof Recipe>(field: K, value: Recipe[K]) => {
@@ -342,6 +343,9 @@ const RecipeEditScreen: React.FC = () => {
       if (showFeedback) {
         Alert.alert("Success", "Recipe saved successfully!");
       }
+
+      // Emit event to refresh recipes list
+      emitRecipeUpdated(savedRecipe);
 
       return true;
     } catch (error) {

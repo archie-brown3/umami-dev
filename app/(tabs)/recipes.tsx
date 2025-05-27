@@ -16,7 +16,7 @@ import { router, useFocusEffect } from "expo-router";
 
 import EmptyState from "@/components/ui/EmptyState";
 import { RecipeCard } from "@/components/recipes/RecipeCard";
-import { TagFilter } from "@/components/recipes/TagFilter";
+import CategorizedTagFilter from "@/components/recipes/CategorizedTagFilter";
 import { useAuth } from "@/context/AuthContext";
 import { getUserRecipes } from "@/services/recipeService";
 // import { migrateUserRecipeTags } from "@/services/tagMigration";
@@ -32,6 +32,7 @@ export default function RecipesScreen() {
   const [filteredRecipes, setFilteredRecipes] = useState<Recipe[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isRefreshing, setIsRefreshing] = React.useState(false);
   const [isMigratingTags, setIsMigratingTags] = useState(false);
@@ -194,27 +195,56 @@ export default function RecipesScreen() {
     }
   };
 
+  // Filter recipes based on search query and favorites (tag filtering is handled by CategorizedTagFilter)
+  useEffect(() => {
+    let filtered = recipes;
+
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      filtered = filtered.filter(
+        (recipe) =>
+          recipe.title.toLowerCase().includes(query) ||
+          recipe.description?.toLowerCase().includes(query) ||
+          recipe.tags?.some((tag) => tag.toLowerCase().includes(query))
+      );
+    }
+
+    // Apply favorites filter
+    if (showFavoritesOnly) {
+      filtered = filtered.filter((recipe) => recipe.isFavorite);
+    }
+
+    // Only set filtered recipes if no tags are selected (let CategorizedTagFilter handle tag filtering)
+    if (selectedTags.length === 0) {
+      setFilteredRecipes(filtered);
+    }
+  }, [recipes, searchQuery, showFavoritesOnly, selectedTags]);
+
   // Handle tag filter changes
   const handleFilterChange = useCallback(
     (filtered: Recipe[]) => {
+      let finalFiltered = filtered;
+
       // Apply search query to the tag-filtered results
       if (searchQuery.trim()) {
-        const searchFiltered = filtered.filter(
+        const query = searchQuery.toLowerCase().trim();
+        finalFiltered = finalFiltered.filter(
           (recipe) =>
-            recipe.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            recipe.description
-              ?.toLowerCase()
-              .includes(searchQuery.toLowerCase()) ||
-            (recipe.tags || []).some((tag) =>
-              tag.toLowerCase().includes(searchQuery.toLowerCase())
-            )
+            recipe.title.toLowerCase().includes(query) ||
+            recipe.description?.toLowerCase().includes(query) ||
+            (recipe.tags || []).some((tag) => tag.toLowerCase().includes(query))
         );
-        setFilteredRecipes(searchFiltered);
-      } else {
-        setFilteredRecipes(filtered);
       }
+
+      // Apply favorites filter to the tag-filtered results
+      if (showFavoritesOnly) {
+        finalFiltered = finalFiltered.filter((recipe) => recipe.isFavorite);
+      }
+
+      setFilteredRecipes(finalFiltered);
     },
-    [searchQuery]
+    [searchQuery, showFavoritesOnly]
   );
 
   // Handle tag selection changes
@@ -222,64 +252,69 @@ export default function RecipesScreen() {
     setSelectedTags(tags);
   }, []);
 
+  // Handle tag press from recipe cards
+  const handleTagPress = useCallback(
+    (tag: string) => {
+      if (tag === "show_all") {
+        // Handle show all tags - could navigate to a detailed view
+        return;
+      }
+
+      const normalizedTag = tag.toLowerCase();
+      const newSelectedTags = selectedTags.includes(normalizedTag)
+        ? selectedTags.filter((t) => t !== normalizedTag)
+        : [...selectedTags, normalizedTag];
+
+      setSelectedTags(newSelectedTags);
+    },
+    [selectedTags]
+  );
+
   // Handle search input changes
   const handleSearchChange = useCallback(
     (query: string) => {
       setSearchQuery(query);
 
-      // Apply search to current tag-filtered recipes
-      if (query.trim()) {
-        const baseRecipes =
-          selectedTags.length > 0
-            ? recipes.filter((recipe) => {
-                const recipeTags = (recipe.tags || []).map((tag) =>
-                  tag.toLowerCase()
-                );
-                return selectedTags.every((selectedTag) =>
-                  recipeTags.includes(selectedTag.toLowerCase())
-                );
-              })
-            : recipes;
+      // If no tags are selected, handle search filtering directly
+      if (selectedTags.length === 0) {
+        let filtered = recipes;
 
-        const searchFiltered = baseRecipes.filter(
-          (recipe) =>
-            recipe.title.toLowerCase().includes(query.toLowerCase()) ||
-            recipe.description?.toLowerCase().includes(query.toLowerCase()) ||
-            (recipe.tags || []).some((tag) =>
-              tag.toLowerCase().includes(query.toLowerCase())
-            )
-        );
-        setFilteredRecipes(searchFiltered);
-      } else {
-        // Re-apply tag filtering if search is cleared
-        if (selectedTags.length > 0) {
-          const tagFiltered = recipes.filter((recipe) => {
-            const recipeTags = (recipe.tags || []).map((tag) =>
-              tag.toLowerCase()
-            );
-            return selectedTags.every((selectedTag) =>
-              recipeTags.includes(selectedTag.toLowerCase())
-            );
-          });
-          setFilteredRecipes(tagFiltered);
-        } else {
-          setFilteredRecipes(recipes);
+        if (query.trim()) {
+          const searchQuery = query.toLowerCase().trim();
+          filtered = filtered.filter(
+            (recipe) =>
+              recipe.title.toLowerCase().includes(searchQuery) ||
+              recipe.description?.toLowerCase().includes(searchQuery) ||
+              (recipe.tags || []).some((tag) =>
+                tag.toLowerCase().includes(searchQuery)
+              )
+          );
         }
+
+        // Apply favorites filter
+        if (showFavoritesOnly) {
+          filtered = filtered.filter((recipe) => recipe.isFavorite);
+        }
+
+        setFilteredRecipes(filtered);
       }
+      // If tags are selected, the CategorizedTagFilter will handle the filtering
+      // and call handleFilterChange which will apply search + favorites
     },
-    [recipes, selectedTags]
+    [recipes, selectedTags, showFavoritesOnly]
   );
 
   const hasRecipes = recipes.length > 0;
   const displayedRecipes = filteredRecipes;
 
   const renderRecipeCard = ({ item }: { item: Recipe }) => (
-    <TouchableOpacity
-      style={styles.recipeCardContainer}
-      onPress={() => router.push(`/recipe/${item.id}`)}
-    >
-      <RecipeCard recipe={item} />
-    </TouchableOpacity>
+    <View style={styles.recipeCardContainer}>
+      <RecipeCard
+        recipe={item}
+        onPress={() => router.push(`/recipe/${item.id}`)}
+        onTagPress={handleTagPress}
+      />
+    </View>
   );
 
   if (isLoading && recipes.length === 0) {
@@ -407,39 +442,29 @@ export default function RecipesScreen() {
             onChangeText={handleSearchChange}
           />
         </View>
-        <TouchableOpacity style={styles.filterButton}>
-          <Ionicons name="options-outline" size={20} color={colors.gray[700]} />
-          <Text style={styles.filterText}>Filter</Text>
+        <TouchableOpacity
+          style={[
+            styles.favoritesButton,
+            showFavoritesOnly && styles.favoritesButtonActive,
+          ]}
+          onPress={() => setShowFavoritesOnly(!showFavoritesOnly)}
+          activeOpacity={0.7}
+        >
+          <Ionicons
+            name={showFavoritesOnly ? "heart" : "heart-outline"}
+            size={20}
+            color={showFavoritesOnly ? colors.white : colors.gray[600]}
+          />
         </TouchableOpacity>
       </View>
 
-      <View style={styles.filtersAndTabsContainer}>
-        <TagFilter
+      <View style={styles.filtersContainer}>
+        <CategorizedTagFilter
           recipes={recipes}
           onFilterChange={handleFilterChange}
           selectedTags={selectedTags}
           onTagSelectionChange={handleTagSelectionChange}
         />
-
-        <View style={styles.tabsContainer}>
-          <TouchableOpacity style={[styles.tabButton, styles.activeTab]}>
-            <Text style={[styles.tabText, styles.activeTabText]}>
-              All Recipes
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.tabButton}>
-            <Ionicons name="heart-outline" size={18} color={colors.gray[500]} />
-            <Text style={styles.tabText}>Favorites</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.tabButton}>
-            <Ionicons
-              name="bookmark-outline"
-              size={18}
-              color={colors.gray[500]}
-            />
-            <Text style={styles.tabText}>My Lists</Text>
-          </TouchableOpacity>
-        </View>
       </View>
 
       <View style={styles.content}>
@@ -452,16 +477,30 @@ export default function RecipesScreen() {
           />
         ) : displayedRecipes.length === 0 ? (
           <EmptyState
-            title="No Matching Recipes"
+            title={
+              showFavoritesOnly ? "No Favorite Recipes" : "No Matching Recipes"
+            }
             message={
-              selectedTags.length > 0
+              showFavoritesOnly
+                ? "You haven't marked any recipes as favorites yet. Tap the heart icon on any recipe to add it to your favorites."
+                : selectedTags.length > 0
                 ? `No recipes found with the selected tags: ${selectedTags.join(
                     ", "
                   )}`
                 : "No recipes match your search criteria."
             }
-            actionLabel="Clear Filters"
-            iconName="filter-outline"
+            actionLabel={
+              showFavoritesOnly ? "View All Recipes" : "Clear Filters"
+            }
+            iconName={showFavoritesOnly ? "heart-outline" : "filter-outline"}
+            onActionClick={() => {
+              if (showFavoritesOnly) {
+                setShowFavoritesOnly(false);
+              } else {
+                setSelectedTags([]);
+                setSearchQuery("");
+              }
+            }}
           />
         ) : (
           <FlatList
@@ -498,7 +537,7 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: "row",
     paddingHorizontal: 16,
-    marginBottom: 8,
+    marginBottom: 16,
     alignItems: "center",
   },
   searchInputContainer: {
@@ -508,7 +547,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.gray[100],
     borderRadius: 8,
     paddingHorizontal: 12,
-    marginRight: 8,
   },
   searchIcon: {
     marginRight: 8,
@@ -518,44 +556,8 @@ const styles = StyleSheet.create({
     height: 40,
     color: colors.dark,
   },
-  filterButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-  },
-  filterText: {
-    marginLeft: 4,
-    color: colors.gray[700],
-    fontWeight: "500",
-  },
-  filtersAndTabsContainer: {
+  filtersContainer: {
     marginBottom: 0,
-  },
-  tabsContainer: {
-    flexDirection: "row",
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.gray[200],
-  },
-  tabButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 12,
-    marginRight: 24,
-  },
-  activeTab: {
-    borderBottomWidth: 2,
-    borderBottomColor: colors.primary,
-  },
-  tabText: {
-    color: colors.gray[500],
-    fontWeight: "500",
-    marginLeft: 4,
-  },
-  activeTabText: {
-    color: colors.primary,
-    fontWeight: "600",
   },
   content: {
     flex: 1,
@@ -572,6 +574,7 @@ const styles = StyleSheet.create({
     width: "48%",
     marginBottom: 20,
     elevation: 2,
+    minHeight: 240,
   },
   debugButton: {
     flexDirection: "row",
@@ -613,5 +616,13 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     color: colors.white,
     fontWeight: "500",
+  },
+  favoritesButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: colors.gray[200],
+  },
+  favoritesButtonActive: {
+    backgroundColor: colors.primary,
   },
 });

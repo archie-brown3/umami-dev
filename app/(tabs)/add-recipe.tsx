@@ -1,5 +1,5 @@
 // app/(tabs)/add-recipe.tsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -30,6 +30,7 @@ import {
   extractRecipeFromInstagramCaption,
   extractRecipeFromInstagram,
 } from "@/services/recipeExtractor";
+import * as ImagePicker from "expo-image-picker";
 
 type TabType = "manual" | "url" | "ai" | "instagram";
 
@@ -69,6 +70,17 @@ export default function AddRecipeScreen() {
   const handleUrlExtraction = async () => {
     if (!urlInput.trim()) {
       Alert.alert("Error", "Please enter a recipe URL");
+      return;
+    }
+
+    // Basic URL validation
+    try {
+      new URL(urlInput.trim());
+    } catch {
+      Alert.alert(
+        "Error",
+        "Please enter a valid URL (e.g., https://example.com/recipe)"
+      );
       return;
     }
 
@@ -134,18 +146,51 @@ export default function AddRecipeScreen() {
 
       // Provide more helpful error messages
       let userMessage = `Failed to extract recipe: ${errorMessage}`;
+      let actions: Array<{
+        text: string;
+        style?: "default" | "cancel" | "destructive";
+        onPress?: () => void;
+      }> = [{ text: "OK", style: "cancel" }];
+
       if (errorMessage.includes("validation failed")) {
         userMessage =
           "The webpage doesn't contain a complete recipe with ingredients and instructions. Please try a different URL or add the recipe manually.";
+        actions = [
+          { text: "Manual Entry", onPress: () => setActiveTab("manual") },
+          { text: "OK", style: "cancel" },
+        ];
       } else if (errorMessage.includes("No text content found")) {
         userMessage =
           "Unable to extract content from this webpage. It might be protected or doesn't contain readable text.";
-      } else if (errorMessage.includes("Web Scraping API Error")) {
+        actions = [
+          { text: "Try Different URL", style: "default" },
+          { text: "Manual Entry", onPress: () => setActiveTab("manual") },
+          { text: "Cancel", style: "cancel" },
+        ];
+      } else if (
+        errorMessage.includes("Web Scraping API Error") ||
+        errorMessage.includes("fetch")
+      ) {
         userMessage =
           "The scraping service is temporarily unavailable. Please try again later or add the recipe manually.";
+        actions = [
+          { text: "Try Again", onPress: () => handleUrlExtraction() },
+          { text: "Manual Entry", onPress: () => setActiveTab("manual") },
+          { text: "Cancel", style: "cancel" },
+        ];
+      } else if (
+        errorMessage.includes("timeout") ||
+        errorMessage.includes("network")
+      ) {
+        userMessage =
+          "Network timeout occurred. Please check your internet connection and try again.";
+        actions = [
+          { text: "Try Again", onPress: () => handleUrlExtraction() },
+          { text: "Cancel", style: "cancel" },
+        ];
       }
 
-      Alert.alert("Error", userMessage);
+      Alert.alert("Error", userMessage, actions);
     } finally {
       setIsLoading(false);
     }
@@ -437,9 +482,39 @@ export default function AddRecipeScreen() {
 
     try {
       setIsLoading(true);
-      addLog("Analyzing extracted text...");
+      addLog("Analyzing extracted text with enhanced parsing...");
 
-      const recipeData = await analyzeRecipeText(extractedText);
+      // First try the enhanced recipe text parser
+      let recipeData: Partial<Recipe> | null = null;
+
+      try {
+        const { parseRecipeFromText } = await import(
+          "@/services/recipeTextParser"
+        );
+        recipeData = parseRecipeFromText(extractedText);
+        addLog("Enhanced parsing successful - found structured recipe data");
+
+        // Log what was found
+        if (recipeData.title) addLog(`Title: ${recipeData.title}`);
+        if (recipeData.ingredients?.length)
+          addLog(`Ingredients: ${recipeData.ingredients.length} found`);
+        if (recipeData.instructions?.length)
+          addLog(`Instructions: ${recipeData.instructions.length} steps`);
+        if (recipeData.servings) addLog(`Servings: ${recipeData.servings}`);
+        if (recipeData.prepTime || recipeData.cookTime) {
+          addLog(
+            `Time: ${recipeData.prepTime || 0}min prep + ${
+              recipeData.cookTime || 0
+            }min cook`
+          );
+        }
+      } catch (parseError) {
+        addLog("Enhanced parsing failed, falling back to AI analysis...");
+        console.warn("Enhanced parsing failed:", parseError);
+
+        // Fallback to AI analysis
+        recipeData = await analyzeRecipeText(extractedText);
+      }
 
       if (!recipeData) {
         const errorMsg = "Failed to analyze the recipe text";
@@ -516,55 +591,286 @@ export default function AddRecipeScreen() {
 
   // Add a recipe manually
   const handleAddRecipe = async () => {
-    // Very basic validation
-    if (!title) {
-      Alert.alert("Error", "Please enter a title");
+    // Enhanced validation
+    if (!title.trim()) {
+      Alert.alert("Error", "Please enter a recipe title");
       return;
     }
 
-    // Create a recipe object that matches Recipe type
-    const newRecipe: Recipe = {
-      id: Date.now().toString(),
-      title: title,
-      ingredients: [
-        {
-          id: "ing-1",
-          name: "Example ingredient",
-          amount: 1,
-          unit: "item",
-        },
-      ],
-      instructions: ["Example instruction"],
-      prepTime: parseInt(prepTime) || 0,
-      cookTime: parseInt(cookTime) || 0,
-      servings: parseInt(servings) || 1,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    if (title.trim().length < 3) {
+      Alert.alert("Error", "Recipe title must be at least 3 characters long");
+      return;
+    }
 
-    // Get current user and attempt to save to Supabase
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    const savedRecipe = await addRecipeToSupabase(newRecipe, user?.id);
+    // Validate numeric inputs
+    const prepTimeNum = parseInt(prepTime) || 0;
+    const cookTimeNum = parseInt(cookTime) || 0;
+    const servingsNum = parseInt(servings) || 1;
 
-    if (savedRecipe) {
-      // Optionally, update local state/context if needed
-      // addRecipe(savedRecipe); // Pass the recipe returned from Supabase
-      addLog(`Manual recipe saved to Supabase: ${savedRecipe.title}`);
-      Alert.alert(
-        "Success",
-        `Recipe "${savedRecipe.title}" has been successfully saved.`,
-        [
+    if (prepTimeNum < 0 || prepTimeNum > 1440) {
+      Alert.alert("Error", "Prep time must be between 0 and 1440 minutes");
+      return;
+    }
+
+    if (cookTimeNum < 0 || cookTimeNum > 1440) {
+      Alert.alert("Error", "Cook time must be between 0 and 1440 minutes");
+      return;
+    }
+
+    if (servingsNum < 1 || servingsNum > 100) {
+      Alert.alert("Error", "Servings must be between 1 and 100");
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      addLog(`Creating manual recipe: ${title.trim()}`);
+
+      // Create a recipe object that matches Recipe type
+      const newRecipe: Recipe = {
+        id: Date.now().toString(),
+        title: title.trim(),
+        description: "Quick recipe - edit to add more details",
+        ingredients: [
           {
-            text: "OK",
-            onPress: () => router.replace("/recipes"),
+            id: "ing-1",
+            name: "Add your ingredients",
+            amount: 1,
+            unit: "item",
           },
-        ]
+        ],
+        instructions: ["Add your cooking instructions here"],
+        prepTime: prepTimeNum,
+        cookTime: cookTimeNum,
+        servings: servingsNum,
+        tags: ["Quick Add"],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      // Get current user and attempt to save to Supabase
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError || !user) {
+        throw new Error("You must be logged in to create recipes");
+      }
+
+      const savedRecipe = await addRecipeToSupabase(newRecipe, user.id);
+
+      if (savedRecipe) {
+        addLog(`Manual recipe saved to Supabase: ${savedRecipe.title}`);
+        Alert.alert(
+          "Success",
+          `Recipe "${savedRecipe.title}" has been successfully created! You can now edit it to add ingredients and instructions.`,
+          [
+            {
+              text: "Edit Recipe",
+              onPress: () => router.push(`/recipe/edit/${savedRecipe.id}`),
+            },
+            {
+              text: "View Recipe",
+              onPress: () => router.push(`/recipe/${savedRecipe.id}`),
+            },
+          ]
+        );
+      } else {
+        throw new Error("Failed to save recipe to database");
+      }
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error occurred";
+      addLog(`Failed to save manual recipe: ${errorMessage}`);
+      console.error("Error creating manual recipe:", error);
+
+      Alert.alert(
+        "Error",
+        `Failed to create recipe: ${errorMessage}. Please try again.`
       );
-    } else {
-      addLog(`Failed to save manual recipe to Supabase.`);
-      // Error alert is handled in addRecipeToSupabase
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle photo selection from camera roll
+  const handlePhotoSelection = async () => {
+    try {
+      // Request permission to access media library
+      const permissionResult =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (permissionResult.granted === false) {
+        Alert.alert(
+          "Permission Required",
+          "Permission to access camera roll is required to select photos."
+        );
+        return;
+      }
+
+      // Launch image picker
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+        allowsMultipleSelection: false,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const selectedImage = result.assets[0];
+
+        // Process the selected image through the text extraction pipeline
+        setIsLoading(true);
+        addLog("Processing selected photo...");
+
+        try {
+          // Import the enhanced text extraction and parsing service
+          const { extractAndParseRecipeFromImage } = await import(
+            "@/services/recipeTextParser"
+          );
+
+          // Extract and parse recipe data from the selected image
+          const parsedRecipe = await extractAndParseRecipeFromImage(
+            selectedImage.uri
+          );
+
+          if (
+            !parsedRecipe ||
+            (!parsedRecipe.title &&
+              (!parsedRecipe.ingredients ||
+                parsedRecipe.ingredients.length === 0))
+          ) {
+            Alert.alert(
+              "No Recipe Found",
+              "No recipe structure could be identified in this image. This could be due to:\n\n• Poor image quality or lighting\n• Text is too small or blurry\n• Image doesn't contain a complete recipe\n\nPlease try a different photo or enter the recipe manually.",
+              [
+                {
+                  text: "Try Another Photo",
+                  onPress: () => handlePhotoSelection(),
+                },
+                { text: "Manual Entry", onPress: () => setActiveTab("manual") },
+                { text: "Cancel", style: "cancel" },
+              ]
+            );
+            setIsLoading(false);
+            return;
+          }
+
+          addLog("Enhanced parsing successful from photo!");
+          if (parsedRecipe.title) addLog(`Title: ${parsedRecipe.title}`);
+          if (parsedRecipe.ingredients?.length)
+            addLog(`Ingredients: ${parsedRecipe.ingredients.length} found`);
+          if (parsedRecipe.instructions?.length)
+            addLog(`Instructions: ${parsedRecipe.instructions.length} steps`);
+
+          // Process the parsed recipe data
+          const normalizedData = normalizeRecipe(parsedRecipe);
+          const validationErrors = validateRecipe(normalizedData);
+
+          if (validationErrors.length > 0) {
+            addLog(`Validation warnings: ${validationErrors.join(", ")}`);
+
+            // For photo extraction, be more lenient with validation
+            Alert.alert(
+              "Recipe Extracted with Warnings",
+              `The recipe was extracted but may be incomplete:\n\n${validationErrors.join(
+                "\n"
+              )}\n\nWould you like to continue and edit the details manually?`,
+              [
+                {
+                  text: "Try Another Photo",
+                  onPress: () => handlePhotoSelection(),
+                },
+                {
+                  text: "Cancel",
+                  style: "cancel",
+                  onPress: () => setIsLoading(false),
+                },
+                {
+                  text: "Continue & Edit",
+                  onPress: async () => {
+                    // Ensure we have at least basic structure
+                    if (
+                      !normalizedData.ingredients ||
+                      normalizedData.ingredients.length === 0
+                    ) {
+                      normalizedData.ingredients = [
+                        {
+                          id: `placeholder-${Date.now()}`,
+                          name: "Add ingredients manually",
+                          amount: 1,
+                          unit: "item",
+                        },
+                      ];
+                    }
+
+                    if (
+                      !normalizedData.instructions ||
+                      normalizedData.instructions.length === 0
+                    ) {
+                      normalizedData.instructions = [
+                        "Add cooking instructions here",
+                      ];
+                    }
+
+                    await processValidRecipe(normalizedData);
+                  },
+                },
+              ]
+            );
+            return;
+          }
+
+          // Process the valid recipe
+          await processValidRecipe(normalizedData);
+        } catch (error) {
+          console.error("Error processing selected photo:", error);
+          setIsLoading(false);
+
+          let errorMessage = "Failed to process the selected photo.";
+          let actions: Array<{
+            text: string;
+            style?: "default" | "cancel" | "destructive";
+            onPress?: () => void;
+          }> = [
+            {
+              text: "Try Another Photo",
+              onPress: () => handlePhotoSelection(),
+            },
+            { text: "Manual Entry", onPress: () => setActiveTab("manual") },
+            { text: "Cancel", style: "cancel" },
+          ];
+
+          if (error instanceof Error) {
+            if (error.message.includes("quota")) {
+              errorMessage =
+                "OCR service quota exceeded. Please try again later or enter the recipe manually.";
+              actions = [
+                { text: "Manual Entry", onPress: () => setActiveTab("manual") },
+                { text: "OK", style: "cancel" },
+              ];
+            } else if (error.message.includes("authentication")) {
+              errorMessage =
+                "OCR service is temporarily unavailable. Please try manual entry.";
+              actions = [
+                { text: "Manual Entry", onPress: () => setActiveTab("manual") },
+                { text: "OK", style: "cancel" },
+              ];
+            } else if (error.message.includes("confidence too low")) {
+              errorMessage =
+                "The image quality is too low for text extraction. Please try a clearer photo with better lighting.";
+            }
+          }
+
+          Alert.alert("Error", errorMessage, actions);
+        }
+      }
+    } catch (error) {
+      console.error("Error selecting photo:", error);
+      setIsLoading(false);
+      Alert.alert("Error", "Failed to select photo. Please try again.");
     }
   };
 
@@ -753,17 +1059,31 @@ export default function AddRecipeScreen() {
                   <View style={styles.dividerLine} />
                 </View>
 
-                <Pressable
-                  style={styles.uploadButton}
-                  onPress={() => setShowCamera(true)}
-                >
-                  <Ionicons
-                    name="camera-outline"
-                    size={24}
-                    color={colors.primary}
-                  />
-                  <Text style={styles.uploadButtonText}>Take a Photo</Text>
-                </Pressable>
+                <View style={styles.photoButtonsContainer}>
+                  <Pressable
+                    style={[styles.uploadButton, styles.halfButton]}
+                    onPress={() => setShowCamera(true)}
+                  >
+                    <Ionicons
+                      name="camera-outline"
+                      size={24}
+                      color={colors.primary}
+                    />
+                    <Text style={styles.uploadButtonText}>Take Photo</Text>
+                  </Pressable>
+
+                  <Pressable
+                    style={[styles.uploadButton, styles.halfButton]}
+                    onPress={handlePhotoSelection}
+                  >
+                    <Ionicons
+                      name="images-outline"
+                      size={24}
+                      color={colors.primary}
+                    />
+                    <Text style={styles.uploadButtonText}>Choose Photo</Text>
+                  </Pressable>
+                </View>
               </View>
             )}
           </>
@@ -803,6 +1123,59 @@ export default function AddRecipeScreen() {
 
       default:
         return null;
+    }
+  };
+
+  // Test text extraction service when AI tab is opened
+  useEffect(() => {
+    if (activeTab === "ai") {
+      testTextExtractionService();
+    }
+  }, [activeTab]);
+
+  const testTextExtractionService = async () => {
+    try {
+      const { testTextExtractionService } = await import(
+        "@/services/textRecognition"
+      );
+      const testResult = await testTextExtractionService();
+
+      if (!testResult.isConfigured) {
+        console.warn(
+          "[AddRecipe] Text extraction service not configured, using fallback"
+        );
+      } else if (!testResult.isWorking) {
+        console.warn(
+          `[AddRecipe] Text extraction service issue: ${testResult.error}`
+        );
+      } else {
+        console.log("[AddRecipe] Text extraction service is working properly");
+      }
+
+      // Test ingredient parsing logic
+      const { testIngredientParsing } = await import(
+        "@/services/deepseekservice"
+      );
+      testIngredientParsing();
+
+      // Test enhanced AI recipe quality
+      const { testEnhancedRecipeQuality } = await import(
+        "@/services/deepseekservice"
+      );
+      const qualityTestResult = await testEnhancedRecipeQuality();
+
+      if (qualityTestResult.success) {
+        console.log("[AddRecipe] Enhanced AI recipe quality tests passed");
+      } else {
+        console.warn(
+          `[AddRecipe] AI recipe quality needs improvement: ${qualityTestResult.message}`
+        );
+      }
+    } catch (error) {
+      console.error(
+        "[AddRecipe] Error testing text extraction service:",
+        error
+      );
     }
   };
 
@@ -1007,5 +1380,13 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSizes.sm,
     color: colors.gray[600],
     marginBottom: spacing.md,
+  },
+  photoButtonsContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: spacing.md,
+  },
+  halfButton: {
+    flex: 1,
   },
 });

@@ -18,6 +18,7 @@ import {
   borderRadius,
   createShadow,
 } from "@/utils/styleUtils";
+import TagEditor from "@/components/recipes/TagEditor";
 
 interface AdditionalInfoCardProps {
   recipe: Recipe;
@@ -81,36 +82,8 @@ const AdditionalInfoCard: React.FC<AdditionalInfoCardProps> = ({
   onUpdate,
   errors,
 }) => {
-  const [newTag, setNewTag] = useState("");
   const [showCategories, setShowCategories] = useState(false);
   const [showCuisines, setShowCuisines] = useState(false);
-
-  const addTag = () => {
-    const trimmedTag = newTag.trim();
-    if (!trimmedTag) return;
-
-    if (recipe.tags && recipe.tags.length >= VALIDATION_LIMITS.TAGS.max) {
-      Alert.alert(
-        "Tag Limit Reached",
-        `Maximum ${VALIDATION_LIMITS.TAGS.max} tags allowed`
-      );
-      return;
-    }
-
-    if (recipe.tags?.includes(trimmedTag)) {
-      Alert.alert("Duplicate Tag", "This tag already exists");
-      return;
-    }
-
-    const updatedTags = [...(recipe.tags || []), trimmedTag];
-    onUpdate("tags", updatedTags);
-    setNewTag("");
-  };
-
-  const removeTag = (tagToRemove: string) => {
-    const updatedTags = recipe.tags?.filter((tag) => tag !== tagToRemove) || [];
-    onUpdate("tags", updatedTags);
-  };
 
   const renderDropdown = (
     items: string[],
@@ -247,57 +220,14 @@ const AdditionalInfoCard: React.FC<AdditionalInfoCardProps> = ({
         )}
       </View>
 
-      {/* Tags Section */}
+      {/* Tags Section - Using new TagEditor component */}
       <View style={styles.fieldContainer}>
-        <Text style={styles.fieldLabel}>
-          Tags ({recipe.tags?.length || 0}/{VALIDATION_LIMITS.TAGS.max})
-        </Text>
-
-        {/* Add Tag Input */}
-        <View style={styles.tagInputContainer}>
-          <TextInput
-            style={styles.tagInput}
-            value={newTag}
-            onChangeText={setNewTag}
-            placeholder="Add a tag..."
-            maxLength={VALIDATION_LIMITS.TAG_LENGTH.max}
-            returnKeyType="done"
-            onSubmitEditing={addTag}
-            autoCapitalize="words"
-          />
-          <TouchableOpacity
-            style={[
-              styles.addTagButton,
-              !newTag.trim() && styles.addTagButtonDisabled,
-            ]}
-            onPress={addTag}
-            disabled={!newTag.trim()}
-          >
-            <Ionicons
-              name="add"
-              size={20}
-              color={newTag.trim() ? colors.primary : colors.gray[400]}
-            />
-          </TouchableOpacity>
-        </View>
-
-        {/* Tags Display */}
-        {recipe.tags && recipe.tags.length > 0 && (
-          <View style={styles.tagsContainer}>
-            {recipe.tags.map((tag, index) => (
-              <View key={index} style={styles.tag}>
-                <Text style={styles.tagText}>{tag}</Text>
-                <TouchableOpacity
-                  style={styles.removeTagButton}
-                  onPress={() => removeTag(tag)}
-                >
-                  <Ionicons name="close" size={14} color={colors.gray[600]} />
-                </TouchableOpacity>
-              </View>
-            ))}
-          </View>
-        )}
-
+        <TagEditor
+          tags={recipe.tags || []}
+          onTagsChange={(tags) => onUpdate("tags", tags)}
+          placeholder="Add a tag..."
+          maxTags={VALIDATION_LIMITS.TAGS.max}
+        />
         {errors.tags && <Text style={styles.errorText}>{errors.tags}</Text>}
       </View>
 
@@ -419,57 +349,6 @@ const styles = StyleSheet.create({
   },
   selectedDifficultyText: {
     color: colors.white,
-  },
-  tagInputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: spacing.sm,
-  },
-  tagInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: colors.gray[300],
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    fontSize: typography.fontSizes.md,
-    color: colors.dark,
-    marginRight: spacing.sm,
-    minHeight: 48,
-  },
-  addTagButton: {
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.primary,
-    backgroundColor: colors.primary + "10",
-  },
-  addTagButtonDisabled: {
-    borderColor: colors.gray[300],
-    backgroundColor: colors.gray[100],
-  },
-  tagsContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginTop: spacing.sm,
-  },
-  tag: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.primary + "20",
-    borderRadius: borderRadius.full,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    marginRight: spacing.xs,
-    marginBottom: spacing.xs,
-  },
-  tagText: {
-    fontSize: typography.fontSizes.sm,
-    color: colors.primary,
-    fontWeight: "500",
-  },
-  removeTagButton: {
-    marginLeft: spacing.xs,
-    padding: 2,
   },
   errorText: {
     fontSize: typography.fontSizes.sm,

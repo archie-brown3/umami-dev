@@ -49,16 +49,27 @@ export default function GroceriesTab() {
         options={{
           title: "Groceries",
           headerShown: true,
+          headerStyle: {
+            backgroundColor: colors.white,
+          },
+          headerTitleStyle: {
+            fontSize: 24,
+            fontWeight: "700",
+            color: colors.dark,
+          },
+          headerShadowVisible: true,
         }}
       />
 
       <GroceriesTabSwitcher />
 
-      <RecipeCarousel
-        selectedRecipes={selectedRecipes}
-        onAddRecipe={addSelectedRecipe}
-        onRemoveRecipe={removeSelectedRecipe}
-      />
+      {activeView === "shopping" && (
+        <RecipeCarousel
+          selectedRecipes={selectedRecipes}
+          onAddRecipe={addSelectedRecipe}
+          onRemoveRecipe={removeSelectedRecipe}
+        />
+      )}
 
       {renderContent()}
     </View>

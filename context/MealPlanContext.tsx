@@ -83,7 +83,14 @@ interface MealPlanProviderProps {
 export const MealPlanProvider: React.FC<MealPlanProviderProps> = ({
   children,
 }) => {
-  const { user } = useAuth();
+  const authContext = useAuth();
+
+  // Wait for auth to initialize before proceeding
+  if (!authContext) {
+    return <>{children}</>;
+  }
+
+  const { user } = authContext;
   const [currentWeek, setCurrentWeek] = useState<Date>(
     getWeekStart(new Date())
   );

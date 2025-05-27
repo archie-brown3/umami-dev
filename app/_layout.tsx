@@ -99,6 +99,7 @@ function RootLayoutNav() {
           options={{
             headerShown: true,
             headerTitle: "Profile",
+            headerBackTitle: "Home",
             presentation: "card",
           }}
         />

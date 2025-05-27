@@ -13,14 +13,14 @@ import { View, Text, Image, TouchableOpacity } from "react-native";
 // import { Plus, ChevronRight } from "lucide-react"; // TODO: Replace with @expo/vector-icons
 // import { useNavigate } from "react-router-dom"; // TODO: Replace with Expo Router navigation
 
-interface MealPlan {
+interface MealPlanState {
   [date: string]: {
     [mealType: string]: string[];
   };
 }
 
 interface RecipeContextType {
-  mealPlan: MealPlan;
+  mealPlan: MealPlanState;
   getRecipeById: (id: string) => Recipe | undefined;
 }
 
@@ -31,11 +31,11 @@ const TodaysMealPlan: React.FC = () => {
   const today = format(new Date(), "yyyy-MM-dd");
 
   // Get today's meals from the meal plan
-  const todaysMeals = mealPlan[today] || {};
+  const todaysMeals = (mealPlan as any)[today] || {};
 
   // Check if we have any meals today
   const hasMealsToday = Object.values(todaysMeals).some(
-    (meals: string[]) => meals.length > 0
+    (meals: unknown) => Array.isArray(meals) && meals.length > 0
   );
 
   const mealTypes = [
