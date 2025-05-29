@@ -662,7 +662,9 @@ export default function RecipeDetailScreen() {
                           name: ingredient.name,
                           quantity: scaledAmount.toString(),
                           unit: ingredient.unit || "",
-                          category: "ingredients",
+                          category: "Ingredients",
+                          checked: false,
+                          recipe_id: recipe.id,
                         });
 
                         addedCount++;
@@ -675,39 +677,47 @@ export default function RecipeDetailScreen() {
                       }
                     }
 
-                    // Show success/error feedback
-                    if (addedCount === recipe.ingredients.length) {
+                    // Show success/error message
+                    if (errors.length === 0) {
                       Alert.alert(
-                        "Success",
-                        `All ${addedCount} ingredients added to your shopping list!`
-                      );
-                    } else if (addedCount > 0) {
-                      Alert.alert(
-                        "Partially Added",
-                        `${addedCount} of ${
-                          recipe.ingredients.length
-                        } ingredients added. ${
-                          errors.length
-                        } failed: ${errors.join(", ")}`
+                        "Success! 🛒",
+                        `Added all ${addedCount} ingredients to your shopping list.`,
+                        [
+                          {
+                            text: "View Shopping List",
+                            onPress: () => router.push("/(tabs)/groceries"),
+                          },
+                          { text: "Continue", style: "cancel" },
+                        ]
                       );
                     } else {
                       Alert.alert(
-                        "Error",
-                        "Failed to add ingredients to shopping list. Please try again."
+                        "Partially Added",
+                        `Added ${addedCount} ingredients successfully. Failed to add: ${errors.join(
+                          ", "
+                        )}`,
+                        [{ text: "OK" }]
                       );
                     }
                   } catch (error) {
                     console.error("Error adding all ingredients:", error);
                     Alert.alert(
                       "Error",
-                      "Failed to add ingredients to shopping list. Please try again."
+                      "Failed to add ingredients to shopping list. Please try again.",
+                      [{ text: "OK" }]
                     );
                   }
                 }}
-                activeOpacity={0.7}
               >
-                <Ionicons name="add-circle" size={14} color={colors.white} />
-                <Text style={styles.compactAddAllButtonText}>Add All</Text>
+                <Ionicons name="cart" size={14} color={colors.black} />
+                <Text
+                  style={[
+                    styles.compactAddAllButtonText,
+                    { color: colors.black },
+                  ]}
+                >
+                  Add All
+                </Text>
               </TouchableOpacity>
             )}
           </View>

@@ -228,7 +228,7 @@ function processImageUrlForRecipe(imageUrl: string): string {
 /**
  * Generate a unique recipe ID
  */
-function generateRecipeId(): string {
+export function generateRecipeId(): string {
   return `recipe-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
 

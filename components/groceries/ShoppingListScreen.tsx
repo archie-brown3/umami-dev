@@ -17,10 +17,13 @@ import { useRecipes } from "../../context/RecipeContext";
 import ShoppingItemCard from "./shopping/ShoppingItemCard";
 import AddItemButton from "./shared/AddItemButton";
 import CompleteShoppingButton from "./shopping/CompleteShoppingButton";
+import {
+  groupItemsByCategory,
+  getCategoryInfo,
+} from "../../utils/groceryUtils";
 
 const ShoppingListScreen: React.FC = () => {
   const {
-    shoppingList,
     setActiveView,
     isLoading,
     error,
@@ -39,54 +42,53 @@ const ShoppingListScreen: React.FC = () => {
     setActiveView("shopping");
   }, [setActiveView]);
 
-  // Group shopping list items by recipe and filter by search
+  // Get shopping list items from defaultShoppingList
+  const shoppingListItems = defaultShoppingList?.items || [];
+
+  // Group shopping list items by supermarket category and filter by search
   const groupedItems = useMemo(() => {
     // Filter items based on search query
-    const filteredItems = shoppingList.filter((item) =>
+    const filteredItems = shoppingListItems.filter((item) =>
       item.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
-    // Group items by recipe
-    const recipeGroups: Record<string, any[]> = {};
-    const ungroupedItems: any[] = [];
+    // Separate checked and unchecked items
+    const uncheckedItems = filteredItems.filter((item) => !item.checked);
+    const checkedItems = filteredItems.filter((item) => item.checked);
 
-    filteredItems.forEach((item) => {
-      if (item.recipeId) {
-        if (!recipeGroups[item.recipeId]) {
-          recipeGroups[item.recipeId] = [];
-        }
-        recipeGroups[item.recipeId].push(item);
-      } else {
-        ungroupedItems.push(item);
-      }
-    });
+    // Group unchecked items by supermarket category
+    const categoryGroups = groupItemsByCategory(uncheckedItems);
 
     // Create sections for SectionList
-    const sections = [];
+    const sections = Object.entries(categoryGroups).map(
+      ([categoryName, items]) => {
+        const categoryInfo = getCategoryInfo(categoryName);
 
-    // Add recipe sections
-    Object.entries(recipeGroups).forEach(([recipeId, items]) => {
-      const recipe = recipes.find((r) => r.id === recipeId);
-      sections.push({
-        title: recipe?.title || "Unknown Recipe",
-        data: items,
-        isRecipe: true,
-        recipeId,
-        recipe,
-      });
-    });
+        return {
+          title: categoryName,
+          data: items,
+          isCategory: true,
+          categoryInfo,
+        };
+      }
+    );
 
-    // Add ungrouped items section if any
-    if (ungroupedItems.length > 0) {
+    // Add completed items section if there are any checked items
+    if (checkedItems.length > 0) {
       sections.push({
-        title: "Other Items",
-        data: ungroupedItems,
-        isRecipe: false,
+        title: "Completed Items",
+        data: checkedItems,
+        isCategory: true,
+        categoryInfo: {
+          name: "Completed Items",
+          icon: "checkmark-circle",
+          color: "#22C55E",
+        },
       });
     }
 
     return sections;
-  }, [shoppingList, searchQuery, recipes]);
+  }, [shoppingListItems, searchQuery]);
 
   const handleAddItem = async (itemData: {
     name: string;
@@ -132,8 +134,50 @@ const ShoppingListScreen: React.FC = () => {
     }
   };
 
+  const handleMarkAllComplete = async () => {
+    try {
+      const uncheckedItems = shoppingListItems.filter((item) => !item.checked);
+
+      if (uncheckedItems.length === 0) {
+        Alert.alert("All Done!", "All items are already checked off.");
+        return;
+      }
+
+      Alert.alert(
+        "Mark All Complete",
+        `Mark all ${uncheckedItems.length} remaining items as complete?`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Mark All",
+            onPress: async () => {
+              try {
+                // Mark all unchecked items as checked
+                const updatePromises = uncheckedItems.map((item) =>
+                  updateShoppingItemInList(item.id, { checked: true })
+                );
+
+                await Promise.all(updatePromises);
+
+                Alert.alert(
+                  "All Complete! ✅",
+                  "All items have been marked as complete.",
+                  [{ text: "OK" }]
+                );
+              } catch (error) {
+                Alert.alert("Error", "Failed to mark all items as complete");
+              }
+            },
+          },
+        ]
+      );
+    } catch (error) {
+      Alert.alert("Error", "Failed to mark all items as complete");
+    }
+  };
+
   const renderSearchBar = () => {
-    if (!shoppingList || shoppingList.length === 0) return null;
+    if (!shoppingListItems || shoppingListItems.length === 0) return null;
 
     return (
       <View style={styles.searchContainer}>
@@ -155,7 +199,7 @@ const ShoppingListScreen: React.FC = () => {
   };
 
   const renderEmptyState = () => {
-    if (!shoppingList || shoppingList.length === 0) {
+    if (!shoppingListItems || shoppingListItems.length === 0) {
       return (
         <View style={styles.emptyStateContainer}>
           <Ionicons
@@ -201,48 +245,63 @@ const ShoppingListScreen: React.FC = () => {
       {renderSearchBar()}
       {renderEmptyState()}
 
-      {shoppingList && shoppingList.length > 0 && (
-        <SectionList
-          sections={groupedItems}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <ShoppingItemCard
-              item={item}
-              onToggle={() => handleToggleItem(item.id)}
-              onDelete={() => handleRemoveItem(item.id)}
-              onUpdate={(updates) => handleUpdateItem(item.id, updates)}
-            />
-          )}
-          renderSectionHeader={({ section }) => (
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionHeaderContent}>
-                {section.isRecipe && (
+      <View style={styles.listWrapper}>
+        {shoppingListItems && shoppingListItems.length > 0 && (
+          <SectionList
+            sections={groupedItems}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <ShoppingItemCard
+                item={item}
+                onToggle={() => handleToggleItem(item.id)}
+                onDelete={() => handleRemoveItem(item.id)}
+                onUpdate={(updates) => handleUpdateItem(item.id, updates)}
+              />
+            )}
+            renderSectionHeader={({ section }) => (
+              <View style={styles.sectionHeader}>
+                <View style={styles.sectionHeaderContent}>
                   <Ionicons
-                    name="restaurant-outline"
-                    size={18}
-                    color={colors.primary}
+                    name={section.categoryInfo.icon as any}
+                    size={16}
+                    color={section.categoryInfo.color}
                     style={styles.sectionIcon}
                   />
-                )}
-                <View style={styles.sectionTextContainer}>
-                  <Text style={styles.sectionHeaderText}>{section.title}</Text>
-                  <Text style={styles.sectionItemCount}>
-                    {section.data.length} item
-                    {section.data.length !== 1 ? "s" : ""}
-                  </Text>
+                  <View style={styles.sectionTextContainer}>
+                    <Text style={styles.sectionHeaderText}>
+                      {section.title}
+                    </Text>
+                    <Text style={styles.sectionItemCount}>
+                      {section.data.length} item
+                      {section.data.length !== 1 ? "s" : ""}
+                    </Text>
+                  </View>
                 </View>
               </View>
-            </View>
-          )}
-          contentContainerStyle={styles.listContainer}
-          showsVerticalScrollIndicator={false}
-          stickySectionHeadersEnabled={true}
-        />
-      )}
-
-      <View style={styles.bottomActions}>
-        <AddItemButton screenType="shopping" />
-        <CompleteShoppingButton />
+            )}
+            ListFooterComponent={() => (
+              <View style={styles.bottomActions}>
+                <View style={styles.actionButtonsRow}>
+                  <TouchableOpacity
+                    style={styles.markAllButton}
+                    onPress={handleMarkAllComplete}
+                  >
+                    <Ionicons
+                      name="checkmark-done"
+                      size={16}
+                      color={colors.primary}
+                    />
+                    <Text style={styles.markAllButtonText}>Mark All</Text>
+                  </TouchableOpacity>
+                </View>
+                <CompleteShoppingButton />
+              </View>
+            )}
+            contentContainerStyle={styles.listContainer}
+            showsVerticalScrollIndicator={false}
+            stickySectionHeadersEnabled={true}
+          />
+        )}
       </View>
     </View>
   );
@@ -274,10 +333,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: colors.white,
-    marginHorizontal: spacing.md,
-    marginVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    marginHorizontal: spacing.sm,
+    marginTop: 4,
+    marginBottom: 4,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 8,
     borderRadius: borderRadius.lg,
     borderWidth: 1,
     borderColor: colors.gray[200],
@@ -288,9 +348,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.dark,
   },
+  listWrapper: {
+    flex: 1,
+  },
   listContainer: {
-    padding: spacing.md,
-    paddingBottom: 100,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 4,
   },
   emptyStateContainer: {
     flex: 1,
@@ -313,19 +376,16 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   bottomActions: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
     backgroundColor: colors.white,
     borderTopWidth: 1,
     borderTopColor: colors.gray[200],
     padding: spacing.md,
+    marginTop: spacing.md,
   },
   sectionHeader: {
     backgroundColor: colors.white,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
     borderBottomWidth: 1,
     borderBottomColor: colors.gray[100],
     shadowColor: "#000",
@@ -339,21 +399,43 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   sectionIcon: {
-    marginRight: spacing.sm,
+    marginRight: spacing.xs,
   },
   sectionTextContainer: {
     flex: 1,
   },
   sectionHeaderText: {
-    fontSize: 16,
-    fontWeight: "700",
+    fontSize: 15,
+    fontWeight: "600",
     color: colors.dark,
-    marginBottom: 2,
+    marginBottom: 1,
   },
   sectionItemCount: {
-    fontSize: 12,
+    fontSize: 11,
     color: colors.gray[500],
     fontWeight: "500",
+  },
+  actionButtonsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: spacing.xs,
+  },
+  markAllButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.primary[100],
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.primary[200],
+  },
+  markAllButtonText: {
+    marginLeft: 4,
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.primary[700],
   },
 });
 

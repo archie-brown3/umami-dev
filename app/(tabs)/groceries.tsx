@@ -8,6 +8,7 @@ import {
   Alert,
 } from "react-native";
 import { Stack } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, borderRadius } from "../../utils/styleUtils";
 import { useGroceries } from "../../context/GroceriesContext";
@@ -20,9 +21,6 @@ import RecipeCarousel from "../../components/groceries/shared/RecipeCarousel";
 export default function GroceriesTab() {
   const {
     activeView,
-    selectedRecipes,
-    addSelectedRecipe,
-    removeSelectedRecipe,
     defaultShoppingList,
     refreshShoppingList,
     isLoading,
@@ -30,6 +28,7 @@ export default function GroceriesTab() {
   } = useGroceries();
 
   const { generateShoppingList, currentWeek } = useMealPlan();
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     refreshShoppingList();
@@ -44,34 +43,27 @@ export default function GroceriesTab() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <Stack.Screen
         options={{
-          title: "Groceries",
-          headerShown: true,
-          headerStyle: {
-            backgroundColor: colors.white,
-          },
-          headerTitleStyle: {
-            fontSize: 24,
-            fontWeight: "700",
-            color: colors.dark,
-          },
-          headerShadowVisible: true,
+          headerShown: false,
         }}
       />
 
-      <GroceriesTabSwitcher />
+      <View style={styles.content}>
+        <GroceriesTabSwitcher />
 
-      {activeView === "shopping" && (
-        <RecipeCarousel
-          selectedRecipes={selectedRecipes}
-          onAddRecipe={addSelectedRecipe}
-          onRemoveRecipe={removeSelectedRecipe}
-        />
-      )}
+        {activeView === "shopping" && <RecipeCarousel />}
 
-      {renderContent()}
+        <View
+          style={[
+            styles.contentContainer,
+            { paddingBottom: insets.bottom + 70 },
+          ]}
+        >
+          {renderContent()}
+        </View>
+      </View>
     </View>
   );
 }
@@ -80,6 +72,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.gray[50],
+  },
+  content: {
+    flex: 1,
+  },
+  contentContainer: {
+    flex: 1,
   },
   scrollContainer: {
     flex: 1,
@@ -131,9 +129,5 @@ const styles = StyleSheet.create({
     height: "100%",
     backgroundColor: colors.primary,
     borderRadius: 3,
-  },
-  contentContainer: {
-    flex: 1,
-    paddingBottom: spacing.xl,
   },
 });

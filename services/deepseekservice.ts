@@ -868,15 +868,26 @@ export async function analyzeRecipeText(
 
     console.log(`Analyzing recipe text (${recipeText.length} chars)...`);
 
-    // Truncate the recipe text if it's too long to avoid token limits
-    const MAX_LENGTH = 10000;
+    // Increase the maximum length to preserve more content
+    const MAX_LENGTH = 20000; // Increased from 10000 to 20000
     let processedText = recipeText;
 
     if (recipeText.length > MAX_LENGTH) {
       console.log(
         `Recipe text too long (${recipeText.length} chars), truncating to ${MAX_LENGTH} chars`
       );
-      processedText = recipeText.substring(0, MAX_LENGTH);
+      // Try to truncate at a natural break point (paragraph or sentence)
+      const truncatedText = recipeText.substring(0, MAX_LENGTH);
+      const lastParagraph = truncatedText.lastIndexOf("\n\n");
+      const lastSentence = truncatedText.lastIndexOf(".");
+
+      if (lastParagraph > MAX_LENGTH * 0.8) {
+        processedText = truncatedText.substring(0, lastParagraph);
+      } else if (lastSentence > MAX_LENGTH * 0.8) {
+        processedText = truncatedText.substring(0, lastSentence + 1);
+      } else {
+        processedText = truncatedText;
+      }
     }
 
     // Comprehensive recipe analysis in a single call - STREAMLINED VERSION
@@ -1081,6 +1092,18 @@ function extractRelevantRecipeContent(fullText: string): string {
     "fry",
     "boil",
     "serve",
+    "salt",
+    "pepper",
+    "oil",
+    "butter",
+    "onion",
+    "garlic",
+    "flour",
+    "sugar",
+    "water",
+    "milk",
+    "egg",
+    "cheese",
   ];
 
   // Extract lines that contain recipe keywords or look like ingredients/instructions
@@ -1093,7 +1116,7 @@ function extractRelevantRecipeContent(fullText: string): string {
 
     // Check for ingredient patterns (number + unit + ingredient)
     if (
-      /^\d+[\s\/\-]*\d*\s*(cup|tbsp|tsp|pound|oz|gram|kg|ml|liter)s?\s+\w+/.test(
+      /^\d+[\s\/\-]*\d*\s*(cup|tbsp|tsp|pound|oz|gram|kg|ml|liter|clove|slice|piece)s?\s+\w+/.test(
         lowerLine
       )
     )
@@ -1101,33 +1124,48 @@ function extractRelevantRecipeContent(fullText: string): string {
 
     // Check for instruction patterns (action verbs)
     if (
-      /^(heat|add|mix|stir|cook|bake|fry|boil|serve|combine|season|place|remove)\s+/.test(
+      /^(heat|add|mix|stir|cook|bake|fry|boil|serve|combine|season|place|remove|preheat|chop|dice|slice|melt|whisk|fold|simmer|sauté|grill|roast|blend|strain|drain|cool|chill|refrigerate|freeze)\s+/.test(
         lowerLine
       )
     )
       return true;
 
+    // Check for numbered steps
+    if (/^\d+[\.\)]\s+/.test(lowerLine)) return true;
+
+    // Check for time indicators
+    if (/\d+\s*(minute|hour|second)s?/.test(lowerLine)) return true;
+
+    // Check for temperature indicators
+    if (/\d+\s*(degree|°|fahrenheit|celsius|f|c)\b/.test(lowerLine))
+      return true;
+
     return false;
   });
 
-  // If we found relevant content, use it. Otherwise, take first 2000 chars of original
-  if (relevantLines.length > 5) {
-    return relevantLines.join("\n").substring(0, 3000); // Limit to 3000 chars
+  // If we found relevant content, use it with increased limits
+  if (relevantLines.length > 3) {
+    // Reduced threshold from 5 to 3
+    const relevantContent = relevantLines.join("\n");
+    // Increased limit from 3000 to 8000 characters
+    return relevantContent.substring(0, 8000);
   }
 
-  return fullText.substring(0, 2000); // Fallback to first 2000 chars
+  // More generous fallback - use first 6000 chars instead of 2000
+  return fullText.substring(0, 6000);
 }
 
-// Helper function for API calls with retries - IMPROVED VERSION
+// Helper function for API calls with retries - ULTRA-OPTIMIZED VERSION FOR INSTAGRAM
 async function callDeepSeekAPI(
   prompt: string,
-  retries = 3 // Increased back to 3 for better reliability
+  retries = 2, // Reduced from 3 to 2 for faster processing
+  isInstagramCaption = false // New parameter to optimize for Instagram
 ): Promise<DeepseekResponse> {
   addServiceLog(`Calling DeepSeek API (${prompt.length} chars)`);
 
-  // Increased timeouts for more complete processing
-  const INITIAL_TIMEOUT = 35000; // Increased from 20s to 35s
-  const MAX_TIMEOUT = 60000; // Increased from 30s to 60s
+  // AGGRESSIVE timeout reduction for Instagram captions
+  const INITIAL_TIMEOUT = isInstagramCaption ? 12000 : 35000; // 12s for Instagram (reduced from 20s), 35s for others
+  const MAX_TIMEOUT = isInstagramCaption ? 20000 : 60000; // 20s for Instagram (reduced from 35s), 60s for others
 
   for (let i = 0; i < retries; i++) {
     try {
@@ -1153,7 +1191,7 @@ async function callDeepSeekAPI(
           model: "deepseek-chat",
           messages: [{ role: "user", content: prompt }],
           temperature: 0.1, // Keep low for consistency
-          max_tokens: 2048, // Increased back to 2048 for complete recipes
+          max_tokens: 3072, // Increased from 2048 to 3072 for more complete recipes
         }),
         signal: controller.signal,
       });
@@ -3478,14 +3516,26 @@ export async function testAndFixRecipeExtraction(): Promise<{
     }
 
     // Check overall quality
-    const hasTitle = result.title && result.title.length > 5;
-    const hasDescription = result.description && result.description.length > 20;
+    const hasTitle = !!(result.title && result.title !== "Untitled Recipe");
+    const hasIngredients = !!(
+      result.ingredients && result.ingredients.length >= 5
+    );
+    const hasInstructions = !!(
+      result.instructions && result.instructions.length >= 5
+    );
+    const hasTags = !!(result.tags && result.tags.length >= 3);
 
     if (hasTitle) successes.push("Title extracted successfully");
     else issues.push("Title missing or too short");
 
-    if (hasDescription) successes.push("Description extracted successfully");
-    else issues.push("Description missing or too short");
+    if (hasIngredients) successes.push("Ingredients extracted successfully");
+    else issues.push("Ingredients missing or invalid");
+
+    if (hasInstructions) successes.push("Instructions extracted successfully");
+    else issues.push("Instructions missing or invalid");
+
+    if (hasTags) successes.push("Tags extracted successfully");
+    else issues.push("Tags missing or invalid");
 
     return {
       success: issues.length === 0,
@@ -3510,6 +3560,91 @@ export async function testAndFixRecipeExtraction(): Promise<{
       message: `Test failed: ${
         error instanceof Error ? error.message : String(error)
       }`,
+    };
+  }
+}
+
+// Test function to verify text processing improvements
+export async function testTextProcessingFix(): Promise<{
+  success: boolean;
+  message: string;
+  details?: any;
+}> {
+  try {
+    const testRecipeText = `
+Chicken Ramen Recipe
+
+This is a delicious homemade chicken ramen recipe that's perfect for cold days.
+
+Ingredients:
+- 4 cups chicken broth
+- 2 packs ramen noodles
+- 1 chicken breast, sliced
+- 2 eggs
+- 1 green onion, chopped
+- 1 tbsp soy sauce
+- 1 tsp sesame oil
+- 1 clove garlic, minced
+- 1 tsp ginger, grated
+- Salt and pepper to taste
+
+Instructions:
+1. Heat the chicken broth in a large pot over medium heat.
+2. Add the garlic and ginger, simmer for 2 minutes.
+3. Add the chicken slices and cook for 5 minutes.
+4. Add the ramen noodles and cook according to package directions.
+5. In the last minute, crack the eggs into the broth.
+6. Season with soy sauce, sesame oil, salt, and pepper.
+7. Serve hot, garnished with green onions.
+
+Prep time: 10 minutes
+Cook time: 15 minutes
+Serves: 2 people
+    `;
+
+    console.log(
+      `[TextProcessingTest] Testing with ${testRecipeText.length} character recipe text`
+    );
+
+    const result = await analyzeRecipeText(testRecipeText);
+
+    const hasTitle = !!(result.title && result.title !== "Untitled Recipe");
+    const hasIngredients = !!(
+      result.ingredients && result.ingredients.length >= 5
+    );
+    const hasInstructions = !!(
+      result.instructions && result.instructions.length >= 5
+    );
+    const hasTags = !!(result.tags && result.tags.length >= 3);
+
+    const success = hasTitle && hasIngredients && hasInstructions && hasTags;
+
+    return {
+      success,
+      message: success
+        ? "Text processing fix working correctly - recipe extracted successfully"
+        : "Text processing still has issues - incomplete recipe extraction",
+      details: {
+        originalTextLength: testRecipeText.length,
+        extractedTitle: result.title,
+        ingredientCount: result.ingredients?.length || 0,
+        instructionCount: result.instructions?.length || 0,
+        tagCount: result.tags?.length || 0,
+        hasTitle,
+        hasIngredients,
+        hasInstructions,
+        hasTags,
+      },
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: `Text processing test failed: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+      details: {
+        error: error instanceof Error ? error.message : String(error),
+      },
     };
   }
 }

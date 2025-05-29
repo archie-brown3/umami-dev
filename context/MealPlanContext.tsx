@@ -55,10 +55,17 @@ interface MealPlanContextType {
   goToToday: () => void;
 
   // Utilities
-  generateShoppingList: (dateRange: {
-    start: string;
-    end: string;
-  }) => Promise<void>;
+  generateShoppingList: (
+    dateRange: {
+      start: string;
+      end: string;
+    },
+    options?: {
+      consolidateSimilar?: boolean;
+      addToExistingList?: boolean;
+      excludePantryItems?: boolean;
+    }
+  ) => Promise<void>;
   duplicateWeek: (sourceWeek: Date, targetWeek: Date) => Promise<void>;
   refreshWeek: () => Promise<void>;
   refreshMealPlan: () => Promise<void>;
@@ -83,14 +90,6 @@ interface MealPlanProviderProps {
 export const MealPlanProvider: React.FC<MealPlanProviderProps> = ({
   children,
 }) => {
-  const authContext = useAuth();
-
-  // Wait for auth to initialize before proceeding
-  if (!authContext) {
-    return <>{children}</>;
-  }
-
-  const { user } = authContext;
   const [currentWeek, setCurrentWeek] = useState<Date>(
     getWeekStart(new Date())
   );
@@ -101,6 +100,12 @@ export const MealPlanProvider: React.FC<MealPlanProviderProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+
+  // Always call useAuth hook - don't conditionally return before hooks
+  const authContext = useAuth();
+
+  // Get user from auth context if available
+  const user = authContext?.user;
 
   // Load week meals when user or currentWeek changes
   useEffect(() => {
@@ -237,15 +242,22 @@ export const MealPlanProvider: React.FC<MealPlanProviderProps> = ({
     setCurrentWeek(getWeekStart(new Date()));
   };
 
-  const generateShoppingList = async (dateRange: {
-    start: string;
-    end: string;
-  }): Promise<void> => {
+  const generateShoppingList = async (
+    dateRange: {
+      start: string;
+      end: string;
+    },
+    options?: {
+      consolidateSimilar?: boolean;
+      addToExistingList?: boolean;
+      excludePantryItems?: boolean;
+    }
+  ): Promise<void> => {
     if (!user?.id) throw new Error("User not authenticated");
 
     try {
       setError(null);
-      await generateShoppingListFromMealPlan(user.id, dateRange);
+      await generateShoppingListFromMealPlan(user.id, dateRange, options);
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : "Failed to generate shopping list";

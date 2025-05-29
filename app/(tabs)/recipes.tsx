@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import EmptyState from "@/components/ui/EmptyState";
 import { RecipeCard } from "@/components/recipes/RecipeCard";
@@ -40,6 +41,7 @@ export default function RecipesScreen() {
   const [retryCount, setRetryCount] = useState(0);
   const { user } = useAuth();
   const filtersScrollRef = useRef<ScrollView>(null);
+  const insets = useSafeAreaInsets();
 
   // Enhanced fetch function with better error handling
   const fetchRecipes = async (showRefreshIndicator = false) => {
@@ -319,7 +321,7 @@ export default function RecipesScreen() {
 
   if (isLoading && recipes.length === 0) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>My Recipes</Text>
           {DEBUG_TAG_MIGRATION && (
@@ -350,7 +352,7 @@ export default function RecipesScreen() {
   // Error state
   if (error && recipes.length === 0) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>My Recipes</Text>
         </View>
@@ -384,7 +386,7 @@ export default function RecipesScreen() {
 
   if (!isLoading && recipes.length === 0) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>My Recipes</Text>
           {DEBUG_TAG_MIGRATION && (
@@ -410,7 +412,7 @@ export default function RecipesScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>My Recipes</Text>
         {DEBUG_TAG_MIGRATION && (
@@ -509,7 +511,10 @@ export default function RecipesScreen() {
             keyExtractor={(item) => item.id}
             numColumns={2}
             columnWrapperStyle={styles.columnWrapper}
-            contentContainerStyle={styles.recipeGrid}
+            contentContainerStyle={[
+              styles.recipeGrid,
+              { paddingBottom: insets.bottom + 70 },
+            ]}
             showsVerticalScrollIndicator={false}
             refreshControl={
               <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} />

@@ -11,6 +11,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { RecipeProvider } from "@/context/RecipeContext";
 import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { GroceriesProvider } from "@/context/GroceriesContext";
 import { MealPlanProvider } from "@/context/MealPlanContext";
@@ -169,17 +170,15 @@ export default function RootLayout() {
 
   try {
     return (
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <AuthProvider>
-          <RecipeProvider>
-            <GroceriesProvider>
-              <MealPlanProvider>
-                <RootLayoutNav />
-              </MealPlanProvider>
-            </GroceriesProvider>
-          </RecipeProvider>
-        </AuthProvider>
-      </GestureHandlerRootView>
+      <SafeAreaProvider>
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <AuthProvider>
+            <RecipeProvider>
+              <RootLayoutNav />
+            </RecipeProvider>
+          </AuthProvider>
+        </GestureHandlerRootView>
+      </SafeAreaProvider>
     );
   } catch (error) {
     console.error("Root layout error:", error);

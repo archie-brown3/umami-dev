@@ -8,13 +8,17 @@ import {
   ActivityIndicator,
   Animated,
   Alert,
+  Modal,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useMealPlan } from "@/context/MealPlanContext";
 import { useGroceries } from "@/context/GroceriesContext";
-import { getWeekDates } from "@/services/mealPlanService";
+import { useRecipes } from "@/context/RecipeContext";
+import { getWeekDates, MealPlanItem } from "@/services/mealPlanService";
 import { colors, spacing, borderRadius } from "@/utils/styleUtils";
 import MealSlot from "./MealSlot";
+import { RecipeCard } from "../recipes/RecipeCard";
+import { router } from "expo-router";
 
 const DAYS_OF_WEEK = [
   "Monday",
@@ -62,20 +66,7 @@ const DayCard: React.FC<DayCardProps> = React.memo(
     onToggleExpand,
     meals,
   }) => {
-    const animatedHeight = React.useRef(new Animated.Value(0)).current;
-
-    React.useEffect(() => {
-      Animated.timing(animatedHeight, {
-        toValue: isExpanded ? 1 : 0,
-        duration: 300,
-        useNativeDriver: false,
-      }).start();
-    }, [isExpanded]);
-
-    const expandedHeight = animatedHeight.interpolate({
-      inputRange: [0, 1],
-      outputRange: [0, 400], // Adjust based on content
-    });
+    const { recipes } = useRecipes();
 
     const getTotalMeals = () => {
       return MEAL_TYPES.reduce((total, mealType) => {
@@ -90,6 +81,14 @@ const DayCard: React.FC<DayCardProps> = React.memo(
 
     const formatDayNumber = () => {
       return dayNumber.replace(/\D/g, ""); // Extract just the number
+    };
+
+    const getRecipeById = (recipeId: string) => {
+      return recipes.find((recipe) => recipe.id === recipeId);
+    };
+
+    const handleRecipePress = (recipeId: string) => {
+      router.push(`/recipe/${recipeId}`);
     };
 
     return (
@@ -114,73 +113,76 @@ const DayCard: React.FC<DayCardProps> = React.memo(
                 <Text style={styles.mealCountText}>{getTotalMeals()}</Text>
               </View>
             )}
-            <TouchableOpacity style={styles.addButton}>
-              <Ionicons name="add" size={20} color={colors.primary} />
-            </TouchableOpacity>
+            <Ionicons
+              name={isExpanded ? "chevron-up" : "chevron-down"}
+              size={20}
+              color={colors.gray[400]}
+            />
           </View>
         </TouchableOpacity>
 
-        <Animated.View
-          style={[styles.expandedContent, { height: expandedHeight }]}
-        >
-          <View style={styles.mealTypesContainer}>
-            {MEAL_TYPES.map((mealType) => {
-              const mealList = meals[mealType.key] || [];
+        {isExpanded && (
+          <View style={styles.expandedContent}>
+            <View style={styles.mealTypesContainer}>
+              {MEAL_TYPES.map((mealType) => {
+                const mealList = meals[mealType.key] || [];
 
-              return (
-                <View key={mealType.key} style={styles.mealTypeRow}>
-                  <View style={styles.mealTypeHeader}>
-                    <View style={styles.mealTypeInfo}>
-                      <Ionicons
-                        name={mealType.icon as any}
-                        size={20}
-                        color={mealType.color}
-                      />
-                      <Text style={styles.mealTypeLabel}>{mealType.label}</Text>
+                return (
+                  <View key={mealType.key} style={styles.mealTypeSection}>
+                    <View style={styles.mealTypeHeader}>
+                      <View style={styles.mealTypeInfo}>
+                        <Ionicons
+                          name={mealType.icon as any}
+                          size={20}
+                          color={mealType.color}
+                        />
+                        <Text style={styles.mealTypeLabel}>
+                          {mealType.label}
+                        </Text>
+                      </View>
+                      <View style={styles.mealTypeActions}>
+                        <Text style={styles.mealCount}>
+                          {mealList.length} meal
+                          {mealList.length !== 1 ? "s" : ""}
+                        </Text>
+                      </View>
                     </View>
-                    <View style={styles.mealTypeActions}>
-                      <Ionicons
-                        name="restaurant-outline"
-                        size={16}
-                        color={colors.gray[400]}
-                      />
-                    </View>
-                  </View>
 
-                  <View style={styles.mealSlotContainer}>
-                    <MealSlot
-                      date={date}
-                      mealType={mealType.key}
-                      meals={mealList}
-                      compact={true}
-                    />
-                  </View>
-                </View>
-              );
-            })}
+                    {mealList.length === 0 ? (
+                      <View style={styles.emptyMealSlot}>
+                        <MealSlot
+                          date={date}
+                          mealType={mealType.key}
+                          meals={mealList}
+                          compact={false}
+                        />
+                      </View>
+                    ) : (
+                      <View style={styles.recipeCardsContainer}>
+                        {mealList.map((meal: MealPlanItem, index: number) => {
+                          const recipe = getRecipeById(meal.recipe_id);
+                          if (!recipe) return null;
 
-            {/* Notes Section */}
-            <View style={styles.mealTypeRow}>
-              <View style={styles.mealTypeHeader}>
-                <View style={styles.mealTypeInfo}>
-                  <Ionicons
-                    name="document-text-outline"
-                    size={20}
-                    color={colors.gray[600]}
-                  />
-                  <Text style={styles.mealTypeLabel}>Notes</Text>
-                </View>
-                <View style={styles.mealTypeActions}>
-                  <Ionicons
-                    name="chevron-forward"
-                    size={16}
-                    color={colors.gray[400]}
-                  />
-                </View>
-              </View>
+                          return (
+                            <View
+                              key={`${meal.id}-${index}`}
+                              style={styles.recipeCardWrapper}
+                            >
+                              <RecipeCard
+                                recipe={recipe}
+                                onPress={() => handleRecipePress(recipe.id)}
+                              />
+                            </View>
+                          );
+                        })}
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
             </View>
           </View>
-        </Animated.View>
+        )}
       </View>
     );
   }
@@ -204,6 +206,12 @@ const WeeklyCalendar: React.FC = () => {
   const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
   const [isGeneratingShoppingList, setIsGeneratingShoppingList] =
     useState(false);
+  const [showShoppingListModal, setShowShoppingListModal] = useState(false);
+  const [shoppingListOptions, setShoppingListOptions] = useState({
+    consolidateSimilar: true,
+    excludePantryItems: false,
+    addToExistingList: true,
+  });
 
   const weekDates = getWeekDates(currentWeek);
   const today = new Date().toISOString().split("T")[0];
@@ -250,34 +258,63 @@ const WeeklyCalendar: React.FC = () => {
     });
   }, []);
 
-  const handleGenerateShoppingList = async () => {
+  const handleGenerateShoppingList = async (
+    options?: typeof shoppingListOptions
+  ) => {
     try {
       setIsGeneratingShoppingList(true);
+      setShowShoppingListModal(false);
 
       const weekStart = currentWeek.toISOString().split("T")[0];
       const weekEnd = new Date(currentWeek.getTime() + 6 * 24 * 60 * 60 * 1000)
         .toISOString()
         .split("T")[0];
 
-      await generateShoppingList({
-        start: weekStart,
-        end: weekEnd,
-      });
+      // Count total recipes for better user feedback
+      const totalRecipes = Object.values(weekMeals).reduce(
+        (total, dayMeals) => {
+          return (
+            total +
+            Object.values(dayMeals).reduce((dayTotal, mealList) => {
+              return dayTotal + mealList.length;
+            }, 0)
+          );
+        },
+        0
+      );
+
+      if (totalRecipes === 0) {
+        Alert.alert(
+          "No Recipes Found",
+          "Add some recipes to your meal plan first to generate a shopping list.",
+          [{ text: "OK" }]
+        );
+        return;
+      }
+
+      await generateShoppingList(
+        {
+          start: weekStart,
+          end: weekEnd,
+        },
+        options
+      );
 
       // Refresh the groceries context to show the new items
       await refreshShoppingList();
 
       Alert.alert(
         "Shopping List Generated! 🛒",
-        "All ingredients from your meal plan have been added to your shopping list.",
+        `Added ingredients from ${totalRecipes} recipes to your shopping list.`,
         [
           {
             text: "View Shopping List",
             onPress: () => {
-              // Navigate to groceries tab - this would need router integration
+              router.push("/(tabs)/groceries");
             },
+            style: "default",
           },
-          { text: "OK", style: "default" },
+          { text: "Continue Planning", style: "cancel" },
         ]
       );
     } catch (error) {
@@ -291,6 +328,213 @@ const WeeklyCalendar: React.FC = () => {
       setIsGeneratingShoppingList(false);
     }
   };
+
+  const openShoppingListModal = () => {
+    const totalRecipes = Object.values(weekMeals).reduce((total, dayMeals) => {
+      return (
+        total +
+        Object.values(dayMeals).reduce((dayTotal, mealList) => {
+          return dayTotal + mealList.length;
+        }, 0)
+      );
+    }, 0);
+
+    if (totalRecipes === 0) {
+      Alert.alert(
+        "No Recipes Found",
+        "Add some recipes to your meal plan first to generate a shopping list.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
+
+    setShowShoppingListModal(true);
+  };
+
+  const renderShoppingListModal = () => (
+    <Modal
+      visible={showShoppingListModal}
+      transparent
+      animationType="slide"
+      onRequestClose={() => setShowShoppingListModal(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Generate Shopping List</Text>
+            <TouchableOpacity
+              onPress={() => setShowShoppingListModal(false)}
+              style={styles.modalCloseButton}
+            >
+              <Ionicons name="close" size={24} color={colors.gray[600]} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.modalBody}>
+            <Text style={styles.modalDescription}>
+              Create a shopping list from your meal plan for this week.
+            </Text>
+
+            <View style={styles.optionsContainer}>
+              <TouchableOpacity
+                style={styles.optionRow}
+                onPress={() =>
+                  setShoppingListOptions((prev) => ({
+                    ...prev,
+                    consolidateSimilar: !prev.consolidateSimilar,
+                  }))
+                }
+              >
+                <View style={styles.optionLeft}>
+                  <Ionicons
+                    name="layers-outline"
+                    size={20}
+                    color={colors.primary}
+                  />
+                  <View style={styles.optionText}>
+                    <Text style={styles.optionTitle}>
+                      Consolidate Similar Items
+                    </Text>
+                    <Text style={styles.optionSubtitle}>
+                      Combine similar ingredients (e.g., "2 onions" + "1 onion"
+                      = "3 onions")
+                    </Text>
+                  </View>
+                </View>
+                <Ionicons
+                  name={
+                    shoppingListOptions.consolidateSimilar
+                      ? "checkbox"
+                      : "square-outline"
+                  }
+                  size={24}
+                  color={
+                    shoppingListOptions.consolidateSimilar
+                      ? colors.primary
+                      : colors.gray[400]
+                  }
+                />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.optionRow}
+                onPress={() =>
+                  setShoppingListOptions((prev) => ({
+                    ...prev,
+                    addToExistingList: !prev.addToExistingList,
+                  }))
+                }
+              >
+                <View style={styles.optionLeft}>
+                  <Ionicons
+                    name="add-circle-outline"
+                    size={20}
+                    color={colors.primary}
+                  />
+                  <View style={styles.optionText}>
+                    <Text style={styles.optionTitle}>Add to Existing List</Text>
+                    <Text style={styles.optionSubtitle}>
+                      Add items to your current shopping list instead of
+                      creating a new one
+                    </Text>
+                  </View>
+                </View>
+                <Ionicons
+                  name={
+                    shoppingListOptions.addToExistingList
+                      ? "checkbox"
+                      : "square-outline"
+                  }
+                  size={24}
+                  color={
+                    shoppingListOptions.addToExistingList
+                      ? colors.primary
+                      : colors.gray[400]
+                  }
+                />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.recipePreview}>
+              <Text style={styles.previewTitle}>Recipes in this week:</Text>
+              <ScrollView
+                style={styles.recipeList}
+                showsVerticalScrollIndicator={false}
+              >
+                {Object.entries(weekMeals).map(([date, dayMeals]) => {
+                  const dayRecipes = Object.values(dayMeals).flat();
+                  if (dayRecipes.length === 0) return null;
+
+                  return (
+                    <View key={date} style={styles.dayPreview}>
+                      <Text style={styles.dayPreviewTitle}>
+                        {new Date(date).toLocaleDateString("en-US", {
+                          weekday: "short",
+                          month: "short",
+                          day: "numeric",
+                        })}
+                      </Text>
+                      <Text style={styles.dayPreviewCount}>
+                        {dayRecipes.length} recipe
+                        {dayRecipes.length !== 1 ? "s" : ""}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </ScrollView>
+
+              <View style={styles.summaryStats}>
+                <View style={styles.statItem}>
+                  <Ionicons
+                    name="restaurant-outline"
+                    size={16}
+                    color={colors.primary}
+                  />
+                  <Text style={styles.statText}>
+                    {Object.values(weekMeals).reduce((total, dayMeals) => {
+                      return (
+                        total +
+                        Object.values(dayMeals).reduce((dayTotal, mealList) => {
+                          return dayTotal + mealList.length;
+                        }, 0)
+                      );
+                    }, 0)}{" "}
+                    total recipes
+                  </Text>
+                </View>
+                <View style={styles.statItem}>
+                  <Ionicons
+                    name="basket-outline"
+                    size={16}
+                    color={colors.primary}
+                  />
+                  <Text style={styles.statText}>
+                    Estimated 20-40 ingredients
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.modalFooter}>
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={() => setShowShoppingListModal(false)}
+            >
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.generateButton}
+              onPress={() => handleGenerateShoppingList(shoppingListOptions)}
+            >
+              <Ionicons name="basket-outline" size={20} color={colors.white} />
+              <Text style={styles.generateButtonText}>Generate List</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
 
   if (isLoading) {
     return (
@@ -321,35 +565,6 @@ const WeeklyCalendar: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      {/* Week Navigation Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.navButton} onPress={goToPreviousWeek}>
-          <Ionicons name="chevron-back" size={24} color={colors.gray[600]} />
-        </TouchableOpacity>
-
-        <View style={styles.weekInfo}>
-          <Text style={styles.weekText}>
-            {currentWeek.toLocaleDateString("en-US", {
-              day: "numeric",
-              month: "short",
-              year: "numeric",
-            })}{" "}
-            -{" "}
-            {new Date(
-              currentWeek.getTime() + 6 * 24 * 60 * 60 * 1000
-            ).toLocaleDateString("en-US", {
-              day: "numeric",
-              month: "short",
-              year: "numeric",
-            })}
-          </Text>
-        </View>
-
-        <TouchableOpacity style={styles.navButton} onPress={goToNextWeek}>
-          <Ionicons name="chevron-forward" size={24} color={colors.gray[600]} />
-        </TouchableOpacity>
-      </View>
-
       {/* Days List */}
       <ScrollView
         style={styles.daysContainer}
@@ -377,7 +592,7 @@ const WeeklyCalendar: React.FC = () => {
             styles.shoppingListButton,
             isGeneratingShoppingList && styles.disabledButton,
           ]}
-          onPress={handleGenerateShoppingList}
+          onPress={openShoppingListModal}
           disabled={isGeneratingShoppingList}
           activeOpacity={0.8}
         >
@@ -393,6 +608,8 @@ const WeeklyCalendar: React.FC = () => {
           </Text>
         </TouchableOpacity>
       </View>
+
+      {renderShoppingListModal()}
     </View>
   );
 };
@@ -532,14 +749,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: colors.white,
   },
-  addButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.gray[100],
-    alignItems: "center",
-    justifyContent: "center",
-  },
   expandedContent: {
     overflow: "hidden",
     backgroundColor: colors.gray[50],
@@ -547,7 +756,7 @@ const styles = StyleSheet.create({
   mealTypesContainer: {
     padding: spacing.md,
   },
-  mealTypeRow: {
+  mealTypeSection: {
     marginBottom: spacing.md,
   },
   mealTypeHeader: {
@@ -573,8 +782,19 @@ const styles = StyleSheet.create({
   mealTypeActions: {
     opacity: 0.6,
   },
-  mealSlotContainer: {
-    paddingHorizontal: spacing.sm,
+  mealCount: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.gray[600],
+  },
+  emptyMealSlot: {
+    padding: spacing.md,
+  },
+  recipeCardsContainer: {
+    padding: spacing.md,
+  },
+  recipeCardWrapper: {
+    marginBottom: spacing.md,
   },
   bottomActions: {
     position: "absolute",
@@ -608,6 +828,157 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: colors.white,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContent: {
+    backgroundColor: colors.white,
+    padding: spacing.lg,
+    borderRadius: borderRadius.lg,
+    width: "80%",
+    maxHeight: "80%",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: spacing.md,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: colors.dark,
+  },
+  modalCloseButton: {
+    padding: spacing.xs,
+  },
+  modalBody: {
+    flex: 1,
+  },
+  modalDescription: {
+    fontSize: 16,
+    color: colors.gray[600],
+    marginBottom: spacing.md,
+  },
+  optionsContainer: {
+    marginBottom: spacing.lg,
+  },
+  optionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.gray[200],
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.sm,
+  },
+  optionLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    flex: 1,
+  },
+  optionText: {
+    flex: 1,
+  },
+  optionTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: colors.dark,
+    marginBottom: 2,
+  },
+  optionSubtitle: {
+    fontSize: 14,
+    color: colors.gray[600],
+    lineHeight: 18,
+  },
+  recipePreview: {
+    marginBottom: spacing.lg,
+  },
+  previewTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: colors.dark,
+    marginBottom: spacing.sm,
+  },
+  recipeList: {
+    maxHeight: 120,
+  },
+  dayPreview: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: spacing.sm,
+    backgroundColor: colors.gray[50],
+    borderRadius: borderRadius.sm,
+    marginBottom: spacing.xs,
+  },
+  dayPreviewTitle: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: colors.dark,
+  },
+  dayPreviewCount: {
+    fontSize: 12,
+    color: colors.gray[600],
+  },
+  modalFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: spacing.md,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.gray[200],
+  },
+  cancelButton: {
+    flex: 1,
+    backgroundColor: colors.gray[200],
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.md,
+    alignItems: "center",
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: colors.gray[700],
+  },
+  generateButton: {
+    flex: 1,
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.md,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+  },
+  generateButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: colors.white,
+  },
+  summaryStats: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: spacing.md,
+  },
+  statItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  statText: {
+    fontSize: 14,
+    color: colors.gray[600],
   },
 });
 

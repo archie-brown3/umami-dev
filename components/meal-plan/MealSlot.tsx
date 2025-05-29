@@ -12,6 +12,7 @@ import { useMealPlan } from "@/context/MealPlanContext";
 import { useRecipes } from "@/context/RecipeContext";
 import { MealPlanItem } from "@/services/mealPlanService";
 import { colors } from "@/utils/styleUtils";
+import { getRecipeColor } from "@/utils/groceryUtils";
 import RecipePicker from "./RecipePicker";
 
 interface MealSlotProps {
@@ -89,12 +90,16 @@ const MealSlot: React.FC<MealSlotProps> = ({
         <View style={styles.mealsContainer}>
           {meals.map((meal, index) => {
             const recipe = getRecipeById(meal.recipe_id);
+            const recipeColor = getRecipeColor(meal.recipe_id);
 
             if (compact) {
               return (
                 <View
                   key={`${meal.id}-${index}`}
-                  style={styles.compactMealItem}
+                  style={[
+                    styles.compactMealItem,
+                    { backgroundColor: recipeColor },
+                  ]}
                 >
                   <View style={styles.compactMealIndicator} />
                   <Text style={styles.compactMealTitle} numberOfLines={1}>
@@ -105,7 +110,13 @@ const MealSlot: React.FC<MealSlotProps> = ({
             }
 
             return (
-              <View key={`${meal.id}-${index}`} style={styles.mealItem}>
+              <View
+                key={`${meal.id}-${index}`}
+                style={[
+                  styles.mealItem,
+                  { borderLeftColor: recipeColor, borderLeftWidth: 4 },
+                ]}
+              >
                 {recipe?.imageUrl && (
                   <Image
                     source={{ uri: recipe.imageUrl }}
@@ -257,7 +268,6 @@ const styles = StyleSheet.create({
   compactMealItem: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: colors.primary,
     borderRadius: 6,
     padding: 6,
     marginBottom: 4,

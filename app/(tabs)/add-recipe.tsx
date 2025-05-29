@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, spacing, typography } from "@/utils/styleUtils";
 import { useRecipes } from "@/context/RecipeContext";
 import { Recipe, Ingredient } from "@/types";
@@ -20,21 +21,20 @@ import {
   extractRecipeFromUrl,
   validateRecipe,
   normalizeRecipe,
+  testInstagramScraping,
+  extractRecipeFromInstagramCaption,
+  extractRecipeFromInstagram,
 } from "@/services/recipeExtractor";
 import { addRecipeToSupabase } from "@/services/recipeService";
 import { supabase } from "@/lib/supabase";
 import { RecipeCamera } from "@/components/RecipeCamera";
 import { extractTextFromImage } from "@/services/textRecognition";
-import {
-  testInstagramScraping,
-  extractRecipeFromInstagramCaption,
-  extractRecipeFromInstagram,
-} from "@/services/recipeExtractor";
 import * as ImagePicker from "expo-image-picker";
 
 type TabType = "manual" | "url" | "ai" | "instagram";
 
 export default function AddRecipeScreen() {
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams();
   const { addRecipe } = useRecipes();
 
@@ -146,11 +146,11 @@ export default function AddRecipeScreen() {
 
       // Provide more helpful error messages
       let userMessage = `Failed to extract recipe: ${errorMessage}`;
-      let actions: Array<{
+      let actions: {
         text: string;
         style?: "default" | "cancel" | "destructive";
         onPress?: () => void;
-      }> = [{ text: "OK", style: "cancel" }];
+      }[] = [{ text: "OK", style: "cancel" }];
 
       if (errorMessage.includes("validation failed")) {
         userMessage =
@@ -830,11 +830,11 @@ export default function AddRecipeScreen() {
           setIsLoading(false);
 
           let errorMessage = "Failed to process the selected photo.";
-          let actions: Array<{
+          let actions: {
             text: string;
             style?: "default" | "cancel" | "destructive";
             onPress?: () => void;
-          }> = [
+          }[] = [
             {
               text: "Try Another Photo",
               onPress: () => handlePhotoSelection(),
@@ -1180,12 +1180,12 @@ export default function AddRecipeScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Add Recipe</Text>
       </View>
 
-      <ScrollView>
+      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 70 }}>
         <View style={styles.tabs}>
           {renderTabButton("manual", "Manual", "create-outline")}
           {renderTabButton("url", "URL", "globe-outline")}

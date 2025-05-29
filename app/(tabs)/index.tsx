@@ -11,18 +11,20 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, router } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, spacing, borderRadius, typography } from "@/utils/styleUtils";
 import { useRecipes } from "@/context/RecipeContext";
 import { useMealPlan } from "@/context/MealPlanContext";
 import { useAuth } from "@/context/AuthContext";
 import TodaysMealPlan from "@/components/meal-planning/TodaysMealPlan";
 import { Recipe } from "@/types";
-import { getUserRecipes } from "@/services/recipeService";
 
 export default function HomeScreen() {
-  // const { recipes } = useRecipes();
-  // const { weekMeals } = useMealPlan();
-  // const { user } = useAuth();
+  const insets = useSafeAreaInsets();
+
+  const { recipes } = useRecipes();
+  const { weekMeals } = useMealPlan();
+  const { user } = useAuth();
 
   const [greeting, setGreeting] = useState("");
   const [recentRecipes, setRecentRecipes] = useState<Recipe[]>([]);
@@ -41,65 +43,59 @@ export default function HomeScreen() {
     }
   }, []);
 
-  // Fetch recent recipes from database
-  // useEffect(() => {
-  //   const fetchRecentRecipes = async () => {
-  //     if (!user?.id) return;
+  // Update recipe data when recipes from context change
+  useEffect(() => {
+    if (recipes && recipes.length > 0) {
+      setTotalRecipeCount(recipes.length);
+      // Get the 6 most recently created recipes
+      const recent = [...recipes]
+        .sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        )
+        .slice(0, 6);
+      setRecentRecipes(recent);
+      setIsLoadingRecipes(false);
+    } else {
+      setTotalRecipeCount(0);
+      setRecentRecipes([]);
+      // Only set loading to false if we're sure recipes have been loaded (not just empty)
+      // This prevents showing "no recipes" immediately on app start
+      if (recipes !== undefined) {
+        setIsLoadingRecipes(false);
+      }
+    }
+  }, [recipes]);
 
-  //     setIsLoadingRecipes(true);
-  //     try {
-  //       const allRecipes = await getUserRecipes(user.id);
-  //       // Store total count
-  //       setTotalRecipeCount(allRecipes.length);
-  //       // Get the 6 most recently created recipes
-  //       const recent = allRecipes
-  //         .sort(
-  //           (a, b) =>
-  //             new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  //         )
-  //         .slice(0, 6);
-  //       setRecentRecipes(recent);
-  //     } catch (error) {
-  //       console.error("Error fetching recent recipes:", error);
-  //     } finally {
-  //       setIsLoadingRecipes(false);
-  //     }
-  //   };
-
-  //   fetchRecentRecipes();
-  // }, [user?.id]);
+  // Set initial loading state
+  useEffect(() => {
+    if (recipes === undefined) {
+      setIsLoadingRecipes(true);
+    }
+  }, []);
 
   // Refresh data when screen comes into focus
-  // useFocusEffect(
-  //   React.useCallback(() => {
-  //     const fetchRecentRecipes = async () => {
-  //       if (!user?.id) return;
+  useFocusEffect(
+    React.useCallback(() => {
+      // Data is already managed by contexts, no need to fetch again
+      // Just ensure we have the latest data
+      if (recipes && recipes.length > 0) {
+        setTotalRecipeCount(recipes.length);
+        const recent = [...recipes]
+          .sort(
+            (a, b) =>
+              new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          )
+          .slice(0, 6);
+        setRecentRecipes(recent);
+      }
+    }, [recipes])
+  );
 
-  //       try {
-  //         const allRecipes = await getUserRecipes(user.id);
-  //         setTotalRecipeCount(allRecipes.length);
-  //         const recent = allRecipes
-  //           .sort(
-  //             (a, b) =>
-  //               new Date(b.createdAt).getTime() -
-  //               new Date(a.createdAt).getTime()
-  //           )
-  //           .slice(0, 6);
-  //         setRecentRecipes(recent);
-  //       } catch (error) {
-  //         console.error("Error fetching recent recipes:", error);
-  //       }
-  //     };
-
-  //     fetchRecentRecipes();
-  //   }, [user?.id])
-  // );
-
-  // Calculate stats - use total recipe count from database
+  // Calculate stats - use data from contexts
   const today = new Date().toISOString().split("T")[0];
-  // const todaysMeals = weekMeals[today] || {};
-  // const plannedMealsToday = Object.values(todaysMeals).flat().length;
-  const plannedMealsToday = 0; // Temporary placeholder
+  const todaysMeals = weekMeals[today] || {};
+  const plannedMealsToday = Object.values(todaysMeals).flat().length;
 
   const handleMealPress = (mealType: string) => {
     router.push(`/meal-plan?meal=${mealType}`);
@@ -228,10 +224,13 @@ export default function HomeScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: insets.bottom + 70 },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         {/* Welcome Section */}
@@ -253,6 +252,7 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
         </View>
+
         {/* Quick Stats */}
         <View style={styles.statsContainer}>
           <TouchableOpacity
@@ -272,46 +272,8 @@ export default function HomeScreen() {
             <Text style={styles.statLabel}>🍽️ planned today</Text>
           </TouchableOpacity>
         </View>
-        {/* Quick Navigation Buttons
-        <View style={styles.quickNavSection}>
-          <Text style={styles.quickNavTitle}>🚀 Quick Actions</Text>
-          <View style={styles.quickNavButtons}>
-            <TouchableOpacity
-              style={[styles.navButton, styles.recipesButton]}
-              onPress={() => router.push("/(tabs)/recipes")}
-              activeOpacity={0.8}
-            >
-              <View style={styles.navButtonIcon}>
-                <Ionicons name="book" size={24} color={colors.white} />
-              </View>
-              <View style={styles.navButtonContent}>
-                <Text style={styles.navButtonTitle}>My Recipes</Text>
-                <Text style={styles.navButtonSubtitle}>
-                  Browse & manage your collection
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={colors.white} />
-            </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.navButton, styles.mealPlanButton]}
-              onPress={() => router.push("/(tabs)/meal-plan")}
-              activeOpacity={0.8}
-            >
-              <View style={styles.navButtonIcon}>
-                <Ionicons name="calendar" size={24} color={colors.white} />
-              </View>
-              <View style={styles.navButtonContent}>
-                <Text style={styles.navButtonTitle}>Meal Planning</Text>
-                <Text style={styles.navButtonSubtitle}>
-                  Plan your weekly meals
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={colors.white} />
-            </TouchableOpacity>
-          </View>
-        </View> */}
-        {/* Recently Created Recipes - Moved above Today's Highlights */}
+        {/* Recently Created Recipes */}
         <View style={styles.recentRecipesSection}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>🆕 Recently Created</Text>
@@ -365,7 +327,7 @@ export default function HomeScreen() {
               </Text>
               <TouchableOpacity
                 style={styles.addFirstRecipeButton}
-                onPress={() => router.push("/recipe/create")}
+                onPress={() => router.push("/add-recipe")}
               >
                 <Ionicons name="add-circle" size={20} color={colors.white} />
                 <Text style={styles.addFirstRecipeText}>
@@ -375,7 +337,8 @@ export default function HomeScreen() {
             </View>
           )}
         </View>
-        {/* Today's Highlights - Moved below Recently Created */}
+
+        {/* Today's Highlights */}
         <View style={styles.highlightsSection}>
           <View style={styles.highlightsHeader}>
             <Text style={styles.highlightsTitle}>🌟 Today's Highlights</Text>
@@ -401,7 +364,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: spacing.xxl,
+    paddingHorizontal: spacing.lg,
   },
   welcomeSection: {
     paddingHorizontal: spacing.lg,
@@ -412,8 +375,8 @@ const styles = StyleSheet.create({
   },
   welcomeHeader: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    justifyContent: "space-between",
   },
   greetingText: {
     fontSize: 28,
@@ -426,23 +389,24 @@ const styles = StyleSheet.create({
     color: colors.gray[600],
     fontWeight: "500",
   },
+  profileButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.white,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   statsContainer: {
-    flexDirection: "row",
     paddingHorizontal: spacing.lg,
     marginBottom: spacing.lg,
-    gap: spacing.md,
   },
   statCard: {
-    flex: 1,
     backgroundColor: colors.white,
-    borderRadius: borderRadius.lg,
+    borderRadius: 12,
     padding: spacing.lg,
     borderLeftWidth: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
+    borderLeftColor: "#4ECDC4",
   },
   statNumber: {
     fontSize: 24,
@@ -455,250 +419,196 @@ const styles = StyleSheet.create({
     color: colors.gray[600],
     fontWeight: "500",
   },
-  quickNavSection: {
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.xl,
-  },
-  quickNavTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: colors.dark,
-    marginBottom: spacing.md,
-  },
-  quickNavButtons: {
-    flexDirection: "row",
-    gap: spacing.md,
-  },
-  navButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.primary,
-    borderRadius: borderRadius.lg,
-    padding: spacing.md,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  navButtonIcon: {
-    marginRight: spacing.md,
-  },
-  navButtonContent: {
-    flex: 1,
-  },
-  navButtonTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: colors.white,
-    marginBottom: 2,
-  },
-  navButtonSubtitle: {
-    fontSize: 12,
-    color: colors.gray[300],
-  },
-  recipesButton: {
-    flex: 1,
-  },
-  mealPlanButton: {
-    flex: 1,
-  },
   recentRecipesSection: {
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.xl,
+    marginBottom: spacing.lg,
   },
   sectionHeader: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: spacing.lg,
+    justifyContent: "space-between",
+    marginBottom: spacing.md,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "700",
     color: colors.dark,
   },
   viewAllButton: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.sm,
   },
   viewAllText: {
     fontSize: 14,
+    fontWeight: "500",
     color: colors.primary,
-    fontWeight: "600",
     marginRight: spacing.xs,
   },
-  highlightsSection: {
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.xl,
+  loadingContainer: {
+    padding: spacing.lg,
+    backgroundColor: colors.white,
+    borderRadius: 12,
   },
-  highlightsHeader: {
-    marginBottom: spacing.lg,
+  skeletonContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
-  highlightsTitle: {
+  skeletonCard: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  skeletonImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 12,
+    backgroundColor: colors.gray[200],
+  },
+  skeletonContent: {
+    flex: 1,
+    paddingLeft: spacing.md,
+  },
+  skeletonTitle: {
+    height: 20,
+    backgroundColor: colors.gray[200],
+    borderRadius: 4,
+    marginBottom: spacing.xs,
+  },
+  skeletonMeta: {
+    height: 12,
+    backgroundColor: colors.gray[200],
+    borderRadius: 4,
+  },
+  recentRecipesList: {
+    paddingHorizontal: spacing.md,
+  },
+  recentRecipeCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.gray[200],
+    borderRadius: 12,
+    marginRight: spacing.md,
+  },
+  recipeImageContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 12,
+    overflow: "hidden",
+    marginRight: spacing.md,
+  },
+  recipeImage: {
+    width: "100%",
+    height: "100%",
+  },
+  imageLoadingOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: colors.white,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  recipeImagePlaceholder: {
+    width: "100%",
+    height: "100%",
+    backgroundColor: colors.gray[200],
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  recipeInfo: {
+    flex: 1,
+  },
+  recipeTitle: {
     fontSize: 18,
     fontWeight: "700",
     color: colors.dark,
     marginBottom: spacing.xs,
   },
-  highlightsSubtitle: {
-    fontSize: 14,
-    color: colors.gray[600],
-    fontWeight: "500",
-  },
-  recentRecipesList: {
-    paddingRight: spacing.lg,
-    paddingLeft: 2,
-  },
-  recentRecipeCard: {
-    width: 140,
-    backgroundColor: colors.white,
-    borderRadius: borderRadius.lg,
-    marginRight: spacing.md,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 3,
-    overflow: "hidden",
-  },
-  recipeImageContainer: {
-    height: 100,
-    backgroundColor: colors.gray[100],
-    justifyContent: "center",
-    alignItems: "center",
-    position: "relative",
-  },
-  recipeImage: {
-    width: "100%",
-    height: "100%",
-    resizeMode: "cover",
-  },
-  recipeImagePlaceholder: {
-    width: "100%",
-    height: "100%",
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: colors.gray[50],
-  },
-  recipeInfo: {
-    padding: spacing.md,
-    flex: 1,
-  },
-  recipeTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: colors.dark,
-    marginBottom: spacing.sm,
-    lineHeight: 18,
-    minHeight: 36,
-  },
   recipeMetadata: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
   },
   recipeTimeContainer: {
     flexDirection: "row",
     alignItems: "center",
-    flex: 1,
+    marginRight: spacing.md,
   },
   recipeTime: {
-    fontSize: 12,
+    fontSize: 14,
     color: colors.gray[500],
-    marginLeft: spacing.xs,
+    fontWeight: "500",
   },
   recipeServingsContainer: {
     flexDirection: "row",
     alignItems: "center",
   },
   recipeServings: {
-    fontSize: 12,
+    fontSize: 14,
     color: colors.gray[500],
-    marginLeft: spacing.xs,
+    fontWeight: "500",
   },
   recipeBadge: {
-    position: "absolute",
-    top: 8,
-    left: 8,
-    backgroundColor: colors.primary,
-    paddingHorizontal: spacing.xs,
-    paddingVertical: 4,
-    borderRadius: borderRadius.sm,
-    maxWidth: 80,
+    backgroundColor: colors.gray[200],
+    borderRadius: 4,
+    padding: spacing.xs,
+    marginRight: spacing.md,
   },
   recipeBadgeText: {
-    fontSize: 10,
-    fontWeight: "600",
-    color: colors.white,
+    fontSize: 12,
+    color: colors.gray[600],
+    fontWeight: "500",
   },
-  loadingContainer: {
-    paddingVertical: spacing.xl,
-    alignItems: "center",
-  },
-  skeletonContainer: {
-    flexDirection: "row",
-    gap: spacing.md,
-    paddingLeft: 2,
-  },
-  skeletonCard: {
-    width: 140,
+  favoriteIndicator: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     backgroundColor: colors.white,
-    borderRadius: borderRadius.lg,
-    marginRight: spacing.md,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  skeletonImage: {
-    height: 100,
-    backgroundColor: colors.gray[100],
+  highlightsSection: {
+    marginBottom: spacing.lg,
   },
-  skeletonContent: {
-    padding: spacing.md,
+  highlightsHeader: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.lg,
+    backgroundColor: colors.white,
+    marginBottom: spacing.lg,
   },
-  skeletonTitle: {
-    height: 16,
-    backgroundColor: colors.gray[100],
-    marginBottom: spacing.sm,
-    borderRadius: 4,
+  highlightsTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: colors.dark,
   },
-  skeletonMeta: {
-    height: 12,
-    backgroundColor: colors.gray[100],
-    borderRadius: 4,
-    width: "70%",
+  highlightsSubtitle: {
+    fontSize: 16,
+    color: colors.gray[600],
+    fontWeight: "500",
   },
   emptyRecipesContainer: {
-    backgroundColor: colors.white,
-    borderRadius: borderRadius.lg,
-    padding: spacing.xl,
+    flex: 1,
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-    marginHorizontal: 2,
+    justifyContent: "center",
   },
   emptyRecipesText: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: "600",
     color: colors.gray[600],
     marginTop: spacing.md,
-    marginBottom: spacing.sm,
     textAlign: "center",
   },
   emptyRecipesSubtext: {
     fontSize: 14,
     color: colors.gray[500],
     textAlign: "center",
-    lineHeight: 20,
+    marginTop: spacing.xs,
     marginBottom: spacing.lg,
   },
   addFirstRecipeButton: {
@@ -708,42 +618,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     borderRadius: borderRadius.lg,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
   },
   addFirstRecipeText: {
     color: colors.white,
     fontWeight: "600",
     marginLeft: spacing.xs,
-    fontSize: 15,
-  },
-  profileButton: {
-    padding: spacing.xs,
-  },
-  favoriteIndicator: {
-    position: "absolute",
-    top: 8,
-    right: 8,
-    backgroundColor: colors.white,
-    padding: 4,
-    borderRadius: borderRadius.full,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  imageLoadingOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: colors.white,
-    justifyContent: "center",
-    alignItems: "center",
   },
 });

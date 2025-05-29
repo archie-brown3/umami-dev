@@ -98,14 +98,6 @@ const GroceriesContext = createContext<GroceriesContextType | undefined>(
 export const GroceriesProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const authContext = useAuth();
-
-  // Wait for auth to initialize before proceeding
-  if (!authContext) {
-    return <>{children}</>;
-  }
-
-  const { user } = authContext;
   const [shoppingList, setShoppingList] = useState<ShoppingItem[]>([]);
   const [cupboardItems, setCupboardItems] = useState<CupboardItem[]>([]);
   const [selectedRecipes, setSelectedRecipes] = useState<Recipe[]>([]);
@@ -124,6 +116,12 @@ export const GroceriesProvider: React.FC<{ children: React.ReactNode }> = ({
   const [recipesWithIngredients, setRecipesWithIngredients] = useState<
     Recipe[]
   >([]);
+
+  // Always call useAuth hook - don't conditionally return before hooks
+  const authContext = useAuth();
+
+  // Get user from auth context if available
+  const user = authContext?.user;
 
   // Network connectivity monitoring
   useEffect(() => {
@@ -370,13 +368,29 @@ export const GroceriesProvider: React.FC<{ children: React.ReactNode }> = ({
     itemId: string,
     updates: Partial<SupabaseShoppingItem>
   ) => {
-    setIsLoading(true);
     try {
-      await updateShoppingItem(itemId, updates);
-      await refreshShoppingList();
+      // Optimistic update - update item immediately in UI
+      if (defaultShoppingList) {
+        const updatedItems =
+          defaultShoppingList.items?.map((item) =>
+            item.id === itemId ? { ...item, ...updates } : item
+          ) || [];
 
+        setDefaultShoppingList({
+          ...defaultShoppingList,
+          items: updatedItems,
+        });
+      }
+
+      // Perform the actual update in the background
+      await updateShoppingItem(itemId, updates);
       console.log("[GroceriesContext] Item updated successfully");
     } catch (error) {
+      // If update fails, refresh to restore the correct state
+      console.error(
+        "[GroceriesContext] Failed to update item, refreshing list"
+      );
+      await refreshShoppingList();
       handleError(error, "updating shopping item");
 
       // Store offline action if network error
@@ -389,8 +403,6 @@ export const GroceriesProvider: React.FC<{ children: React.ReactNode }> = ({
           payload: { itemId, updates },
         });
       }
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -413,13 +425,27 @@ export const GroceriesProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   const removeItemFromShoppingList = async (itemId: string) => {
-    setIsLoading(true);
     try {
-      await removeSupabaseShoppingItem(itemId);
-      await refreshShoppingList();
+      // Optimistic update - remove item immediately from UI
+      if (defaultShoppingList) {
+        const updatedItems =
+          defaultShoppingList.items?.filter((item) => item.id !== itemId) || [];
 
+        setDefaultShoppingList({
+          ...defaultShoppingList,
+          items: updatedItems,
+        });
+      }
+
+      // Perform the actual deletion in the background
+      await removeSupabaseShoppingItem(itemId);
       console.log("[GroceriesContext] Item removed successfully");
     } catch (error) {
+      // If deletion fails, refresh to restore the correct state
+      console.error(
+        "[GroceriesContext] Failed to remove item, refreshing list"
+      );
+      await refreshShoppingList();
       handleError(error, "removing item from shopping list");
 
       // Store offline action if network error
@@ -432,8 +458,6 @@ export const GroceriesProvider: React.FC<{ children: React.ReactNode }> = ({
           payload: { itemId },
         });
       }
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -551,8 +575,10 @@ export const GroceriesProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const moveCheckedItemsToCupboard = () => {
     try {
-      const checkedItems = shoppingList.filter((item) => item.checked);
-      const uncheckedItems = shoppingList.filter((item) => !item.checked);
+      // Get shopping list items from defaultShoppingList
+      const shoppingListItems = defaultShoppingList?.items || [];
+      const checkedItems = shoppingListItems.filter((item) => item.checked);
+      const uncheckedItems = shoppingListItems.filter((item) => !item.checked);
 
       // Convert checked shopping items to cupboard items
       const newCupboardItems: CupboardItem[] = checkedItems.map((item) => {
@@ -560,7 +586,7 @@ export const GroceriesProvider: React.FC<{ children: React.ReactNode }> = ({
         return {
           id: `cupboard-${now.getTime()}-${Math.random()}`,
           name: item.name,
-          quantity: item.quantity,
+          quantity: parseFloat(item.quantity) || 1,
           unit: item.unit,
           category: item.category,
           createdAt: now,
@@ -570,9 +596,20 @@ export const GroceriesProvider: React.FC<{ children: React.ReactNode }> = ({
         };
       });
 
-      // Update both lists
-      setShoppingList(uncheckedItems);
+      // Update cupboard items
       setCupboardItems((prev) => [...prev, ...newCupboardItems]);
+
+      // Remove checked items from shopping list by calling the API
+      checkedItems.forEach(async (item) => {
+        try {
+          await removeSupabaseShoppingItem(item.id);
+        } catch (error) {
+          console.error(`Error removing item ${item.id}:`, error);
+        }
+      });
+
+      // Refresh shopping list to get updated data
+      refreshShoppingList();
 
       console.log(
         `[GroceriesContext] Moved ${checkedItems.length} items to cupboard`
@@ -637,7 +674,7 @@ export const GroceriesProvider: React.FC<{ children: React.ReactNode }> = ({
           name: ingredient.name,
           quantity: ingredient.amount?.toString() || "1",
           unit: ingredient.unit,
-          category: "Other",
+          category: "Pantry Staples",
           recipe_id: recipe.id,
         })
       );

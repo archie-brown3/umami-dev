@@ -116,10 +116,13 @@ export const validateShoppingList = (list: Partial<ShoppingList>): string[] => {
 export const validateShoppingItem = (item: Partial<ShoppingItem>): string[] => {
   const errors: string[] = [];
 
-  if (!item.name || item.name.trim().length === 0) {
-    errors.push("Item name is required");
-  } else if (item.name.trim().length > 200) {
-    errors.push("Item name must be less than 200 characters");
+  // Only validate name if it's being updated
+  if (item.name !== undefined) {
+    if (!item.name || item.name.trim().length === 0) {
+      errors.push("Item name is required");
+    } else if (item.name.trim().length > 200) {
+      errors.push("Item name must be less than 200 characters");
+    }
   }
 
   if (item.quantity && !isValidQuantity(item.quantity)) {
@@ -500,13 +503,19 @@ export const removeShoppingItem = async (itemId: string): Promise<void> => {
 // Enhanced meal plan integration with better error handling
 export const generateShoppingListFromMealPlan = async (
   userId: string,
-  dateRange: { start: string; end: string }
+  dateRange: { start: string; end: string },
+  options?: {
+    consolidateSimilar?: boolean;
+    addToExistingList?: boolean;
+    excludePantryItems?: boolean;
+  }
 ): Promise<ShoppingList> => {
   return withNetworkRetry(
     async () => {
       try {
         console.log(
-          "[GroceriesService] Generating shopping list from meal plan"
+          "[GroceriesService] Generating shopping list from meal plan with options:",
+          options
         );
 
         // Get meal plans for the date range
@@ -523,20 +532,42 @@ export const generateShoppingListFromMealPlan = async (
         const lists = await getShoppingLists(userId);
         let defaultList = lists.find((list) => list.title === "Shopping List");
 
-        if (!defaultList) {
+        if (!defaultList || !options?.addToExistingList) {
+          // Create a new shopping list with date range in title
+          const startDate = new Date(dateRange.start).toLocaleDateString(
+            "en-US",
+            { month: "short", day: "numeric" }
+          );
+          const endDate = new Date(dateRange.end).toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+          });
+
           defaultList = await createShoppingList(userId, {
-            title: "Shopping List",
+            title: options?.addToExistingList
+              ? "Shopping List"
+              : `Meal Plan ${startDate} - ${endDate}`,
             date: new Date().toISOString().split("T")[0],
           });
         }
 
         // Extract recipe IDs from meal plans
         const recipeIds = new Set<string>();
+        const recipesByMeal: {
+          [recipeId: string]: { date: string; mealType: string }[];
+        } = {};
 
         for (const mealPlan of mealPlans) {
           if (mealPlan.items) {
             for (const item of mealPlan.items) {
               recipeIds.add(item.recipe_id);
+              if (!recipesByMeal[item.recipe_id]) {
+                recipesByMeal[item.recipe_id] = [];
+              }
+              recipesByMeal[item.recipe_id].push({
+                date: mealPlan.date,
+                mealType: item.meal_type,
+              });
             }
           }
         }
@@ -577,22 +608,75 @@ export const generateShoppingListFromMealPlan = async (
           );
         }
 
-        // Extract ingredients from recipes
-        const ingredientsToAdd: Partial<ShoppingItem>[] = [];
+        // Extract and consolidate ingredients from recipes
+        const ingredientMap = new Map<
+          string,
+          {
+            name: string;
+            quantities: string[];
+            units: string[];
+            category: string;
+            recipeIds: string[];
+            recipeNames: string[];
+          }
+        >();
 
         for (const recipe of recipes) {
           if (recipe.recipe_ingredients) {
             for (const ingredient of recipe.recipe_ingredients) {
-              ingredientsToAdd.push({
-                name: ingredient.name,
-                quantity: ingredient.quantity || "1",
-                unit: ingredient.unit,
-                category: ingredient.category || "Other",
-                recipe_id: recipe.id,
-                ingredient_id: ingredient.id,
-              });
+              const key = ingredient.name.toLowerCase().trim();
+
+              if (!ingredientMap.has(key)) {
+                ingredientMap.set(key, {
+                  name: ingredient.name,
+                  quantities: [],
+                  units: [],
+                  category: ingredient.category || "Pantry Staples",
+                  recipeIds: [],
+                  recipeNames: [],
+                });
+              }
+
+              const existing = ingredientMap.get(key)!;
+              existing.quantities.push(ingredient.quantity || "1");
+              existing.units.push(ingredient.unit || "");
+              existing.recipeIds.push(recipe.id);
+              existing.recipeNames.push(recipe.title);
             }
           }
+        }
+
+        // Convert to shopping items with optional consolidation
+        const ingredientsToAdd: Partial<ShoppingItem>[] = [];
+
+        for (const [key, ingredient] of ingredientMap) {
+          let finalQuantity = ingredient.quantities[0];
+          let finalUnit = ingredient.units[0];
+
+          // Consolidate similar items if option is enabled
+          if (options?.consolidateSimilar && ingredient.quantities.length > 1) {
+            const consolidatedResult = consolidateQuantities(
+              ingredient.quantities,
+              ingredient.units
+            );
+            finalQuantity = consolidatedResult.quantity;
+            finalUnit = consolidatedResult.unit;
+          }
+
+          // Create shopping item with recipe context
+          const recipeContext =
+            ingredient.recipeNames.length > 1
+              ? `For ${ingredient.recipeNames.length} recipes`
+              : `For ${ingredient.recipeNames[0]}`;
+
+          ingredientsToAdd.push({
+            name: ingredient.name,
+            quantity: finalQuantity,
+            unit: finalUnit,
+            category: ingredient.category,
+            recipe_id: ingredient.recipeIds[0], // Primary recipe
+            ingredient_id: undefined, // Will be set when adding
+          });
         }
 
         if (ingredientsToAdd.length === 0) {
@@ -604,7 +688,7 @@ export const generateShoppingListFromMealPlan = async (
 
         // Add ingredients to shopping list with batch processing
         const addedItems: ShoppingItem[] = [];
-        const batchSize = 10; // Process in batches to avoid overwhelming the database
+        const batchSize = 10;
 
         for (let i = 0; i < ingredientsToAdd.length; i += batchSize) {
           const batch = ingredientsToAdd.slice(i, i + batchSize);
@@ -648,6 +732,26 @@ export const generateShoppingListFromMealPlan = async (
     { maxRetries: 2 }
   );
 };
+
+// Helper function to consolidate quantities
+function consolidateQuantities(
+  quantities: string[],
+  units: string[]
+): { quantity: string; unit: string } {
+  // Simple consolidation logic - can be enhanced
+  const numericQuantities = quantities.map((q) => {
+    const match = q.match(/(\d+(?:\.\d+)?)/);
+    return match ? parseFloat(match[1]) : 1;
+  });
+
+  const totalQuantity = numericQuantities.reduce((sum, q) => sum + q, 0);
+  const primaryUnit = units.find((u) => u && u.trim()) || "";
+
+  return {
+    quantity: totalQuantity.toString(),
+    unit: primaryUnit,
+  };
+}
 
 // Enhanced consolidation with better duplicate detection
 export const consolidateShoppingListItems = async (

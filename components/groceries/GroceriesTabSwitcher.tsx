@@ -70,20 +70,20 @@ const GroceriesTabSwitcher: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
     backgroundColor: colors.white,
   },
   tabContainer: {
     flexDirection: "row",
     backgroundColor: colors.gray[100],
     borderRadius: borderRadius.lg,
-    padding: 4,
+    padding: 3,
   },
   tab: {
     flex: 1,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
     borderRadius: borderRadius.md,
     alignItems: "center",
     justifyContent: "center",
@@ -100,7 +100,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   tabText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "500",
     color: colors.gray[600],
   },

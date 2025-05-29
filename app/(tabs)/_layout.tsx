@@ -10,10 +10,7 @@ import {
 import { Tabs, Link, usePathname, router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
-import {
-  SafeAreaView,
-  useSafeAreaInsets,
-} from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { colors, spacing, createShadow } from "@/utils/styleUtils";
 import { useColorScheme } from "@/hooks/useColorScheme";
@@ -29,7 +26,7 @@ export default function TabLayout() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
+    <View style={styles.container}>
       <Tabs
         screenOptions={{
           headerShown: false,
@@ -38,8 +35,8 @@ export default function TabLayout() {
           tabBarStyle: [
             styles.tabBar,
             {
-              height: Platform.OS === "ios" ? 85 + insets.bottom : 70,
-              paddingBottom: Platform.OS === "ios" ? insets.bottom + 20 : 10,
+              height: Platform.OS === "ios" ? 60 + insets.bottom : 60,
+              paddingBottom: Platform.OS === "ios" ? insets.bottom : 8,
             },
           ],
           tabBarLabelStyle: styles.tabBarLabel,
@@ -124,7 +121,7 @@ export default function TabLayout() {
         />
       </Tabs>
       <StatusBar style={colorScheme === "dark" ? "light" : "dark"} />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -134,32 +131,31 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
   },
   tabBar: {
-    ...createShadow(5, 0.1, 10),
-    paddingTop: 8,
     backgroundColor: colors.white,
-    borderTopLeftRadius: 18,
-    borderTopRightRadius: 18,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
     borderTopWidth: 1,
-    borderTopColor: "rgba(0,0,0,0.05)",
+    borderTopColor: colors.gray[200],
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 10,
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 8,
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
+    paddingTop: 6,
   },
   tabBarLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "500",
-    marginBottom: Platform.OS === "ios" ? 0 : 5,
+    marginBottom: Platform.OS === "ios" ? 0 : 2,
   },
   tabBarIcon: {
-    marginTop: 5,
+    marginTop: 2,
   },
   tabBarItem: {
-    paddingVertical: 5,
+    paddingVertical: 2,
   },
 });

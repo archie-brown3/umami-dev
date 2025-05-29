@@ -32,17 +32,15 @@ const RecipeContext = createContext<
 
 // Provider component
 export function RecipeProvider({ children }: { children: React.ReactNode }) {
-  const authContext = useAuth();
-
-  // Wait for auth to initialize before proceeding
-  if (!authContext) {
-    return <>{children}</>;
-  }
-
-  const { user } = authContext;
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [mealPlans, setMealPlans] = useState<MealPlan[]>([]);
   const [mealPlan, setMealPlan] = useState<MealPlanState>({ dayMeals: {} });
+
+  // Always call useAuth hook - don't conditionally return before hooks
+  const authContext = useAuth();
+
+  // Get user from auth context if available
+  const user = authContext?.user;
 
   // Load data from Supabase when user changes
   useEffect(() => {

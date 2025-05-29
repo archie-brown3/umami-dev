@@ -5,10 +5,14 @@ import { colors, spacing, borderRadius } from "../../../utils/styleUtils";
 import { useGroceries } from "../../../context/GroceriesContext";
 
 const CompleteShoppingButton: React.FC = () => {
-  const { shoppingList, moveCheckedItemsToCupboard, setActiveView } =
+  const { defaultShoppingList, moveCheckedItemsToCupboard, setActiveView } =
     useGroceries();
 
-  const checkedItemsCount = shoppingList.filter((item) => item.checked).length;
+  // Get shopping list items from defaultShoppingList
+  const shoppingListItems = defaultShoppingList?.items || [];
+  const checkedItemsCount = shoppingListItems.filter(
+    (item) => item.checked
+  ).length;
 
   const handleCompleteShoppingPress = () => {
     if (checkedItemsCount === 0) {
@@ -54,7 +58,7 @@ const CompleteShoppingButton: React.FC = () => {
   };
 
   // Don't show button if no items in shopping list
-  if (shoppingList.length === 0) {
+  if (shoppingListItems.length === 0) {
     return null;
   }
 

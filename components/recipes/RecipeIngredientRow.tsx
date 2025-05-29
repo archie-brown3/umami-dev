@@ -28,8 +28,11 @@ const RecipeIngredientRow: React.FC<RecipeIngredientRowProps> = ({
   scaledAmount,
   isScaled,
 }) => {
-  const { addItemToShoppingList, removeItemFromShoppingList, shoppingList } =
-    useGroceries();
+  const {
+    addItemToShoppingList,
+    removeItemFromShoppingList,
+    defaultShoppingList,
+  } = useGroceries();
   const ingredientStatus = useIngredientStatus([ingredient]);
   const isInShoppingList = useShoppingListStatus(ingredient.name);
 
@@ -69,8 +72,9 @@ const RecipeIngredientRow: React.FC<RecipeIngredientRowProps> = ({
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
       if (isInShoppingList) {
-        // Remove from shopping list
-        const itemToRemove = shoppingList.find(
+        // Remove from shopping list - find the item in defaultShoppingList
+        const shoppingListItems = defaultShoppingList?.items || [];
+        const itemToRemove = shoppingListItems.find(
           (item) => item.name.toLowerCase() === ingredient.name.toLowerCase()
         );
         if (itemToRemove) {
@@ -105,13 +109,18 @@ const RecipeIngredientRow: React.FC<RecipeIngredientRowProps> = ({
         <View
           style={[
             styles.ingredientCircleIcon,
-            showStatus && status && { backgroundColor: status.color + "20" },
+            showStatus &&
+              status && {
+                backgroundColor: status.color + "15",
+                borderWidth: 2,
+                borderColor: status.color + "30",
+              },
           ]}
         >
           <Ionicons
             name={getIconForIngredient(ingredient.name)}
             size={20}
-            color={showStatus && status ? status.color : "#F87171"}
+            color={showStatus && status ? status.color : colors.primary[600]}
           />
         </View>
 
@@ -190,7 +199,7 @@ const RecipeIngredientRow: React.FC<RecipeIngredientRowProps> = ({
                     color={colors.red[500]}
                   />
                   <Text style={[styles.statusText, { color: colors.red[600] }]}>
-                    Need to buy
+                    In basket
                   </Text>
                 </View>
               )}
@@ -220,7 +229,7 @@ const RecipeIngredientRow: React.FC<RecipeIngredientRowProps> = ({
             }
           >
             <Ionicons
-              name={isInShoppingList ? "checkmark" : "add"}
+              name={isInShoppingList ? "basket" : "basket-outline"}
               size={18}
               color={isInShoppingList ? colors.white : colors.primary[600]}
             />

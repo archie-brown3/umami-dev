@@ -32,7 +32,6 @@ const CATEGORIES = [
   "Beverages",
   "Snacks",
   "Household",
-  "Other",
 ];
 
 const UNITS = ["g", "kg", "ml", "L", "pcs", "pkg", "box", "can", "bottle"];
@@ -74,7 +73,7 @@ const AddItemModal: React.FC<AddItemModalProps> = ({
         name: baseItem.name,
         quantity: quantity || "1",
         unit: baseItem.unit,
-        category: baseItem.category || "Other",
+        category: baseItem.category || "Pantry",
         checked: false,
       });
     } else {

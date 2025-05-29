@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { TouchableOpacity, StyleSheet, Text } from "react-native";
+import { TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing } from "../../../utils/styleUtils";
 import AddItemModal from "./AddItemModal";
@@ -14,7 +14,7 @@ const AddItemButton: React.FC<AddItemButtonProps> = ({ screenType }) => {
   return (
     <>
       <TouchableOpacity
-        style={styles.button}
+        style={styles.floatingButton}
         onPress={() => setModalVisible(true)}
         activeOpacity={0.8}
       >
@@ -31,22 +31,22 @@ const AddItemButton: React.FC<AddItemButtonProps> = ({ screenType }) => {
 };
 
 const styles = StyleSheet.create({
-  button: {
+  floatingButton: {
     position: "absolute",
-    bottom: spacing.lg,
+    bottom: 100, // Above the tab bar
     right: spacing.lg,
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: colors.primary[600],
+    backgroundColor: colors.primary,
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: colors.dark,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
-    zIndex: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    zIndex: 1000,
   },
 });
 

@@ -75,11 +75,12 @@ export const useIngredientStatus = (
  * Helper hook to check if a specific ingredient is in the shopping list
  */
 export const useShoppingListStatus = (ingredientName: string): boolean => {
-  const { shoppingList } = useGroceries();
+  const { defaultShoppingList } = useGroceries();
 
   return useMemo(() => {
-    return shoppingList.some(
+    const shoppingListItems = defaultShoppingList?.items || [];
+    return shoppingListItems.some(
       (item) => item.name.toLowerCase() === ingredientName.toLowerCase()
     );
-  }, [shoppingList, ingredientName]);
+  }, [defaultShoppingList?.items, ingredientName]);
 };

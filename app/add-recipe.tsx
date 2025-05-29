@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -14,12 +14,16 @@ import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, typography } from "../utils/styleUtils";
 import { useRecipes } from "../context/RecipeContext";
 import { Recipe, Ingredient } from "../types";
-import { scrapeFromUrl, analyzeRecipeText } from "../services/deepseekservice";
+import { scrapeFromUrl } from "../services/deepseekservice";
 import {
   extractRecipeFromUrl,
-  validateRecipe,
+  extractRecipeFromInstagram,
   normalizeRecipe,
+  validateRecipe,
+  generateRecipeId,
 } from "../services/recipeExtractor";
+import { analyzeRecipeText } from "../services/deepseekservice";
+import { extractRecipeFromTextOptimized } from "../services/optimizedRecipeExtractor";
 
 type TabType = "manual" | "url" | "ai" | "instagram";
 
@@ -35,9 +39,13 @@ export default function AddRecipeScreen() {
 
   // Form state for manual input
   const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
   const [prepTime, setPrepTime] = useState("");
   const [cookTime, setCookTime] = useState("");
   const [servings, setServings] = useState("");
+  const [ingredients, setIngredients] = useState<string>("");
+  const [instructions, setInstructions] = useState<string>("");
+  const [tags, setTags] = useState<string>("");
 
   // States for URL and Instagram
   const [urlInput, setUrlInput] = useState("");
@@ -45,6 +53,33 @@ export default function AddRecipeScreen() {
   const [aiTextInput, setAiTextInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [debugLogs, setDebugLogs] = useState<string[]>([]);
+  const [recipeData, setRecipeData] = useState<Partial<Recipe> | null>(null);
+
+  // Effect to populate form fields when recipe data is extracted
+  useEffect(() => {
+    if (recipeData) {
+      setTitle(recipeData.title || "");
+      setDescription(recipeData.description || "");
+      setPrepTime(recipeData.prepTime?.toString() || "");
+      setCookTime(recipeData.cookTime?.toString() || "");
+      setServings(recipeData.servings?.toString() || "");
+
+      // Convert ingredients array to text
+      const ingredientsText =
+        recipeData.ingredients
+          ?.map((ing) => `${ing.amount} ${ing.unit} ${ing.name}`.trim())
+          .join("\n") || "";
+      setIngredients(ingredientsText);
+
+      // Convert instructions array to text
+      const instructionsText = recipeData.instructions?.join("\n") || "";
+      setInstructions(instructionsText);
+
+      // Convert tags array to text
+      const tagsText = recipeData.tags?.join(", ") || "";
+      setTags(tagsText);
+    }
+  }, [recipeData]);
 
   // Add a debug log entry
   const addLog = (message: string) => {
@@ -119,17 +154,17 @@ export default function AddRecipeScreen() {
         };
 
         // Step 4: Add the recipe to the user's collection
-        addRecipe(newRecipe);
-        addLog(`Recipe added: ${newRecipe.title}`);
+        const savedRecipe = await addRecipe(newRecipe);
+        addLog(`Recipe added: ${savedRecipe.title}`);
 
         // Step 5: Return to the recipe detail page with success message
         Alert.alert(
           "Success",
-          `Recipe "${newRecipe.title}" has been successfully added to your collection.`,
+          `Recipe "${savedRecipe.title}" has been successfully added to your collection.`,
           [
             {
               text: "OK",
-              onPress: () => navigateAfterSuccess(newRecipe.id),
+              onPress: () => navigateAfterSuccess(savedRecipe.id),
             },
           ]
         );
@@ -250,17 +285,17 @@ export default function AddRecipeScreen() {
       );
 
       // Add the recipe
-      addRecipe(newRecipe);
-      addLog(`[Instagram] Recipe added: ${newRecipe.title}`);
+      const savedRecipe = await addRecipe(newRecipe);
+      addLog(`[Instagram] Recipe added: ${savedRecipe.title}`);
 
       // Return to the recipe detail page with success message
       Alert.alert(
         "Success",
-        `Recipe "${newRecipe.title}" has been successfully added from Instagram.`,
+        `Recipe "${savedRecipe.title}" has been successfully added from Instagram.`,
         [
           {
             text: "OK",
-            onPress: () => navigateAfterSuccess(newRecipe.id),
+            onPress: () => navigateAfterSuccess(savedRecipe.id),
           },
         ]
       );
@@ -329,62 +364,54 @@ export default function AddRecipeScreen() {
     try {
       setIsLoading(true);
       addLog(
-        `Analyzing recipe text with DeepSeek: ${aiTextInput.substring(
+        `Analyzing recipe text with Optimized DeepSeek: ${aiTextInput.substring(
           0,
           100
-        )}...`
+        )}... (Total length: ${aiTextInput.length} chars)`
       );
-      const recipeData = await analyzeRecipeText(aiTextInput);
 
-      if (recipeData) {
-        addLog("Recipe analysis successful from text input.");
-        const newRecipe: Recipe = {
-          id: Date.now().toString(), // Consider a more robust ID generation
-          title:
-            recipeData.title || recipeData.name || "Untitled Recipe from Text",
-          name:
-            recipeData.name || recipeData.title || "Untitled Recipe from Text",
-          description: recipeData.description || "",
-          ingredients: recipeData.ingredients || [],
-          instructions: recipeData.instructions || [],
-          prepTime: recipeData.prepTime || 0,
-          cookTime: recipeData.cookTime || 0,
-          servings: recipeData.servings || 2,
-          imageUrl: undefined, // No image from text input typically
-          tags: recipeData.tags || [],
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          sourceUrl: "text-input", // Indicate source
-        };
+      // Use the optimized AI analysis
+      const recipeData = await extractRecipeFromTextOptimized(aiTextInput);
 
-        addRecipe(newRecipe);
-        addLog(`Recipe added from text: ${newRecipe.title}`);
-        Alert.alert(
-          "Success",
-          `Recipe "${newRecipe.title}" has been successfully added from the text provided.`,
-          [
-            {
-              text: "OK",
-              onPress: () => navigateAfterSuccess(newRecipe.id),
-            },
-          ]
-        );
+      console.log("[Debug] Recipe data from optimized extractor:", {
+        title: recipeData?.title,
+        ingredientCount: recipeData?.ingredients?.length || 0,
+        instructionCount: recipeData?.instructions?.length || 0,
+        tagCount: recipeData?.tags?.length || 0,
+        hasDescription: !!recipeData?.description,
+      });
+
+      if (
+        recipeData &&
+        recipeData.title &&
+        recipeData.title !== "Untitled Recipe"
+      ) {
+        addLog(`Successfully extracted recipe: "${recipeData.title}"`);
+
+        // Set the extracted data
+        setRecipeData(recipeData);
+        setActiveTab("manual"); // Switch to manual tab to show the extracted data
+
+        addLog("Recipe data populated. You can review and edit before saving.");
       } else {
-        const errorMsg = "Failed to analyze the provided recipe text.";
-        addLog(errorMsg);
+        addLog("Failed to extract valid recipe data from text");
         Alert.alert(
-          "Error",
-          `${errorMsg}. Please check the text or try again.`
+          "Extraction Failed",
+          "Could not extract a valid recipe from the provided text. Please check the text format and try again."
         );
       }
     } catch (error) {
-      console.error("AI Text extraction error:", error);
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-      addLog(`AI Text Error: ${errorMessage}`);
+      console.error("AI text extraction error:", error);
+      addLog(
+        `Text extraction failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
       Alert.alert(
         "Error",
-        `Failed to extract recipe from text: ${errorMessage}`
+        `Failed to extract recipe from text: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
       );
     } finally {
       setIsLoading(false);
@@ -392,48 +419,115 @@ export default function AddRecipeScreen() {
   };
 
   // Add a recipe manually
-  const handleAddRecipe = () => {
-    // Very basic validation
-    if (!title) {
-      alert("Please enter a title");
+  const handleAddRecipe = async () => {
+    // Enhanced validation
+    if (!title.trim()) {
+      Alert.alert("Error", "Please enter a recipe title");
       return;
     }
 
-    // Create a recipe object that matches Recipe type
-    const newRecipe: Recipe = {
-      id: Date.now().toString(),
-      title: title,
-      name: title, // For backward compatibility
-      ingredients: [
-        {
-          id: "ing-1",
-          name: "Example ingredient",
-          amount: 1,
-          unit: "item",
-        },
-      ],
-      instructions: ["Example instruction"],
-      prepTime: parseInt(prepTime) || 0,
-      cookTime: parseInt(cookTime) || 0,
-      servings: parseInt(servings) || 1,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    if (!ingredients.trim()) {
+      Alert.alert("Error", "Please enter at least one ingredient");
+      return;
+    }
 
-    // Add the recipe to context
-    addRecipe(newRecipe);
+    if (!instructions.trim()) {
+      Alert.alert("Error", "Please enter at least one instruction");
+      return;
+    }
 
-    // Show success message and navigate to recipe detail page
-    Alert.alert(
-      "Success",
-      `Recipe "${newRecipe.title}" has been successfully added to your collection.`,
-      [
-        {
-          text: "OK",
-          onPress: () => navigateAfterSuccess(newRecipe.id),
-        },
-      ]
-    );
+    try {
+      // Parse ingredients from text
+      const parsedIngredients = ingredients
+        .split("\n")
+        .filter((line) => line.trim())
+        .map((line, index) => {
+          const trimmed = line.trim();
+          // Try to parse amount, unit, and name
+          const match = trimmed.match(/^(\d+(?:\.\d+)?)\s*(\w+)?\s+(.+)$/);
+          if (match) {
+            return {
+              id: `ing-${index}`,
+              amount: parseFloat(match[1]),
+              unit: match[2] || "",
+              name: match[3].trim(),
+            };
+          } else {
+            // If parsing fails, treat the whole line as ingredient name
+            return {
+              id: `ing-${index}`,
+              amount: 1,
+              unit: "",
+              name: trimmed,
+            };
+          }
+        });
+
+      // Parse instructions from text
+      const parsedInstructions = instructions
+        .split("\n")
+        .filter((line) => line.trim())
+        .map((line, index) => {
+          const trimmed = line.trim();
+          // Add numbering if not already present
+          if (!/^\d+\./.test(trimmed)) {
+            return `${index + 1}. ${trimmed}`;
+          }
+          return trimmed;
+        });
+
+      // Parse tags from text
+      const parsedTags = tags
+        .split(",")
+        .map((tag) => tag.trim())
+        .filter((tag) => tag.length > 0);
+
+      // Create a recipe object that matches Recipe type
+      const newRecipe: Recipe = {
+        id: Date.now().toString(),
+        title: title.trim(),
+        name: title.trim(), // For backward compatibility
+        description: description.trim(),
+        ingredients: parsedIngredients,
+        instructions: parsedInstructions,
+        prepTime: parseInt(prepTime) || 0,
+        cookTime: parseInt(cookTime) || 0,
+        servings: parseInt(servings) || 1,
+        tags: parsedTags,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      addLog(
+        `Creating recipe: ${newRecipe.title} with ${parsedIngredients.length} ingredients and ${parsedInstructions.length} instructions`
+      );
+
+      // Add the recipe to context
+      const savedRecipe = await addRecipe(newRecipe);
+
+      // Clear the extracted recipe data
+      setRecipeData(null);
+
+      // Show success message and navigate to recipe detail page
+      Alert.alert(
+        "Success",
+        `Recipe "${savedRecipe.title}" has been successfully added to your collection.`,
+        [
+          {
+            text: "OK",
+            onPress: () => navigateAfterSuccess(savedRecipe.id),
+          },
+        ]
+      );
+    } catch (error) {
+      console.error("Error adding manual recipe:", error);
+      addLog(
+        `Failed to add recipe: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+      Alert.alert("Error", "Failed to add recipe. Please try again.");
+    }
   };
 
   // Update the success alerts to use the correct navigation method
@@ -477,12 +571,35 @@ export default function AddRecipeScreen() {
       case "manual":
         return (
           <View style={styles.tabContent}>
+            {recipeData && (
+              <View style={styles.extractedDataBanner}>
+                <Ionicons
+                  name="checkmark-circle"
+                  size={20}
+                  color={colors.green[600]}
+                />
+                <Text style={styles.extractedDataText}>
+                  Recipe data extracted! Review and edit below before saving.
+                </Text>
+              </View>
+            )}
+
             <Text style={styles.label}>Recipe Title</Text>
             <TextInput
               style={styles.input}
               value={title}
               onChangeText={setTitle}
               placeholder="Enter recipe title"
+            />
+
+            <Text style={styles.label}>Description</Text>
+            <TextInput
+              style={[styles.input, styles.multilineInput]}
+              value={description}
+              onChangeText={setDescription}
+              placeholder="Brief description of the recipe"
+              multiline
+              numberOfLines={3}
             />
 
             <View style={styles.row}>
@@ -516,6 +633,34 @@ export default function AddRecipeScreen() {
               onChangeText={setServings}
               placeholder="1"
               keyboardType="numeric"
+            />
+
+            <Text style={styles.label}>Ingredients</Text>
+            <TextInput
+              style={[styles.input, styles.multilineInput]}
+              value={ingredients}
+              onChangeText={setIngredients}
+              placeholder="1 cup flour&#10;2 eggs&#10;1 tsp salt"
+              multiline
+              numberOfLines={6}
+            />
+
+            <Text style={styles.label}>Instructions</Text>
+            <TextInput
+              style={[styles.input, styles.multilineInput]}
+              value={instructions}
+              onChangeText={setInstructions}
+              placeholder="1. Mix dry ingredients&#10;2. Add wet ingredients&#10;3. Bake for 30 minutes"
+              multiline
+              numberOfLines={6}
+            />
+
+            <Text style={styles.label}>Tags (comma separated)</Text>
+            <TextInput
+              style={styles.input}
+              value={tags}
+              onChangeText={setTags}
+              placeholder="dinner, easy, vegetarian"
             />
 
             <Pressable style={styles.button} onPress={handleAddRecipe}>
@@ -803,6 +948,20 @@ const styles = StyleSheet.create({
   dividerText: {
     marginHorizontal: spacing.sm,
     color: colors.gray[500],
+    fontWeight: "500",
+  },
+  extractedDataBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.green[600],
+    borderRadius: 8,
+    marginBottom: spacing.md,
+  },
+  extractedDataText: {
+    marginLeft: spacing.md,
+    color: colors.green[600],
     fontWeight: "500",
   },
 });

@@ -3,7 +3,7 @@ import { Recipe } from "../../../types";
 import { View, Text, StyleSheet, Image, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, borderRadius } from "../../../utils/styleUtils";
-import { formatTagName } from "../../../services/tagUtils";
+import { formatTagName, getTagCategoryColor } from "../../../services/tagUtils";
 import { useImageLoading } from "../../../hooks/useImageLoading";
 
 interface CompactRecipeCardProps {
@@ -39,9 +39,16 @@ export const CompactRecipeCard: React.FC<CompactRecipeCardProps> = ({
   const maxTagsToShow = 1; // Show fewer tags due to compact size
   const visibleTags = tags.slice(0, maxTagsToShow);
 
+  // Get the primary tag color for the outline
+  const primaryTagColor =
+    tags.length > 0 ? getTagCategoryColor(tags[0]) : colors.primary;
+
   return (
     <TouchableOpacity
-      style={styles.container}
+      style={[
+        styles.container,
+        { borderColor: primaryTagColor, borderWidth: 2 },
+      ]}
       onPress={onPress}
       activeOpacity={0.7}
     >
@@ -100,8 +107,6 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
     elevation: 3,
-    borderWidth: 1,
-    borderColor: "#F1F5F9",
     width: 140, // Compact width
     marginRight: spacing.sm,
   },

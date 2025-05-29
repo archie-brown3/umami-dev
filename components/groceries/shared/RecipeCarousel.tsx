@@ -21,25 +21,21 @@ import { useGroceries } from "../../../context/GroceriesContext";
 import { router } from "expo-router";
 
 interface RecipeCarouselProps {
-  selectedRecipes: Recipe[];
-  onAddRecipe: (recipe: Recipe) => void;
-  onRemoveRecipe: (recipeId: string) => void;
+  // Remove these props as we'll manage recipes internally based on shopping list
+  selectedRecipes?: Recipe[];
+  onAddRecipe?: (recipe: Recipe) => void;
+  onRemoveRecipe?: (recipeId: string) => void;
 }
 
-const RecipeCarousel: React.FC<RecipeCarouselProps> = ({
-  selectedRecipes,
-  onAddRecipe,
-  onRemoveRecipe,
-}) => {
+const RecipeCarousel: React.FC<RecipeCarouselProps> = () => {
   const [showRecipeSelector, setShowRecipeSelector] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const { recipes } = useRecipes();
   const {
-    selectedRecipes: groceriesSelectedRecipes,
-    addSelectedRecipe,
-    removeSelectedRecipe,
+    defaultShoppingList,
     addRecipeToShoppingList,
+    removeRecipeFromShoppingList,
     recipesWithIngredients,
     loadRecipesWithIngredients,
   } = useGroceries();
@@ -49,10 +45,48 @@ const RecipeCarousel: React.FC<RecipeCarouselProps> = ({
     loadRecipesWithIngredients();
   }, []);
 
-  // Use recipes with ingredients for the shopping list view
-  const availableRecipes = recipesWithIngredients.filter(
-    (recipe) => !selectedRecipes.some((selected) => selected.id === recipe.id)
-  );
+  // Get shopping list items
+  const shoppingListItems = defaultShoppingList?.items || [];
+
+  // Calculate which recipes have ALL their ingredients in the shopping list
+  const recipesInShoppingList = useMemo(() => {
+    return recipesWithIngredients.filter((recipe) => {
+      if (!recipe.ingredients || recipe.ingredients.length === 0) {
+        return false;
+      }
+
+      // Check if ALL ingredients from this recipe are in the shopping list
+      // Match by ingredient name, regardless of how they were added to the shopping list
+      return recipe.ingredients.every((ingredient) => {
+        return shoppingListItems.some(
+          (shoppingItem) =>
+            shoppingItem.name.toLowerCase().trim() ===
+            ingredient.name.toLowerCase().trim()
+        );
+      });
+    });
+  }, [recipesWithIngredients, shoppingListItems]);
+
+  // Get recipes that are NOT fully in the shopping list (available to add)
+  const availableRecipes = useMemo(() => {
+    return recipesWithIngredients.filter((recipe) => {
+      if (!recipe.ingredients || recipe.ingredients.length === 0) {
+        return false;
+      }
+
+      // Recipe is available if it's NOT fully in the shopping list
+      // Match by ingredient name, regardless of how they were added to the shopping list
+      const isFullyInShoppingList = recipe.ingredients.every((ingredient) => {
+        return shoppingListItems.some(
+          (shoppingItem) =>
+            shoppingItem.name.toLowerCase().trim() ===
+            ingredient.name.toLowerCase().trim()
+        );
+      });
+
+      return !isFullyInShoppingList;
+    });
+  }, [recipesWithIngredients, shoppingListItems]);
 
   // Get all unique tags for filtering
   const allTags = useMemo(() => {
@@ -97,34 +131,47 @@ const RecipeCarousel: React.FC<RecipeCarouselProps> = ({
     );
   };
 
-  const handleAddRecipeIngredients = (recipe: Recipe) => {
+  const handleAddRecipeIngredients = async (recipe: Recipe) => {
     if (recipe.ingredients.length === 0) {
       Alert.alert("No Ingredients", "This recipe has no ingredients to add.");
       return;
     }
 
+    try {
+      await addRecipeToShoppingList(recipe);
+      setShowRecipeSelector(false);
+      setSearchQuery("");
+      setSelectedTags([]);
+      console.log(
+        `Added ${recipe.ingredients.length} ingredients from ${recipe.title} to shopping list`
+      );
+    } catch (error) {
+      Alert.alert("Error", "Failed to add ingredients to shopping list");
+    }
+  };
+
+  const handleRemoveRecipeFromShoppingList = async (recipeId: string) => {
+    const recipe = recipesInShoppingList.find((r) => r.id === recipeId);
+    if (!recipe) return;
+
     Alert.alert(
-      "Add Ingredients",
-      `Add ${recipe.ingredients.length} ingredient${
-        recipe.ingredients.length === 1 ? "" : "s"
-      } from "${recipe.title}" to your shopping list?`,
+      "Remove Recipe",
+      `Remove all ingredients from "${recipe.title}" from your shopping list?`,
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: "Add All",
+          text: "Remove",
+          style: "destructive",
           onPress: async () => {
             try {
-              await addRecipeToShoppingList(recipe);
-              Alert.alert(
-                "Added to Shopping List",
-                `${recipe.ingredients.length} ingredient${
-                  recipe.ingredients.length === 1 ? "" : "s"
-                } added successfully!`
+              await removeRecipeFromShoppingList(recipeId);
+              console.log(
+                `Removed all ingredients from ${recipe.title} from shopping list`
               );
             } catch (error) {
               Alert.alert(
                 "Error",
-                "Failed to add ingredients to shopping list"
+                "Failed to remove recipe from shopping list"
               );
             }
           },
@@ -167,12 +214,7 @@ const RecipeCarousel: React.FC<RecipeCarouselProps> = ({
   const renderRecipeItem = ({ item }: { item: Recipe }) => (
     <TouchableOpacity
       style={styles.recipeListItem}
-      onPress={() => {
-        onAddRecipe(item);
-        setShowRecipeSelector(false);
-        setSearchQuery("");
-        setSelectedTags([]);
-      }}
+      onPress={() => handleAddRecipeIngredients(item)}
     >
       <View style={styles.recipeItemContent}>
         {/* Recipe Thumbnail */}
@@ -219,7 +261,17 @@ const RecipeCarousel: React.FC<RecipeCarouselProps> = ({
             </View>
           )}
         </View>
-        <Ionicons name="chevron-forward" size={20} color={colors.gray[400]} />
+
+        {/* Single Add Button */}
+        <TouchableOpacity
+          style={styles.addRecipeButton}
+          onPress={(e) => {
+            e.stopPropagation();
+            handleAddRecipeIngredients(item);
+          }}
+        >
+          <Ionicons name="cart" size={20} color={colors.primary} />
+        </TouchableOpacity>
       </View>
     </TouchableOpacity>
   );
@@ -232,7 +284,7 @@ const RecipeCarousel: React.FC<RecipeCarouselProps> = ({
     >
       <View style={styles.modalContainer}>
         <View style={styles.modalHeader}>
-          <Text style={styles.modalTitle}>Select Recipes</Text>
+          <Text style={styles.modalTitle}>Add Recipe to Shopping List</Text>
           <TouchableOpacity
             onPress={() => {
               setShowRecipeSelector(false);
@@ -294,27 +346,24 @@ const RecipeCarousel: React.FC<RecipeCarouselProps> = ({
     </Modal>
   );
 
-  if (selectedRecipes.length === 0) {
+  // Early return for empty state
+  if (recipesInShoppingList.length === 0) {
     return (
       <View style={styles.container}>
-        <View style={styles.header}>
-          <View style={styles.headerContent}>
-            <Text style={styles.title}>Recipe Ingredients</Text>
-            <Text style={styles.subtitle}>
-              Add recipes to quickly build your shopping list
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.emptyState}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.carousel}
+        >
+          {/* Add button - same as when there are recipes */}
           <TouchableOpacity
-            style={styles.addButton}
+            style={styles.addCardButton}
             onPress={() => setShowRecipeSelector(true)}
           >
-            <Ionicons name="add" size={24} color={colors.primary} />
-            <Text style={styles.addButtonText}>Add Recipe</Text>
+            <Ionicons name="add" size={32} color={colors.gray[400]} />
+            <Text style={styles.addCardText}>Add Recipe</Text>
           </TouchableOpacity>
-        </View>
+        </ScrollView>
 
         {renderRecipeSelector()}
       </View>
@@ -326,6 +375,10 @@ const RecipeCarousel: React.FC<RecipeCarouselProps> = ({
       <View style={styles.header}>
         <View style={styles.headerContent}>
           <Text style={styles.title}>Recipe Ingredients</Text>
+          <Text style={styles.subtitle}>
+            {recipesInShoppingList.length} recipe
+            {recipesInShoppingList.length !== 1 ? "s" : ""} in shopping list
+          </Text>
         </View>
         <TouchableOpacity
           style={styles.addSmallButton}
@@ -340,12 +393,12 @@ const RecipeCarousel: React.FC<RecipeCarouselProps> = ({
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.carousel}
       >
-        {selectedRecipes.map((recipe) => (
+        {recipesInShoppingList.map((recipe) => (
           <CompactRecipeCard
             key={recipe.id}
             recipe={recipe}
-            onPress={() => handleAddRecipeIngredients(recipe)}
-            onDelete={() => onRemoveRecipe(recipe.id)}
+            onPress={() => router.push(`/recipe/${recipe.id}`)}
+            onDelete={() => handleRemoveRecipeFromShoppingList(recipe.id)}
             showDeleteButton={true}
           />
         ))}
@@ -368,65 +421,71 @@ const RecipeCarousel: React.FC<RecipeCarouselProps> = ({
 const styles = StyleSheet.create({
   container: {
     backgroundColor: colors.white,
+    paddingVertical: spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.gray[100],
   },
   header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.sm,
-  },
-  headerContent: {
-    flex: 1,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: colors.dark,
+    paddingHorizontal: spacing.md,
     marginBottom: spacing.xs,
   },
+  headerContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  title: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: colors.dark,
+  },
   subtitle: {
-    fontSize: 14,
+    fontSize: 13,
     color: colors.gray[500],
+    marginTop: 1,
+  },
+  selectedRecipesContainer: {
+    paddingLeft: spacing.lg,
+  },
+  selectedRecipesList: {
+    paddingRight: spacing.lg,
   },
   emptyState: {
     alignItems: "center",
-    paddingVertical: spacing.lg,
     paddingHorizontal: spacing.lg,
   },
   addButton: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: colors.gray[100],
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
-    borderRadius: borderRadius.md,
+    backgroundColor: colors.primary[100],
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.lg,
     borderWidth: 2,
-    borderColor: colors.gray[200],
+    borderColor: colors.primary[200],
     borderStyle: "dashed",
   },
   addButtonText: {
     marginLeft: spacing.sm,
     fontSize: 14,
-    fontWeight: "500",
+    fontWeight: "600",
     color: colors.primary,
   },
   addSmallButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: colors.gray[100],
     alignItems: "center",
     justifyContent: "center",
   },
   carousel: {
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.xs,
   },
   addCardButton: {
-    width: 140,
-    height: 130, // Match CompactRecipeCard total height
+    width: 120,
+    height: 110,
     borderRadius: 12,
     backgroundColor: colors.gray[50],
     borderWidth: 2,
@@ -436,7 +495,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   addCardText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "500",
     color: colors.gray[500],
     marginTop: spacing.xs,
@@ -447,9 +506,10 @@ const styles = StyleSheet.create({
   },
   modalHeader: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    padding: spacing.lg,
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.gray[200],
   },
@@ -589,6 +649,12 @@ const styles = StyleSheet.create({
   moreTagsText: {
     fontSize: 12,
     color: colors.gray[500],
+  },
+  addRecipeButton: {
+    padding: spacing.sm,
+    backgroundColor: colors.primary[100],
+    borderRadius: borderRadius.md,
+    marginLeft: spacing.sm,
   },
 });
 

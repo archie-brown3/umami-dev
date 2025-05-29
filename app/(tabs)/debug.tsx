@@ -10,6 +10,7 @@ import {
   Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { APIHealthCheck } from "@/components/debug/APIHealthCheck";
 import { useAPIHealth } from "@/hooks/useAPIHealth";
 import { API_ENDPOINTS } from "@/constants/api";
@@ -31,6 +32,7 @@ import {
 } from "@/services/recipeExtractor";
 
 const DebugPage = () => {
+  const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const { recipes } = useRecipes();
   const [testResults, setTestResults] = useState<{ [key: string]: string }>({});
@@ -871,8 +873,13 @@ Serves 4 • Prep: 5 min • Cook: 15 min
   };
 
   return (
-    <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: insets.bottom + 70 },
+        ]}
+      >
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>🔧 System Diagnostics</Text>
           <ConnectionDiagnostic />
