@@ -60,8 +60,6 @@ export default function RecipesScreen() {
       return;
     }
 
-    console.log(`[RecipesScreen] Fetching recipes for user: ${user.id}`);
-
     if (showRefreshIndicator) {
       setIsRefreshing(true);
     } else {
@@ -92,11 +90,7 @@ export default function RecipesScreen() {
       setRecipes(conformingRecipes);
       setFilteredRecipes(conformingRecipes);
       setRetryCount(0); // Reset retry count on success
-      console.log(
-        `[RecipesScreen] Successfully loaded ${conformingRecipes.length} recipes`
-      );
     } catch (error) {
-      console.error("[RecipesScreen] Error fetching recipes:", error);
       const errorMessage =
         error instanceof Error ? error.message : String(error);
 
@@ -113,11 +107,6 @@ export default function RecipesScreen() {
 
         // Auto-retry for network errors (up to 3 times)
         if (retryCount < 3 && !showRefreshIndicator) {
-          console.log(
-            `[RecipesScreen] Auto-retrying in 3 seconds... (attempt ${
-              retryCount + 1
-            }/3)`
-          );
           setTimeout(() => {
             setRetryCount((prev) => prev + 1);
             fetchRecipes(false);
@@ -143,7 +132,6 @@ export default function RecipesScreen() {
   // Listen for recipe events (simple version)
   useEffect(() => {
     const handleRecipeRefresh = () => {
-      console.log("[RecipesScreen] Received refresh event");
       if (user?.id && !isLoading) {
         fetchRecipes();
       }
@@ -160,9 +148,6 @@ export default function RecipesScreen() {
     useCallback(() => {
       // Only refresh if we don't have recipes loaded yet
       if (user?.id && recipes.length === 0 && !isLoading && !error) {
-        console.log(
-          "[RecipesScreen] Screen focused, no recipes loaded, fetching..."
-        );
         fetchRecipes();
       }
     }, [user?.id, recipes.length, isLoading, error])
