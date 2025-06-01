@@ -5,7 +5,7 @@ import { Platform } from "react-native";
 
 // Apple OAuth configuration
 const APPLE_CONFIG = {
-  clientId: "io.recipesaver.app", // Your bundle identifier
+  clientId: "io.recipesaver.app", // Your bundle identifier (must match Supabase Authorized Client IDs)
   scopes: ["name", "email"],
 };
 
@@ -37,8 +37,8 @@ export class AppleAuthService {
   }
 
   /**
-   * Sign in with Apple using Supabase OAuth (Managed Expo)
-   * This is the recommended approach for managed Expo
+   * Sign in with Apple using Supabase OAuth
+   * This method properly handles the OAuth flow with correct configuration
    */
   public async signInWithApple(): Promise<AppleAuthResponse> {
     try {
@@ -50,15 +50,16 @@ export class AppleAuthService {
         };
       }
 
-      // Create redirect URI for managed Expo
+      // Create redirect URI for Expo
       const redirectUri = AuthSession.makeRedirectUri({
-        scheme: "io.recipesaver",
+        scheme: "umami-dev", // Use your app scheme from app.json
         path: "auth/callback",
       });
 
       console.log("Apple Auth Redirect URI:", redirectUri);
 
       // Use Supabase's OAuth flow with Apple
+      // This opens the browser for authentication
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "apple",
         options: {
@@ -68,15 +69,14 @@ export class AppleAuthService {
       });
 
       if (error) {
+        console.error("Apple OAuth error:", error);
         return {
           type: "error",
           error,
         };
       }
 
-      // For OAuth flow, the actual auth happens via redirect
-      // This just initiates the flow - the session will be available after redirect
-      console.log("Apple OAuth initiated:", data);
+      console.log("Apple OAuth initiated successfully");
 
       return {
         type: "success",
@@ -95,70 +95,28 @@ export class AppleAuthService {
   }
 
   /**
-   * Alternative method using Auth Session with manual token exchange
-   * Use this if you need more control over the flow
+   * Handle the OAuth callback after user returns from Apple
    */
-  public async signInWithAppleManual(): Promise<AppleAuthResponse> {
+  public async handleOAuthCallback(url: string): Promise<AppleAuthResponse> {
     try {
-      if (!(await this.isAvailable())) {
+      // Parse the URL to extract session data
+      const response = await supabase.auth.getSession();
+
+      if (response.error) {
         return {
           type: "error",
-          error: new Error("Apple Sign In not available on this device"),
+          error: response.error,
         };
       }
 
-      // Discovery document for Apple
-      const discovery = {
-        authorizationEndpoint: "https://appleid.apple.com/auth/authorize",
-        tokenEndpoint: "https://appleid.apple.com/auth/token",
-      };
-
-      // Create auth request
-      const request = new AuthSession.AuthRequest({
-        clientId: "io.recipesaver.app", // Your bundle identifier
-        scopes: ["name", "email"],
-        redirectUri: AuthSession.makeRedirectUri({
-          scheme: "io.recipesaver",
-          path: "auth/callback",
-        }),
-        responseType: AuthSession.ResponseType.Code,
-        usePKCE: true,
-      });
-
-      // Start authentication session
-      const result = await request.promptAsync(discovery);
-
-      if (result.type !== "success") {
-        return {
-          type: result.type as "error" | "dismiss",
-          error: result.type === "error" ? result.error : null,
-        };
-      }
-
-      // Get authorization code
-      const { code } = result.params;
-      if (!code) {
-        return {
-          type: "error",
-          error: new Error("No authorization code received"),
-        };
-      }
-
-      // You would need to exchange this code for tokens on your server
-      // For now, we'll try to use it with Supabase
-      console.log("Apple auth code received:", code);
-
-      // Note: This might not work directly as Supabase expects ID tokens
-      // You may need to exchange the code for tokens on your server first
       return {
         type: "success",
         data: {
-          user: null,
-          session: null,
+          user: response.data.session?.user || null,
+          session: response.data.session,
         },
       };
     } catch (error) {
-      console.error("Apple manual auth error:", error);
       return {
         type: "error",
         error,
