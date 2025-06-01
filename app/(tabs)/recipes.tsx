@@ -1,35 +1,32 @@
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
   StyleSheet,
-  FlatList,
   TouchableOpacity,
-  TextInput,
-  ScrollView,
+  FlatList,
   ActivityIndicator,
-  RefreshControl,
   Alert,
+  Pressable,
+  RefreshControl,
+  ScrollView,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-
-import EmptyState from "@/components/ui/EmptyState";
-import { RecipeCard } from "@/components/recipes/RecipeCard";
-import CategorizedTagFilter from "@/components/recipes/CategorizedTagFilter";
-import { Paywall } from "@/components/subscription/Paywall";
+import { colors, spacing, borderRadius, typography } from "@/utils/styleUtils";
+import { useRecipes } from "@/context/RecipeContext";
 import { useAuth } from "@/context/AuthContext";
+import { useSubscription } from "@/context/SubscriptionContext";
 import { useFeatureGating } from "@/hooks/useFeatureGating";
-import { getUserRecipes } from "@/services/recipeService";
-// import { migrateUserRecipeTags } from "@/services/tagMigration";
-import { addBasicTagsToRecipes } from "@/services/simpleTagMigration";
-import { colors, spacing, typography } from "@/utils/styleUtils";
 import { Recipe } from "@/types";
+import { Paywall } from "@/components/subscription/Paywall";
+import EmptyState from "@/components/common/EmptyState";
 import { eventEmitter, EVENTS } from "@/utils/eventEmitter";
-import { RevenueCatPaywallTest } from "@/components/subscription/RevenueCatPaywallTest";
-
-const DEBUG_TAG_MIGRATION = false; // Set to true to enable tag migration button
+import {
+  getUserRecipes,
+  addBasicTagsToRecipes,
+} from "@/services/recipeService";
 
 export default function RecipesScreen() {
   const [recipes, setRecipes] = React.useState<Recipe[]>([]);
@@ -39,14 +36,15 @@ export default function RecipesScreen() {
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isRefreshing, setIsRefreshing] = React.useState(false);
-  const [isMigratingTags, setIsMigratingTags] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const { user } = useAuth();
-  const { isPremium, paywallVisible, setPaywallVisible, blockedFeature } =
+  const { isPremium } = useSubscription();
+  const { paywallVisible, setPaywallVisible, blockedFeature } =
     useFeatureGating();
   const filtersScrollRef = useRef<ScrollView>(null);
   const insets = useSafeAreaInsets();
+  const { deleteRecipe } = useRecipes();
 
   // Add state for RevenueCat test
   const [showRevenueCatTest, setShowRevenueCatTest] = useState(false);
@@ -334,16 +332,6 @@ export default function RecipesScreen() {
           <View style={styles.headerContent}>
             <Text style={styles.headerTitle}>My Recipes</Text>
 
-            {/* Test button for development only */}
-            {__DEV__ && (
-              <TouchableOpacity
-                style={styles.testButton}
-                onPress={() => setShowRevenueCatTest(true)}
-              >
-                <Ionicons name="flask" size={20} color={colors.blue[600]} />
-              </TouchableOpacity>
-            )}
-
             {!isPremium && (
               <TouchableOpacity
                 style={styles.premiumButton}
@@ -357,17 +345,6 @@ export default function RecipesScreen() {
               </TouchableOpacity>
             )}
           </View>
-          {DEBUG_TAG_MIGRATION && (
-            <TouchableOpacity
-              style={styles.debugButton}
-              onPress={handleManualTagMigration}
-              disabled={isMigratingTags}
-            >
-              <Text style={styles.debugButtonText}>
-                {isMigratingTags ? "Migrating..." : "Add Tags"}
-              </Text>
-            </TouchableOpacity>
-          )}
         </View>
         <View
           style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
@@ -389,16 +366,6 @@ export default function RecipesScreen() {
         <View style={styles.header}>
           <View style={styles.headerContent}>
             <Text style={styles.headerTitle}>My Recipes</Text>
-
-            {/* Test button for development only */}
-            {__DEV__ && (
-              <TouchableOpacity
-                style={styles.testButton}
-                onPress={() => setShowRevenueCatTest(true)}
-              >
-                <Ionicons name="flask" size={20} color={colors.blue[600]} />
-              </TouchableOpacity>
-            )}
 
             {!isPremium && (
               <TouchableOpacity
@@ -449,16 +416,6 @@ export default function RecipesScreen() {
           <View style={styles.headerContent}>
             <Text style={styles.headerTitle}>My Recipes</Text>
 
-            {/* Test button for development only */}
-            {__DEV__ && (
-              <TouchableOpacity
-                style={styles.testButton}
-                onPress={() => setShowRevenueCatTest(true)}
-              >
-                <Ionicons name="flask" size={20} color={colors.blue[600]} />
-              </TouchableOpacity>
-            )}
-
             {!isPremium && (
               <TouchableOpacity
                 style={styles.premiumButton}
@@ -472,17 +429,6 @@ export default function RecipesScreen() {
               </TouchableOpacity>
             )}
           </View>
-          {DEBUG_TAG_MIGRATION && (
-            <TouchableOpacity
-              style={styles.debugButton}
-              onPress={handleManualTagMigration}
-              disabled={isMigratingTags}
-            >
-              <Text style={styles.debugButtonText}>
-                {isMigratingTags ? "Migrating..." : "Add Tags"}
-              </Text>
-            </TouchableOpacity>
-          )}
         </View>
         <EmptyState
           title="No Recipes Yet"
@@ -500,16 +446,6 @@ export default function RecipesScreen() {
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>My Recipes</Text>
 
-          {/* Test button for development only */}
-          {__DEV__ && (
-            <TouchableOpacity
-              style={styles.testButton}
-              onPress={() => setShowRevenueCatTest(true)}
-            >
-              <Ionicons name="flask" size={20} color={colors.blue[600]} />
-            </TouchableOpacity>
-          )}
-
           {!isPremium && (
             <TouchableOpacity
               style={styles.premiumButton}
@@ -523,17 +459,6 @@ export default function RecipesScreen() {
             </TouchableOpacity>
           )}
         </View>
-        {DEBUG_TAG_MIGRATION && (
-          <TouchableOpacity
-            style={styles.debugButton}
-            onPress={handleManualTagMigration}
-            disabled={isMigratingTags}
-          >
-            <Text style={styles.debugButtonText}>
-              {isMigratingTags ? "Migrating..." : "Add Tags"}
-            </Text>
-          </TouchableOpacity>
-        )}
       </View>
 
       <View style={styles.searchContainer}>
@@ -636,12 +561,6 @@ export default function RecipesScreen() {
         onClose={() => setPaywallVisible(false)}
         feature={blockedFeature || "Premium Recipe Features"}
       />
-
-      {/* RevenueCat SDK Test */}
-      <RevenueCatPaywallTest
-        visible={showRevenueCatTest}
-        onClose={() => setShowRevenueCatTest(false)}
-      />
     </View>
   );
 }
@@ -707,16 +626,6 @@ const styles = StyleSheet.create({
     elevation: 2,
     minHeight: 240,
   },
-  debugButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-  },
-  debugButtonText: {
-    marginLeft: 4,
-    color: colors.gray[700],
-    fontWeight: "500",
-  },
   errorContainer: {
     flex: 1,
     justifyContent: "center",
@@ -779,10 +688,5 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontWeight: "600",
     fontSize: 14,
-  },
-  testButton: {
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: colors.gray[50],
   },
 });
