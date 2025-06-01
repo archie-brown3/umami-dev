@@ -8,9 +8,11 @@ import {
   Alert,
 } from "react-native";
 import { useAuth } from "@/context/AuthContext";
-import { Link } from "expo-router";
+import { Link, router } from "expo-router";
 import { colors, spacing } from "@/utils/styleUtils";
 import { SafeAreaView } from "react-native-safe-area-context";
+import AppleSignInButton from "@/components/AppleSignInButton";
+import AuthDivider from "@/components/AuthDivider";
 
 export default function RegisterScreen() {
   const [email, setEmail] = useState("");
@@ -56,6 +58,16 @@ export default function RegisterScreen() {
     }
   };
 
+  const handleAppleSignInSuccess = () => {
+    // Navigate to main app on successful Apple Sign In
+    router.replace("/(tabs)");
+  };
+
+  const handleAppleSignInError = (error: any) => {
+    console.log("Apple Sign In error handled:", error);
+    // Error handling is already done in the AppleSignInButton component
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.formContainer}>
@@ -96,6 +108,15 @@ export default function RegisterScreen() {
             {loading ? "Creating Account..." : "Create Account"}
           </Text>
         </TouchableOpacity>
+
+        {/* Divider */}
+        <AuthDivider />
+
+        {/* Apple Sign In Button */}
+        <AppleSignInButton
+          onSuccess={handleAppleSignInSuccess}
+          onError={handleAppleSignInError}
+        />
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>Already have an account? </Text>

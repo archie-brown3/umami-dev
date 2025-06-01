@@ -30,13 +30,24 @@ import { supabase } from "@/lib/supabase";
 import { RecipeCamera } from "@/components/RecipeCamera";
 import { extractTextFromImage } from "@/services/textRecognition";
 import * as ImagePicker from "expo-image-picker";
+import { useFeatureGating } from "@/hooks/useFeatureGating";
+import { Paywall } from "@/components/subscription/Paywall";
 
 type TabType = "manual" | "url" | "ai" | "instagram";
 
 export default function AddRecipeScreen() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams();
-  const { addRecipe } = useRecipes();
+  const { addRecipe, recipes } = useRecipes();
+
+  // Add feature gating
+  const {
+    canAddRecipe,
+    canUseTextRecognition,
+    paywallVisible,
+    setPaywallVisible,
+    blockedFeature,
+  } = useFeatureGating();
 
   // Get the active tab from URL params or default to manual
   const initialTab = (params?.tab as TabType) || "manual";
@@ -68,6 +79,13 @@ export default function AddRecipeScreen() {
 
   // Extract recipe from URL
   const handleUrlExtraction = async () => {
+    // Feature gating check
+    const recipeCheck = canAddRecipe(recipes.length);
+    if (!recipeCheck.hasAccess) {
+      recipeCheck.showPaywall();
+      return;
+    }
+
     if (!urlInput.trim()) {
       Alert.alert("Error", "Please enter a recipe URL");
       return;
@@ -198,6 +216,18 @@ export default function AddRecipeScreen() {
 
   // Extract recipe from Instagram
   const handleInstagramExtraction = async () => {
+    // Feature gating check
+    const recipeCheck = canAddRecipe(recipes.length);
+    if (!recipeCheck.hasAccess) {
+      recipeCheck.showPaywall();
+      return;
+    }
+
+    if (!instagramUrl.trim()) {
+      Alert.alert("Error", "Please enter an Instagram post URL");
+      return;
+    }
+
     if (!instagramUrl.trim() || !instagramUrl.includes("instagram.com")) {
       Alert.alert("Error", "Please enter a valid Instagram URL");
       return;
@@ -442,10 +472,24 @@ export default function AddRecipeScreen() {
     }
   };
 
-  // Handle recipe text analysis
+  // Handle AI text analysis
   const handleRecipeTextAnalysis = async () => {
+    // Feature gating check for text recognition
+    const textCheck = canUseTextRecognition();
+    if (!textCheck.hasAccess) {
+      textCheck.showPaywall();
+      return;
+    }
+
+    // Recipe limit check
+    const recipeCheck = canAddRecipe(recipes.length);
+    if (!recipeCheck.hasAccess) {
+      recipeCheck.showPaywall();
+      return;
+    }
+
     if (!recipeText.trim()) {
-      Alert.alert("Error", "Please enter your recipe text");
+      Alert.alert("Error", "Please enter some recipe text to analyze");
       return;
     }
 
@@ -591,6 +635,13 @@ export default function AddRecipeScreen() {
 
   // Add a recipe manually
   const handleAddRecipe = async () => {
+    // Feature gating check
+    const recipeCheck = canAddRecipe(recipes.length);
+    if (!recipeCheck.hasAccess) {
+      recipeCheck.showPaywall();
+      return;
+    }
+
     // Enhanced validation
     if (!title.trim()) {
       Alert.alert("Error", "Please enter a recipe title");
@@ -696,6 +747,20 @@ export default function AddRecipeScreen() {
 
   // Handle photo selection from camera roll
   const handlePhotoSelection = async () => {
+    // Feature gating check for text recognition
+    const textCheck = canUseTextRecognition();
+    if (!textCheck.hasAccess) {
+      textCheck.showPaywall();
+      return;
+    }
+
+    // Recipe limit check
+    const recipeCheck = canAddRecipe(recipes.length);
+    if (!recipeCheck.hasAccess) {
+      recipeCheck.showPaywall();
+      return;
+    }
+
     try {
       // Request permission to access media library
       const permissionResult =
@@ -1062,7 +1127,23 @@ export default function AddRecipeScreen() {
                 <View style={styles.photoButtonsContainer}>
                   <Pressable
                     style={[styles.uploadButton, styles.halfButton]}
-                    onPress={() => setShowCamera(true)}
+                    onPress={() => {
+                      // Feature gating check for text recognition
+                      const textCheck = canUseTextRecognition();
+                      if (!textCheck.hasAccess) {
+                        textCheck.showPaywall();
+                        return;
+                      }
+
+                      // Recipe limit check
+                      const recipeCheck = canAddRecipe(recipes.length);
+                      if (!recipeCheck.hasAccess) {
+                        recipeCheck.showPaywall();
+                        return;
+                      }
+
+                      setShowCamera(true);
+                    }}
                   >
                     <Ionicons
                       name="camera-outline"
@@ -1195,6 +1276,13 @@ export default function AddRecipeScreen() {
 
         {renderTabContent()}
       </ScrollView>
+
+      {/* Paywall for premium features */}
+      <Paywall
+        visible={paywallVisible}
+        onClose={() => setPaywallVisible(false)}
+        feature={blockedFeature || "Premium Recipe Features"}
+      />
     </View>
   );
 }

@@ -225,6 +225,24 @@ RNSVGFeColorMatrixProps::RNSVGFeColorMatrixProps(
     type(convertRawProp(context, rawProps, "type", sourceProps.type, {RNSVGFeColorMatrixType::Matrix})),
     values(convertRawProp(context, rawProps, "values", sourceProps.values, {}))
       {}
+RNSVGFeCompositeProps::RNSVGFeCompositeProps(
+    const PropsParserContext &context,
+    const RNSVGFeCompositeProps &sourceProps,
+    const RawProps &rawProps): ViewProps(context, sourceProps, rawProps),
+
+    x(convertRawProp(context, rawProps, "x", sourceProps.x, {})),
+    y(convertRawProp(context, rawProps, "y", sourceProps.y, {})),
+    width(convertRawProp(context, rawProps, "width", sourceProps.width, {})),
+    height(convertRawProp(context, rawProps, "height", sourceProps.height, {})),
+    result(convertRawProp(context, rawProps, "result", sourceProps.result, {})),
+    in1(convertRawProp(context, rawProps, "in1", sourceProps.in1, {})),
+    in2(convertRawProp(context, rawProps, "in2", sourceProps.in2, {})),
+    operator1(convertRawProp(context, rawProps, "operator1", sourceProps.operator1, {RNSVGFeCompositeOperator1::Over})),
+    k1(convertRawProp(context, rawProps, "k1", sourceProps.k1, {0.0})),
+    k2(convertRawProp(context, rawProps, "k2", sourceProps.k2, {0.0})),
+    k3(convertRawProp(context, rawProps, "k3", sourceProps.k3, {0.0})),
+    k4(convertRawProp(context, rawProps, "k4", sourceProps.k4, {0.0}))
+      {}
 RNSVGFeFloodProps::RNSVGFeFloodProps(
     const PropsParserContext &context,
     const RNSVGFeFloodProps &sourceProps,

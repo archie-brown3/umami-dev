@@ -1,7 +1,7 @@
 {
   "name": "RNGestureHandler",
-  "version": "2.20.2",
-  "summary": "Experimental implementation of a new declarative API for gesture handling in react-native",
+  "version": "2.24.0",
+  "summary": "Declarative API exposing native platform touch and gesture system to React Native",
   "homepage": "https://github.com/software-mansion/react-native-gesture-handler",
   "license": "MIT",
   "authors": {
@@ -9,7 +9,7 @@
   },
   "source": {
     "git": "https://github.com/software-mansion/react-native-gesture-handler",
-    "tag": "2.20.2"
+    "tag": "2.24.0"
   },
   "source_files": "apple/**/*.{h,m,mm}",
   "requires_arc": true,
@@ -19,11 +19,14 @@
     "osx": "10.15",
     "visionos": "1.0"
   },
+  "xcconfig": {
+    "OTHER_CFLAGS": "$(inherited) "
+  },
   "compiler_flags": "-DFOLLY_NO_CONFIG -DFOLLY_MOBILE=1 -DFOLLY_USE_LIBCPP=1 -DFOLLY_CFG_NO_COROUTINES=1 -DFOLLY_HAVE_CLOCK_GETTIME=1 -Wno-comma -Wno-shorten-64-to-32",
   "dependencies": {
     "React-Core": [],
     "RCT-Folly": [
-      "2024.10.14.00"
+      "2024.11.18.00"
     ],
     "glog": [],
     "React-RCTFabric": [],
@@ -42,11 +45,15 @@
     "React-ImageManager": [],
     "React-rendererdebug": [],
     "DoubleConversion": [],
-    "hermes-engine": []
+    "React-jsi": [],
+    "React-renderercss": [],
+    "hermes-engine": [],
+    "React-hermes": []
   },
   "pod_target_xcconfig": {
     "HEADER_SEARCH_PATHS": "\"$(PODS_ROOT)/boost\" \"$(PODS_ROOT)/Headers/Private/Yoga\"",
     "CLANG_CXX_LANGUAGE_STANDARD": "c++20",
-    "OTHER_CPLUSPLUSFLAGS": "$(inherited) -DFOLLY_NO_CONFIG -DFOLLY_MOBILE=1 -DFOLLY_USE_LIBCPP=1 -DFOLLY_CFG_NO_COROUTINES=1 -DFOLLY_HAVE_CLOCK_GETTIME=1 -Wno-comma -Wno-shorten-64-to-32"
+    "OTHER_CPLUSPLUSFLAGS": "$(inherited) -DFOLLY_NO_CONFIG -DFOLLY_MOBILE=1 -DFOLLY_USE_LIBCPP=1 -DFOLLY_CFG_NO_COROUTINES=1 -DFOLLY_HAVE_CLOCK_GETTIME=1 -Wno-comma -Wno-shorten-64-to-32",
+    "OTHER_SWIFT_FLAGS": "$(inherited)"
   }
 }

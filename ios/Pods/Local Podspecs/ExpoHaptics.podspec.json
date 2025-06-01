@@ -1,8 +1,8 @@
 {
   "name": "ExpoHaptics",
-  "version": "14.0.1",
-  "summary": "Provides access to the system's haptics engine on iOS and vibration effects on Android.",
-  "description": "Provides access to the system's haptics engine on iOS and vibration effects on Android.",
+  "version": "14.1.4",
+  "summary": "Provides access to the system's haptics engine on iOS, vibration effects on Android, and Web Vibration API on web.",
+  "description": "Provides access to the system's haptics engine on iOS, vibration effects on Android, and Web Vibration API on web.",
   "license": "MIT",
   "authors": "650 Industries, Inc.",
   "homepage": "https://docs.expo.dev/versions/latest/sdk/haptics/",

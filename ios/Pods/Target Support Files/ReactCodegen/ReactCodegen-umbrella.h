@@ -10,9 +10,11 @@
 #endif
 #endif
 
-#import "FBReactNativeSpec/FBReactNativeSpec.h"
-#import "FBReactNativeSpecJSI.h"
+#import "expo-media-library/expo-media-library.h"
+#import "expo-media-libraryJSI.h"
+#import "RCTModuleProviders.h"
 #import "RCTModulesConformingToProtocolsProvider.h"
+#import "RCTThirdPartyComponentsProvider.h"
 #import "react/renderer/components/RNCWebViewSpec/ComponentDescriptors.h"
 #import "react/renderer/components/RNCWebViewSpec/EventEmitters.h"
 #import "react/renderer/components/RNCWebViewSpec/Props.h"

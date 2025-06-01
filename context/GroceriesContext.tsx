@@ -117,11 +117,8 @@ export const GroceriesProvider: React.FC<{ children: React.ReactNode }> = ({
     Recipe[]
   >([]);
 
-  // Always call useAuth hook - don't conditionally return before hooks
-  const authContext = useAuth();
-
-  // Get user from auth context if available
-  const user = authContext?.user;
+  // Get auth context - should be safe since AuthProvider wraps this provider
+  const { user } = useAuth();
 
   // Network connectivity monitoring
   useEffect(() => {

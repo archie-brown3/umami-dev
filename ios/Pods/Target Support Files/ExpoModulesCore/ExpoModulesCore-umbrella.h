@@ -10,11 +10,10 @@
 #endif
 #endif
 
-#import "ExpoModulesCore/EXAppDelegatesLoader.h"
-#import "ExpoModulesCore/EXAppDelegateWrapper.h"
-#import "ExpoModulesCore/EXLegacyAppDelegateWrapper.h"
-#import "ExpoModulesCore/RCTAppDelegateUmbrella.h"
 #import "ExpoModulesCore/ExpoBridgeModule.h"
+#import "ExpoModulesCore/CoreModuleHelper.h"
+#import "ExpoModulesCore/SwiftUIViewProps.h"
+#import "ExpoModulesCore/SwiftUIVirtualViewObjC.h"
 #import "ExpoModulesCore/EXAppDefines.h"
 #import "ExpoModulesCore/EXDefines.h"
 #import "ExpoModulesCore/EXLegacyExpoViewProtocol.h"
@@ -43,6 +42,7 @@
 #import "ExpoModulesCore/EXTaskServiceInterface.h"
 #import "ExpoModulesCore/EXJavaScriptObject.h"
 #import "ExpoModulesCore/EXJavaScriptRuntime.h"
+#import "ExpoModulesCore/EXJavaScriptSharedObjectBinding.h"
 #import "ExpoModulesCore/EXJavaScriptTypedArray.h"
 #import "ExpoModulesCore/EXJavaScriptValue.h"
 #import "ExpoModulesCore/EXJavaScriptWeakObject.h"
@@ -82,8 +82,8 @@
 #import "ExpoModulesCore/Platform.h"
 #import "ExpoModulesCore/RCTComponentData+Privates.h"
 #import "ExpoModulesCore/EXReactDelegateWrapper.h"
-#import "ExpoModulesCore/EXReactRootViewFactory.h"
-#import "ExpoModulesCore/RCTAppDelegate+Recreate.h"
+#import "ExpoModulesCore/MainThreadInvoker.h"
+#import "ExpoModulesCore/TestingJSCallInvoker.h"
 #import "ExpoModulesCore/BridgelessJSCallInvoker.h"
 #import "ExpoModulesCore/EventEmitter.h"
 #import "ExpoModulesCore/ExpoViewComponentDescriptor.h"

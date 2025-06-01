@@ -1,6 +1,6 @@
 {
   "name": "EXApplication",
-  "version": "6.0.2",
+  "version": "6.1.4",
   "summary": "A universal module that gets native application information such as its ID, app name, and build version at runtime",
   "description": "A universal module that gets native application information such as its ID, app name, and build version at runtime",
   "license": "MIT",

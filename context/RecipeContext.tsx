@@ -36,11 +36,8 @@ export function RecipeProvider({ children }: { children: React.ReactNode }) {
   const [mealPlans, setMealPlans] = useState<MealPlan[]>([]);
   const [mealPlan, setMealPlan] = useState<MealPlanState>({ dayMeals: {} });
 
-  // Always call useAuth hook - don't conditionally return before hooks
-  const authContext = useAuth();
-
-  // Get user from auth context if available
-  const user = authContext?.user;
+  // Get auth context - should be safe since AuthProvider wraps RecipeProvider in _layout.tsx
+  const { user } = useAuth();
 
   // Load data from Supabase when user changes
   useEffect(() => {

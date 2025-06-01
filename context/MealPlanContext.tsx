@@ -101,11 +101,8 @@ export const MealPlanProvider: React.FC<MealPlanProviderProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
 
-  // Always call useAuth hook - don't conditionally return before hooks
-  const authContext = useAuth();
-
-  // Get user from auth context if available
-  const user = authContext?.user;
+  // Get auth context - should be safe since AuthProvider wraps this provider
+  const { user } = useAuth();
 
   // Load week meals when user or currentWeek changes
   useEffect(() => {

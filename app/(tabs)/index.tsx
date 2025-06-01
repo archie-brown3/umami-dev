@@ -8,23 +8,145 @@ import {
   FlatList,
   ActivityIndicator,
   Image,
+  SafeAreaView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, router } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, spacing, borderRadius, typography } from "@/utils/styleUtils";
 import { useRecipes } from "@/context/RecipeContext";
 import { useMealPlan } from "@/context/MealPlanContext";
 import { useAuth } from "@/context/AuthContext";
+import { useFeatureGating } from "@/hooks/useFeatureGating";
+import { Paywall } from "@/components/subscription/Paywall";
 import TodaysMealPlan from "@/components/meal-planning/TodaysMealPlan";
 import { Recipe } from "@/types";
 
-export default function HomeScreen() {
-  const insets = useSafeAreaInsets();
+// Separate component for recipe items to avoid hooks in render functions
+const RecentRecipeItem = ({
+  item,
+  onPress,
+}: {
+  item: Recipe;
+  onPress: (recipe: Recipe) => void;
+}) => {
+  const [imageLoading, setImageLoading] = useState(true);
+  const [imageError, setImageError] = useState(false);
 
+  return (
+    <TouchableOpacity
+      style={styles.recentRecipeCard}
+      onPress={() => onPress(item)}
+      activeOpacity={0.7}
+    >
+      <View style={styles.recipeImageContainer}>
+        {item.imageUrl && !imageError ? (
+          <>
+            <Image
+              source={{ uri: item.imageUrl }}
+              style={styles.recipeImage}
+              onLoadStart={() => {
+                setImageLoading(true);
+                setImageError(false);
+              }}
+              onLoad={() => {
+                console.log(
+                  `Successfully loaded image for recipe: ${item.title}`
+                );
+                setImageLoading(false);
+              }}
+              onError={(error) => {
+                console.log(
+                  `Failed to load image for recipe: ${item.title}`,
+                  error.nativeEvent
+                );
+                setImageLoading(false);
+                setImageError(true);
+              }}
+              resizeMode="cover"
+            />
+            {imageLoading && (
+              <View style={styles.imageLoadingOverlay}>
+                <ActivityIndicator size="small" color={colors.primary} />
+              </View>
+            )}
+          </>
+        ) : (
+          <View style={styles.recipeImagePlaceholder}>
+            <Ionicons name="restaurant" size={32} color={colors.gray[400]} />
+          </View>
+        )}
+
+        {/* Recipe type badge */}
+        {item.tags && item.tags.length > 0 && (
+          <View style={styles.recipeBadge}>
+            <Text style={styles.recipeBadgeText}>
+              {item.tags[0].length > 8
+                ? item.tags[0].substring(0, 8) + "..."
+                : item.tags[0]}
+            </Text>
+          </View>
+        )}
+
+        {/* Favorite indicator */}
+        {item.isFavorite && (
+          <View style={styles.favoriteIndicator}>
+            <Ionicons name="heart" size={16} color={colors.red[500]} />
+          </View>
+        )}
+      </View>
+
+      <View style={styles.recipeInfo}>
+        <Text style={styles.recipeTitle} numberOfLines={2}>
+          {item.title}
+        </Text>
+        <View style={styles.recipeMetadata}>
+          {item.prepTime && item.cookTime ? (
+            <View style={styles.recipeTimeContainer}>
+              <Ionicons
+                name="time-outline"
+                size={12}
+                color={colors.gray[500]}
+              />
+              <Text style={styles.recipeTime}>
+                {item.prepTime + item.cookTime}m
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.recipeTimeContainer}>
+              <Ionicons
+                name="calendar-outline"
+                size={12}
+                color={colors.gray[500]}
+              />
+              <Text style={styles.recipeTime}>
+                {new Date(item.createdAt).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                })}
+              </Text>
+            </View>
+          )}
+          {item.servings && (
+            <View style={styles.recipeServingsContainer}>
+              <Ionicons
+                name="people-outline"
+                size={12}
+                color={colors.gray[500]}
+              />
+              <Text style={styles.recipeServings}>{item.servings}</Text>
+            </View>
+          )}
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+};
+
+export default function HomeScreen() {
   const { recipes } = useRecipes();
   const { weekMeals } = useMealPlan();
   const { user } = useAuth();
+  const { isPremium, paywallVisible, setPaywallVisible } = useFeatureGating();
 
   const [greeting, setGreeting] = useState("");
   const [recentRecipes, setRecentRecipes] = useState<Recipe[]>([]);
@@ -60,7 +182,6 @@ export default function HomeScreen() {
       setTotalRecipeCount(0);
       setRecentRecipes([]);
       // Only set loading to false if we're sure recipes have been loaded (not just empty)
-      // This prevents showing "no recipes" immediately on app start
       if (recipes !== undefined) {
         setIsLoadingRecipes(false);
       }
@@ -78,7 +199,6 @@ export default function HomeScreen() {
   useFocusEffect(
     React.useCallback(() => {
       // Data is already managed by contexts, no need to fetch again
-      // Just ensure we have the latest data
       if (recipes && recipes.length > 0) {
         setTotalRecipeCount(recipes.length);
         const recent = [...recipes]
@@ -92,13 +212,13 @@ export default function HomeScreen() {
     }, [recipes])
   );
 
-  // Calculate stats - use data from contexts
+  // Get planned meals for today from the meal plan
   const today = new Date().toISOString().split("T")[0];
-  const todaysMeals = weekMeals[today] || {};
-  const plannedMealsToday = Object.values(todaysMeals).flat().length;
+  const todaysMeals = weekMeals?.[today] || {};
+  const plannedMealsToday = Object.values(todaysMeals).filter(Boolean).length;
 
   const handleMealPress = (mealType: string) => {
-    router.push(`/meal-plan?meal=${mealType}`);
+    router.push(`/(tabs)/meal-plan?meal=${mealType}&date=${today}`);
   };
 
   const handleRecipePress = (recipe: Recipe) => {
@@ -109,154 +229,55 @@ export default function HomeScreen() {
     router.push("/(tabs)/recipes");
   };
 
-  const renderRecentRecipeItem = ({ item }: { item: Recipe }) => {
-    const [imageLoading, setImageLoading] = useState(true);
-    const [imageError, setImageError] = useState(false);
-
-    return (
-      <TouchableOpacity
-        style={styles.recentRecipeCard}
-        onPress={() => handleRecipePress(item)}
-        activeOpacity={0.7}
-      >
-        <View style={styles.recipeImageContainer}>
-          {item.imageUrl && !imageError ? (
-            <>
-              <Image
-                source={{ uri: item.imageUrl }}
-                style={styles.recipeImage}
-                onLoadStart={() => {
-                  setImageLoading(true);
-                  setImageError(false);
-                }}
-                onLoad={() => {
-                  console.log(
-                    `Successfully loaded image for recipe: ${item.title}`
-                  );
-                  setImageLoading(false);
-                }}
-                onError={(error) => {
-                  console.log(
-                    `Failed to load image for recipe: ${item.title}`,
-                    error.nativeEvent
-                  );
-                  setImageLoading(false);
-                  setImageError(true);
-                }}
-                resizeMode="cover"
-              />
-              {imageLoading && (
-                <View style={styles.imageLoadingOverlay}>
-                  <ActivityIndicator size="small" color={colors.primary} />
-                </View>
-              )}
-            </>
-          ) : (
-            <View style={styles.recipeImagePlaceholder}>
-              <Ionicons name="restaurant" size={32} color={colors.gray[400]} />
-            </View>
-          )}
-
-          {/* Recipe type badge */}
-          {item.tags && item.tags.length > 0 && (
-            <View style={styles.recipeBadge}>
-              <Text style={styles.recipeBadgeText}>
-                {item.tags[0].length > 8
-                  ? item.tags[0].substring(0, 8) + "..."
-                  : item.tags[0]}
-              </Text>
-            </View>
-          )}
-
-          {/* Favorite indicator */}
-          {item.isFavorite && (
-            <View style={styles.favoriteIndicator}>
-              <Ionicons name="heart" size={16} color={colors.red[500]} />
-            </View>
-          )}
-        </View>
-
-        <View style={styles.recipeInfo}>
-          <Text style={styles.recipeTitle} numberOfLines={2}>
-            {item.title}
-          </Text>
-          <View style={styles.recipeMetadata}>
-            {item.prepTime && item.cookTime ? (
-              <View style={styles.recipeTimeContainer}>
-                <Ionicons
-                  name="time-outline"
-                  size={12}
-                  color={colors.gray[500]}
-                />
-                <Text style={styles.recipeTime}>
-                  {item.prepTime + item.cookTime}m
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.recipeTimeContainer}>
-                <Ionicons
-                  name="calendar-outline"
-                  size={12}
-                  color={colors.gray[500]}
-                />
-                <Text style={styles.recipeTime}>
-                  {new Date(item.createdAt).toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                  })}
-                </Text>
-              </View>
-            )}
-            {item.servings && (
-              <View style={styles.recipeServingsContainer}>
-                <Ionicons
-                  name="people-outline"
-                  size={12}
-                  color={colors.gray[500]}
-                />
-                <Text style={styles.recipeServings}>{item.servings}</Text>
-              </View>
-            )}
-          </View>
-        </View>
-      </TouchableOpacity>
-    );
-  };
+  const renderRecentRecipeItem = ({ item }: { item: Recipe }) => (
+    <RecentRecipeItem item={item} onPress={handleRecipePress} />
+  );
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <SafeAreaView style={styles.container}>
       <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: insets.bottom + 70 },
-        ]}
+        style={styles.container}
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
       >
         {/* Welcome Section */}
         <View style={styles.welcomeSection}>
           <View style={styles.welcomeHeader}>
-            <View>
-              <Text style={styles.greetingText}> 🧑‍🍳 {greeting}!</Text>
+            <View style={styles.welcomeTextContainer}>
+              <Text style={styles.greetingText}>🧑‍🍳 {greeting}!</Text>
               <Text style={styles.subtitleText}>What's cooking today?</Text>
             </View>
-            <TouchableOpacity
-              onPress={() => router.push("/profile")}
-              style={styles.profileButton}
-            >
-              <Ionicons
-                name="person-circle-outline"
-                size={32}
-                color={colors.primary}
-              />
-            </TouchableOpacity>
+            <View style={styles.headerActions}>
+              {!isPremium && (
+                <TouchableOpacity
+                  style={styles.premiumButton}
+                  onPress={() => setPaywallVisible(true)}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.premiumButtonContent}>
+                    <Ionicons name="star" size={16} color={colors.white} />
+                    <Text style={styles.premiumButtonText}>Premium</Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                onPress={() => router.push("/profile")}
+                style={styles.profileButton}
+              >
+                <Ionicons
+                  name="person-circle-outline"
+                  size={28}
+                  color={colors.gray[600]}
+                />
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 
         {/* Quick Stats */}
         <View style={styles.statsContainer}>
           <TouchableOpacity
-            style={[styles.statCard, { borderLeftColor: "#4ECDC4" }]}
+            style={[styles.statCard, styles.statCardRecipes]}
             onPress={() => router.push("/(tabs)/recipes")}
             activeOpacity={0.8}
           >
@@ -264,7 +285,7 @@ export default function HomeScreen() {
             <Text style={styles.statLabel}>📚 recipes</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.statCard, { borderLeftColor: "#FF6B6B" }]}
+            style={[styles.statCard, styles.statCardMeals]}
             onPress={() => router.push("/(tabs)/meal-plan")}
             activeOpacity={0.8}
           >
@@ -275,74 +296,78 @@ export default function HomeScreen() {
 
         {/* Recently Created Recipes */}
         <View style={styles.recentRecipesSection}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>🆕 Recently Created</Text>
-            <TouchableOpacity
-              onPress={handleViewAllRecipes}
-              style={styles.viewAllButton}
-            >
-              <Text style={styles.viewAllText}>View All</Text>
-              <Ionicons
-                name="chevron-forward"
-                size={16}
-                color={colors.primary}
-              />
-            </TouchableOpacity>
-          </View>
-
-          {isLoadingRecipes ? (
-            <View style={styles.loadingContainer}>
-              <View style={styles.skeletonContainer}>
-                {[1, 2, 3].map((index) => (
-                  <View key={index} style={styles.skeletonCard}>
-                    <View style={styles.skeletonImage} />
-                    <View style={styles.skeletonContent}>
-                      <View style={styles.skeletonTitle} />
-                      <View style={styles.skeletonMeta} />
-                    </View>
-                  </View>
-                ))}
-              </View>
-            </View>
-          ) : recentRecipes.length > 0 ? (
-            <FlatList
-              data={recentRecipes}
-              renderItem={renderRecentRecipeItem}
-              keyExtractor={(item) => item.id}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.recentRecipesList}
-            />
-          ) : (
-            <View style={styles.emptyRecipesContainer}>
-              <Ionicons
-                name="restaurant-outline"
-                size={48}
-                color={colors.gray[400]}
-              />
-              <Text style={styles.emptyRecipesText}>No recipes yet</Text>
-              <Text style={styles.emptyRecipesSubtext}>
-                Start building your recipe collection by adding your first
-                recipe
-              </Text>
+          <View style={styles.sectionHeaderContainer}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>🆕 Recently Created</Text>
               <TouchableOpacity
-                style={styles.addFirstRecipeButton}
-                onPress={() => router.push("/add-recipe")}
+                onPress={handleViewAllRecipes}
+                style={styles.viewAllButton}
               >
-                <Ionicons name="add-circle" size={20} color={colors.white} />
-                <Text style={styles.addFirstRecipeText}>
-                  Add Your First Recipe
-                </Text>
+                <Text style={styles.viewAllText}>View All</Text>
+                <Ionicons
+                  name="chevron-forward"
+                  size={16}
+                  color={colors.primary}
+                />
               </TouchableOpacity>
             </View>
-          )}
+          </View>
+
+          <View style={styles.recentRecipesContent}>
+            {isLoadingRecipes ? (
+              <View style={styles.loadingContainer}>
+                <View style={styles.skeletonContainer}>
+                  {[1, 2, 3].map((index) => (
+                    <View key={index} style={styles.skeletonCard}>
+                      <View style={styles.skeletonImage} />
+                      <View style={styles.skeletonContent}>
+                        <View style={styles.skeletonTitle} />
+                        <View style={styles.skeletonMeta} />
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            ) : recentRecipes.length > 0 ? (
+              <FlatList
+                data={recentRecipes}
+                renderItem={renderRecentRecipeItem}
+                keyExtractor={(item) => item.id}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.recentRecipesList}
+              />
+            ) : (
+              <View style={styles.emptyRecipesContainer}>
+                <Ionicons
+                  name="restaurant-outline"
+                  size={48}
+                  color={colors.gray[400]}
+                />
+                <Text style={styles.emptyRecipesText}>No recipes yet</Text>
+                <Text style={styles.emptyRecipesSubtext}>
+                  Start building your recipe collection by adding your first
+                  recipe
+                </Text>
+                <TouchableOpacity
+                  style={styles.addFirstRecipeButton}
+                  onPress={() => router.push("/add-recipe")}
+                >
+                  <Ionicons name="add-circle" size={20} color={colors.white} />
+                  <Text style={styles.addFirstRecipeText}>
+                    Add Your First Recipe
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
         </View>
 
         {/* Today's Highlights */}
         <View style={styles.highlightsSection}>
-          <View style={styles.highlightsHeader}>
-            <Text style={styles.highlightsTitle}>🌟 Today's Highlights</Text>
-            <Text style={styles.highlightsSubtitle}>
+          <View style={styles.sectionHeaderContainer}>
+            <Text style={styles.sectionTitle}>🌟 Today's Highlights</Text>
+            <Text style={styles.sectionSubtitle}>
               Your planned meals for today
             </Text>
           </View>
@@ -351,7 +376,13 @@ export default function HomeScreen() {
           <TodaysMealPlan compact={false} onMealPress={handleMealPress} />
         </View>
       </ScrollView>
-    </View>
+
+      <Paywall
+        visible={paywallVisible}
+        onClose={() => setPaywallVisible(false)}
+        feature="Premium Home Features"
+      />
+    </SafeAreaView>
   );
 }
 
@@ -360,26 +391,27 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.gray[50],
   },
-  scrollView: {
-    flex: 1,
-  },
   scrollContent: {
-    paddingHorizontal: spacing.lg,
+    paddingBottom: 90, // Increased for tab bar clearance
   },
   welcomeSection: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.lg,
     backgroundColor: colors.white,
-    marginBottom: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.lg,
+    marginBottom: spacing.md,
   },
   welcomeHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
+  welcomeTextContainer: {
+    flex: 1,
+    marginRight: spacing.md,
+  },
   greetingText: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: "700",
     color: colors.dark,
     marginBottom: spacing.xs,
@@ -389,27 +421,72 @@ const styles = StyleSheet.create({
     color: colors.gray[600],
     fontWeight: "500",
   },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  premiumButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
+    backgroundColor: colors.orange[500],
+    shadowColor: colors.orange[500],
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  premiumButtonContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  premiumButtonText: {
+    color: colors.white,
+    fontWeight: "600",
+    fontSize: 14,
+  },
   profileButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.white,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.gray[100],
     alignItems: "center",
     justifyContent: "center",
   },
   statsContainer: {
+    flexDirection: "row",
     paddingHorizontal: spacing.lg,
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
+    gap: spacing.md,
   },
   statCard: {
+    flex: 1,
     backgroundColor: colors.white,
     borderRadius: 12,
     padding: spacing.lg,
     borderLeftWidth: 4,
+    shadowColor: colors.gray[200],
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  statCardRecipes: {
     borderLeftColor: "#4ECDC4",
   },
+  statCardMeals: {
+    borderLeftColor: "#FF6B6B",
+  },
   statNumber: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: "700",
     color: colors.dark,
     marginBottom: spacing.xs,
@@ -420,18 +497,29 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   recentRecipesSection: {
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
+  },
+  sectionHeaderContainer: {
+    backgroundColor: colors.white,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    marginBottom: spacing.xs,
   },
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: spacing.md,
   },
   sectionTitle: {
     fontSize: 20,
     fontWeight: "700",
     color: colors.dark,
+  },
+  sectionSubtitle: {
+    fontSize: 14,
+    color: colors.gray[600],
+    fontWeight: "500",
+    marginTop: spacing.xs,
   },
   viewAllButton: {
     flexDirection: "row",
@@ -443,10 +531,12 @@ const styles = StyleSheet.create({
     color: colors.primary,
     marginRight: spacing.xs,
   },
+  recentRecipesContent: {
+    backgroundColor: colors.white,
+    paddingVertical: spacing.md,
+  },
   loadingContainer: {
     padding: spacing.lg,
-    backgroundColor: colors.white,
-    borderRadius: 12,
   },
   skeletonContainer: {
     flexDirection: "row",
@@ -456,19 +546,21 @@ const styles = StyleSheet.create({
   skeletonCard: {
     flexDirection: "row",
     alignItems: "center",
+    width: 200,
+    marginHorizontal: spacing.md,
   },
   skeletonImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 12,
+    width: 60,
+    height: 60,
+    borderRadius: 8,
     backgroundColor: colors.gray[200],
+    marginRight: spacing.md,
   },
   skeletonContent: {
     flex: 1,
-    paddingLeft: spacing.md,
   },
   skeletonTitle: {
-    height: 20,
+    height: 16,
     backgroundColor: colors.gray[200],
     borderRadius: 4,
     marginBottom: spacing.xs,
@@ -477,25 +569,35 @@ const styles = StyleSheet.create({
     height: 12,
     backgroundColor: colors.gray[200],
     borderRadius: 4,
+    width: "60%",
   },
   recentRecipesList: {
     paddingHorizontal: spacing.md,
   },
   recentRecipeCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.gray[200],
+    width: 200,
+    backgroundColor: colors.white,
     borderRadius: 12,
-    marginRight: spacing.md,
+    padding: spacing.md,
+    marginHorizontal: spacing.xs,
+    borderWidth: 1,
+    borderColor: colors.gray[100],
+    shadowColor: colors.gray[200],
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   recipeImageContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 12,
+    width: "100%",
+    height: 120,
+    borderRadius: 8,
     overflow: "hidden",
-    marginRight: spacing.md,
+    marginBottom: spacing.md,
+    position: "relative",
   },
   recipeImage: {
     width: "100%",
@@ -522,14 +624,16 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   recipeTitle: {
-    fontSize: 18,
-    fontWeight: "700",
+    fontSize: 16,
+    fontWeight: "600",
     color: colors.dark,
     marginBottom: spacing.xs,
+    lineHeight: 20,
   },
   recipeMetadata: {
     flexDirection: "row",
     alignItems: "center",
+    flexWrap: "wrap",
   },
   recipeTimeContainer: {
     flexDirection: "row",
@@ -537,37 +641,42 @@ const styles = StyleSheet.create({
     marginRight: spacing.md,
   },
   recipeTime: {
-    fontSize: 14,
+    fontSize: 12,
     color: colors.gray[500],
     fontWeight: "500",
+    marginLeft: 4,
   },
   recipeServingsContainer: {
     flexDirection: "row",
     alignItems: "center",
   },
   recipeServings: {
-    fontSize: 14,
+    fontSize: 12,
     color: colors.gray[500],
     fontWeight: "500",
+    marginLeft: 4,
   },
   recipeBadge: {
-    backgroundColor: colors.gray[200],
+    position: "absolute",
+    top: 8,
+    left: 8,
+    backgroundColor: colors.white,
     borderRadius: 4,
-    padding: spacing.xs,
-    marginRight: spacing.md,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 2,
   },
   recipeBadgeText: {
-    fontSize: 12,
-    color: colors.gray[600],
-    fontWeight: "500",
+    fontSize: 11,
+    color: colors.gray[700],
+    fontWeight: "600",
   },
   favoriteIndicator: {
     position: "absolute",
     top: 8,
     right: 8,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     backgroundColor: colors.white,
     alignItems: "center",
     justifyContent: "center",
@@ -575,27 +684,10 @@ const styles = StyleSheet.create({
   highlightsSection: {
     marginBottom: spacing.lg,
   },
-  highlightsHeader: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.lg,
-    backgroundColor: colors.white,
-    marginBottom: spacing.lg,
-  },
-  highlightsTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: colors.dark,
-  },
-  highlightsSubtitle: {
-    fontSize: 16,
-    color: colors.gray[600],
-    fontWeight: "500",
-  },
   emptyRecipesContainer: {
-    flex: 1,
     alignItems: "center",
     justifyContent: "center",
+    padding: spacing.xl,
   },
   emptyRecipesText: {
     fontSize: 18,
@@ -610,6 +702,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: spacing.xs,
     marginBottom: spacing.lg,
+    maxWidth: 240,
   },
   addFirstRecipeButton: {
     flexDirection: "row",

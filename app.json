@@ -5,9 +5,9 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "io.recipesaver",
+    "scheme": "umami-dev",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "io.recipesaver.app",
@@ -19,7 +19,8 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "io.recipesaver.app"
     },
     "web": {
       "bundler": "metro",
@@ -27,7 +28,13 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
-      "expo-router",
+      [
+        "expo-router",
+        {
+          "origin": false
+        }
+      ],
+      "expo-apple-authentication",
       [
         "expo-splash-screen",
         {
@@ -41,11 +48,21 @@
     "experiments": {
       "typedRoutes": true
     },
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "extra": {
-      "router": {},
+      "router": {
+        "origin": false
+      },
       "eas": {
         "projectId": "8c925526-896e-49cf-8e9d-60f6540d4a20"
       }
+    },
+    "owner": "mightyarch",
+    "runtimeVersion": {
+      "policy": "appVersion"
     }
   }
 }

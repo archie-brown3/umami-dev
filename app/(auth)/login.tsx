@@ -11,6 +11,8 @@ import { useAuth } from "../../context/AuthContext";
 import { Link, router } from "expo-router";
 import { colors, spacing } from "../../utils/styleUtils";
 import { SafeAreaView } from "react-native-safe-area-context";
+import AppleSignInButton from "../../components/AppleSignInButton";
+import AuthDivider from "../../components/AuthDivider";
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
@@ -41,6 +43,16 @@ export default function LoginScreen() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleAppleSignInSuccess = () => {
+    // Navigate to main app on successful Apple Sign In
+    router.replace("/(tabs)");
+  };
+
+  const handleAppleSignInError = (error: any) => {
+    console.log("Apple Sign In error handled:", error);
+    // Error handling is already done in the AppleSignInButton component
   };
 
   return (
@@ -75,6 +87,15 @@ export default function LoginScreen() {
             {loading ? "Logging in..." : "Log In"}
           </Text>
         </TouchableOpacity>
+
+        {/* Divider */}
+        <AuthDivider />
+
+        {/* Apple Sign In Button */}
+        <AppleSignInButton
+          onSuccess={handleAppleSignInSuccess}
+          onError={handleAppleSignInError}
+        />
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>Don't have an account? </Text>

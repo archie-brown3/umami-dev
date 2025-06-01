@@ -18,13 +18,16 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import EmptyState from "@/components/ui/EmptyState";
 import { RecipeCard } from "@/components/recipes/RecipeCard";
 import CategorizedTagFilter from "@/components/recipes/CategorizedTagFilter";
+import { Paywall } from "@/components/subscription/Paywall";
 import { useAuth } from "@/context/AuthContext";
+import { useFeatureGating } from "@/hooks/useFeatureGating";
 import { getUserRecipes } from "@/services/recipeService";
 // import { migrateUserRecipeTags } from "@/services/tagMigration";
 import { addBasicTagsToRecipes } from "@/services/simpleTagMigration";
 import { colors, spacing, typography } from "@/utils/styleUtils";
 import { Recipe } from "@/types";
 import { eventEmitter, EVENTS } from "@/utils/eventEmitter";
+import { RevenueCatPaywallTest } from "@/components/subscription/RevenueCatPaywallTest";
 
 const DEBUG_TAG_MIGRATION = false; // Set to true to enable tag migration button
 
@@ -40,8 +43,13 @@ export default function RecipesScreen() {
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const { user } = useAuth();
+  const { isPremium, paywallVisible, setPaywallVisible, blockedFeature } =
+    useFeatureGating();
   const filtersScrollRef = useRef<ScrollView>(null);
   const insets = useSafeAreaInsets();
+
+  // Add state for RevenueCat test
+  const [showRevenueCatTest, setShowRevenueCatTest] = useState(false);
 
   // Enhanced fetch function with better error handling
   const fetchRecipes = async (showRefreshIndicator = false) => {
@@ -323,7 +331,32 @@ export default function RecipesScreen() {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>My Recipes</Text>
+          <View style={styles.headerContent}>
+            <Text style={styles.headerTitle}>My Recipes</Text>
+
+            {/* Test button for development only */}
+            {__DEV__ && (
+              <TouchableOpacity
+                style={styles.testButton}
+                onPress={() => setShowRevenueCatTest(true)}
+              >
+                <Ionicons name="flask" size={20} color={colors.blue[600]} />
+              </TouchableOpacity>
+            )}
+
+            {!isPremium && (
+              <TouchableOpacity
+                style={styles.premiumButton}
+                onPress={() => setPaywallVisible(true)}
+                activeOpacity={0.8}
+              >
+                <View style={styles.premiumButtonContent}>
+                  <Ionicons name="star" size={16} color={colors.white} />
+                  <Text style={styles.premiumButtonText}>Premium</Text>
+                </View>
+              </TouchableOpacity>
+            )}
+          </View>
           {DEBUG_TAG_MIGRATION && (
             <TouchableOpacity
               style={styles.debugButton}
@@ -354,7 +387,32 @@ export default function RecipesScreen() {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>My Recipes</Text>
+          <View style={styles.headerContent}>
+            <Text style={styles.headerTitle}>My Recipes</Text>
+
+            {/* Test button for development only */}
+            {__DEV__ && (
+              <TouchableOpacity
+                style={styles.testButton}
+                onPress={() => setShowRevenueCatTest(true)}
+              >
+                <Ionicons name="flask" size={20} color={colors.blue[600]} />
+              </TouchableOpacity>
+            )}
+
+            {!isPremium && (
+              <TouchableOpacity
+                style={styles.premiumButton}
+                onPress={() => setPaywallVisible(true)}
+                activeOpacity={0.8}
+              >
+                <View style={styles.premiumButtonContent}>
+                  <Ionicons name="star" size={16} color={colors.white} />
+                  <Text style={styles.premiumButtonText}>Premium</Text>
+                </View>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
         <View style={styles.errorContainer}>
           <Ionicons
@@ -388,7 +446,32 @@ export default function RecipesScreen() {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>My Recipes</Text>
+          <View style={styles.headerContent}>
+            <Text style={styles.headerTitle}>My Recipes</Text>
+
+            {/* Test button for development only */}
+            {__DEV__ && (
+              <TouchableOpacity
+                style={styles.testButton}
+                onPress={() => setShowRevenueCatTest(true)}
+              >
+                <Ionicons name="flask" size={20} color={colors.blue[600]} />
+              </TouchableOpacity>
+            )}
+
+            {!isPremium && (
+              <TouchableOpacity
+                style={styles.premiumButton}
+                onPress={() => setPaywallVisible(true)}
+                activeOpacity={0.8}
+              >
+                <View style={styles.premiumButtonContent}>
+                  <Ionicons name="star" size={16} color={colors.white} />
+                  <Text style={styles.premiumButtonText}>Premium</Text>
+                </View>
+              </TouchableOpacity>
+            )}
+          </View>
           {DEBUG_TAG_MIGRATION && (
             <TouchableOpacity
               style={styles.debugButton}
@@ -414,7 +497,32 @@ export default function RecipesScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>My Recipes</Text>
+        <View style={styles.headerContent}>
+          <Text style={styles.headerTitle}>My Recipes</Text>
+
+          {/* Test button for development only */}
+          {__DEV__ && (
+            <TouchableOpacity
+              style={styles.testButton}
+              onPress={() => setShowRevenueCatTest(true)}
+            >
+              <Ionicons name="flask" size={20} color={colors.blue[600]} />
+            </TouchableOpacity>
+          )}
+
+          {!isPremium && (
+            <TouchableOpacity
+              style={styles.premiumButton}
+              onPress={() => setPaywallVisible(true)}
+              activeOpacity={0.8}
+            >
+              <View style={styles.premiumButtonContent}>
+                <Ionicons name="star" size={16} color={colors.white} />
+                <Text style={styles.premiumButtonText}>Premium</Text>
+              </View>
+            </TouchableOpacity>
+          )}
+        </View>
         {DEBUG_TAG_MIGRATION && (
           <TouchableOpacity
             style={styles.debugButton}
@@ -522,6 +630,18 @@ export default function RecipesScreen() {
           />
         )}
       </View>
+
+      <Paywall
+        visible={paywallVisible}
+        onClose={() => setPaywallVisible(false)}
+        feature={blockedFeature || "Premium Recipe Features"}
+      />
+
+      {/* RevenueCat SDK Test */}
+      <RevenueCatPaywallTest
+        visible={showRevenueCatTest}
+        onClose={() => setShowRevenueCatTest(false)}
+      />
     </View>
   );
 }
@@ -534,10 +654,16 @@ const styles = StyleSheet.create({
   header: {
     padding: 16,
   },
+  headerContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
   headerTitle: {
     fontSize: 32,
     fontWeight: "bold",
     color: colors.dark,
+    flex: 1,
   },
   searchContainer: {
     flexDirection: "row",
@@ -629,5 +755,34 @@ const styles = StyleSheet.create({
   },
   favoritesButtonActive: {
     backgroundColor: colors.primary,
+  },
+  premiumButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
+    backgroundColor: colors.orange[500],
+    shadowColor: colors.orange[500],
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  premiumButtonContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  premiumButtonText: {
+    color: colors.white,
+    fontWeight: "600",
+    fontSize: 14,
+  },
+  testButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: colors.gray[50],
   },
 });

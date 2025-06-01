@@ -27,6 +27,7 @@ namespace facebook::react {
 
 
 
+
 void RNSVGImageEventEmitter::onLoad(OnLoad $event) const {
   dispatchEvent("load", [$event=std::move($event)](jsi::Runtime &runtime) {
     auto $payload = jsi::Object(runtime);
