@@ -2,6 +2,53 @@
 
 This document details the database schema used in the Recipe Saver application. The application uses Supabase for data storage with the following tables and relationships.
 
+## Database Functions and Triggers
+
+### Recipe Limit Enforcement
+
+**Function: `check_recipe_limit()`**
+
+- **Purpose**: Enforces 10-recipe limit for free users, unlimited for premium users
+- **Trigger**: `recipe_limit_trigger` (already exists on recipes table)
+- **Status**: ✅ Successfully implemented
+- **Behavior**:
+  - Checks user subscription status from `user_subscriptions` table
+  - Allows unlimited recipes for premium users (`status = 'premium'`)
+  - Blocks recipe creation for free users when count ≥ 10
+  - Raises exception: "Recipe limit reached. Upgrade to Premium for unlimited recipes."
+
+```sql
+-- Function successfully created
+CREATE OR REPLACE FUNCTION check_recipe_limit()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Check if user has premium access
+  IF EXISTS (
+    SELECT 1 FROM user_subscriptions
+    WHERE user_id = NEW.user_id AND status = 'premium'
+  ) THEN
+    RETURN NEW; -- Allow unlimited for premium users
+  END IF;
+
+  -- Count existing recipes for free users
+  IF (
+    SELECT COUNT(*) FROM recipes
+    WHERE user_id = NEW.user_id
+  ) >= 10 THEN
+    RAISE EXCEPTION 'Recipe limit reached. Upgrade to Premium for unlimited recipes.';
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Trigger already exists on recipes table
+-- CREATE TRIGGER recipe_limit_trigger
+--   BEFORE INSERT ON recipes
+--   FOR EACH ROW
+--   EXECUTE FUNCTION check_recipe_limit();
+```
+
 ## Core Tables
 
 ### recipes

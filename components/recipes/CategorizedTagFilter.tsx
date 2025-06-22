@@ -167,100 +167,80 @@ const CategorizedTagFilter: React.FC<CategorizedTagFilterProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    paddingBottom: spacing.sm,
+    paddingHorizontal: spacing.md,
   },
   scrollContainer: {
-    paddingHorizontal: 16, // Match search bar padding
-    paddingBottom: spacing.sm,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  clearButtonContainer: {
-    marginLeft: spacing.sm,
-    alignSelf: "flex-start",
-  },
-  clearButton: {
-    backgroundColor: colors.red[500],
-    paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
-    borderRadius: borderRadius.full,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  clearButtonText: {
-    color: colors.white,
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  tagPill: {
-    backgroundColor: colors.gray[100],
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.full,
-    marginRight: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.gray[200],
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  selectedTagPill: {
-    backgroundColor: colors.primary[500],
-    borderColor: colors.primary[600],
-  },
-  flagIcon: {
-    fontSize: 12,
-    marginRight: 4,
-  },
-  tagText: {
-    color: colors.gray[700],
-    fontSize: 13, // Slightly smaller
-    fontWeight: "500",
-    marginRight: 4,
-  },
-  selectedTagText: {
-    color: colors.white,
-    fontWeight: "600",
-  },
-  tagCount: {
-    color: colors.gray[500],
-    fontSize: 11, // Smaller count
-    fontWeight: "400",
-    backgroundColor: colors.gray[200],
-    paddingHorizontal: spacing.xs,
-    paddingVertical: 1,
-    borderRadius: spacing.xs,
-    overflow: "hidden",
-    minWidth: 16,
-    textAlign: "center",
-  },
-  selectedTagCount: {
-    color: colors.primary[500],
-    backgroundColor: colors.white,
-  },
-  selectionInfo: {
-    paddingHorizontal: 16, // Match search bar padding
-    paddingVertical: 4,
-  },
-  selectionText: {
-    fontSize: 12,
-    color: colors.gray[600],
-    fontStyle: "italic",
   },
   categorySection: {
     marginRight: spacing.lg,
   },
   categoryLabel: {
-    color: colors.gray[700],
-    fontSize: 12, // Smaller category label
-    fontWeight: "600",
-    marginBottom: spacing.xs, // Less margin
+    fontSize: 14,
+    fontWeight: "500",
+    color: colors.gray[600],
+    marginBottom: spacing.xs,
   },
   categoryIcon: {
-    fontSize: 14, // Smaller icon
+    fontSize: 14,
   },
   categoryTags: {
     flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs,
+  },
+  tagPill: {
+    flexDirection: "row",
     alignItems: "center",
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: 100,
+    borderWidth: 1,
+    backgroundColor: colors.white,
+    gap: spacing.xs,
+  },
+  selectedTagPill: {
+    borderWidth: 0,
+  },
+  tagText: {
+    fontSize: 14,
+    color: colors.gray[700],
+  },
+  selectedTagText: {
+    color: colors.white,
+  },
+  tagCount: {
+    fontSize: 12,
+    color: colors.gray[500],
+  },
+  selectedTagCount: {
+    color: colors.white,
+  },
+  flagIcon: {
+    fontSize: 14,
+    marginRight: spacing.xs,
+  },
+  clearButtonContainer: {
+    justifyContent: "center",
+    paddingLeft: spacing.sm,
+  },
+  clearButton: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: 100,
+    backgroundColor: colors.gray[100],
+  },
+  clearButtonText: {
+    fontSize: 14,
+    color: colors.gray[600],
+  },
+  selectionInfo: {
+    marginTop: spacing.xs,
+    paddingHorizontal: spacing.md,
+  },
+  selectionText: {
+    fontSize: 12,
+    color: colors.gray[600],
   },
 });
 

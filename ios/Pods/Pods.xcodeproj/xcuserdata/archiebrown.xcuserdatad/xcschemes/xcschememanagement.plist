@@ -304,7 +304,7 @@
 			<key>isShown</key>
 			<false/>
 		</dict>
-		<key>Pods-umamidev.xcscheme</key>
+		<key>Pods-Umami.xcscheme</key>
 		<dict>
 			<key>isShown</key>
 			<false/>
@@ -325,6 +325,11 @@
 			<false/>
 		</dict>
 		<key>PurchasesHybridCommon.xcscheme</key>
+		<dict>
+			<key>isShown</key>
+			<false/>
+		</dict>
+		<key>PurchasesHybridCommonUI.xcscheme</key>
 		<dict>
 			<key>isShown</key>
 			<false/>
@@ -370,6 +375,11 @@
 			<false/>
 		</dict>
 		<key>RNMLKitTextRecognition.xcscheme</key>
+		<dict>
+			<key>isShown</key>
+			<false/>
+		</dict>
+		<key>RNPaywalls.xcscheme</key>
 		<dict>
 			<key>isShown</key>
 			<false/>
@@ -705,6 +715,16 @@
 			<false/>
 		</dict>
 		<key>RevenueCat.xcscheme</key>
+		<dict>
+			<key>isShown</key>
+			<false/>
+		</dict>
+		<key>RevenueCatUI-RevenueCat_RevenueCatUI.xcscheme</key>
+		<dict>
+			<key>isShown</key>
+			<false/>
+		</dict>
+		<key>RevenueCatUI.xcscheme</key>
 		<dict>
 			<key>isShown</key>
 			<false/>

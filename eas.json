@@ -1,6 +1,7 @@
 {
   "cli": {
-    "version": ">= 5.9.1"
+    "version": ">= 5.9.1",
+    "requireCommit": false
   },
   "build": {
     "development": {
@@ -11,14 +12,32 @@
       }
     },
     "preview": {
+      "extends": "production",
       "distribution": "store",
       "ios": {
-        "resourceClass": "m-medium"
+        "resourceClass": "m-medium",
+        "buildConfiguration": "Release"
       }
     },
     "production": {
+      "distribution": "store",
       "ios": {
-        "resourceClass": "m-medium"
+        "resourceClass": "m-medium",
+        "buildConfiguration": "Release"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "ascAppId": "6746698771",
+        "appleTeamId": "FZ394TU429"
+      }
+    },
+    "preview": {
+      "ios": {
+        "ascAppId": "6746698771",
+        "appleTeamId": "FZ394TU429"
       }
     }
   }

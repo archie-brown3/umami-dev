@@ -1,5 +1,5 @@
 import { Stack, useRouter, useSegments } from "expo-router";
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useColorScheme, Text, View } from "react-native";
 import {
   DarkTheme,
@@ -16,7 +16,10 @@ import { SubscriptionProvider } from "@/context/SubscriptionContext";
 import { GroceriesProvider } from "@/context/GroceriesContext";
 import { MealPlanProvider } from "@/context/MealPlanContext";
 import { ConnectionDiagnostic } from "@/components/ConnectionDiagnostic";
+import { initializeRevenueCat } from "@/lib/revenuecat";
 import Constants from "expo-constants";
+import * as Linking from "expo-linking";
+import { supabase } from "@/lib/supabase";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -26,28 +29,111 @@ const isTunnelMode =
   Constants.expoConfig?.hostUri?.includes("exp.direct") ||
   Constants.experienceUrl?.includes("exp.direct");
 
+export default function RootLayout() {
+  const [loaded, error] = useFonts({
+    SpaceMono: require("@/assets/fonts/SpaceMono-Regular.ttf"),
+  });
+
+  useEffect(() => {
+    if (error) throw error;
+  }, [error]);
+
+  useEffect(() => {
+    if (loaded) {
+      SplashScreen.hideAsync();
+    }
+  }, [loaded]);
+
+  if (!loaded) {
+    return null;
+  }
+
+  return <RootLayoutWithProviders />;
+}
+
+function RootLayoutWithProviders() {
+  const colorScheme = useColorScheme();
+
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AuthProvider>
+        <RecipeProvider>
+          <SubscriptionProvider>
+            <MealPlanProvider>
+              <GroceriesProvider>
+                <ThemeProvider
+                  value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
+                >
+                  <RootLayoutNav />
+                </ThemeProvider>
+              </GroceriesProvider>
+            </MealPlanProvider>
+          </SubscriptionProvider>
+        </RecipeProvider>
+      </AuthProvider>
+    </GestureHandlerRootView>
+  );
+}
+
 // Root navigation component with auth protection
 function RootLayoutNav() {
   const { user, isLoading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
-  const colorScheme = useColorScheme();
-  const [authError, setAuthError] = useState<Error | null>(null);
+
+  // Initialize RevenueCat SDK on app start
+  useEffect(() => {
+    const initRevenueCat = async () => {
+      try {
+        await initializeRevenueCat();
+        console.log("[RootLayout] RevenueCat initialized successfully");
+      } catch (error) {
+        console.error("[RootLayout] Failed to initialize RevenueCat:", error);
+      }
+    };
+    initRevenueCat();
+  }, []);
 
   useEffect(() => {
     if (isLoading) return;
 
-    // Check if the user is authenticated
     const inAuthGroup = segments[0] === "(auth)";
 
     if (!user && !inAuthGroup) {
-      // Redirect to the login page if not authenticated
       router.replace("/(auth)/login");
     } else if (user && inAuthGroup) {
-      // Redirect to the home page if authenticated and on an auth page
       router.replace("/(tabs)");
     }
   }, [user, isLoading, segments]);
+
+  useEffect(() => {
+    // Handle deep linking for OAuth callback
+    const handleDeepLink = (event: { url: string }) => {
+      const { url } = event;
+      if (url.includes("#access_token") || url.includes("?code=")) {
+        setTimeout(() => {
+          supabase.auth.getSession().then(({ data: { session } }) => {
+            if (session) {
+              console.log("Deep link callback: Session found, redirecting.");
+              router.replace("/(tabs)");
+            }
+          });
+        }, 100);
+      }
+    };
+
+    const subscription = Linking.addEventListener("url", handleDeepLink);
+
+    Linking.getInitialURL().then((url) => {
+      if (url) {
+        handleDeepLink({ url });
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [router]);
 
   if (isLoading) {
     return (
@@ -58,12 +144,10 @@ function RootLayoutNav() {
   }
 
   return (
-    <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+    <>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-
-        {/* Recipe Detail Screen */}
         <Stack.Screen
           name="recipe/[id]"
           options={{
@@ -72,29 +156,24 @@ function RootLayoutNav() {
             presentation: "card",
           }}
         />
-
-        {/* Recipe Edit Screen */}
         <Stack.Screen
           name="recipe/edit/[id]"
           options={{
             headerShown: false,
             presentation: "modal",
             animation: "slide_from_bottom",
-            gestureEnabled: false, // Prevent accidental dismissal
+            gestureEnabled: false,
           }}
         />
-
-        {/* Recipe Create Screen */}
         <Stack.Screen
           name="recipe/create"
           options={{
             headerShown: false,
             presentation: "modal",
             animation: "slide_from_bottom",
-            gestureEnabled: false, // Prevent accidental dismissal
+            gestureEnabled: false,
           }}
         />
-
         <Stack.Screen
           name="profile"
           options={{
@@ -104,8 +183,6 @@ function RootLayoutNav() {
             presentation: "card",
           }}
         />
-
-        {/* Legacy Add Recipe Screen (keep for backward compatibility) */}
         <Stack.Screen
           name="add-recipe"
           options={{
@@ -114,7 +191,6 @@ function RootLayoutNav() {
             animation: "slide_from_bottom",
           }}
         />
-
         <Stack.Screen
           name="api-test"
           options={{
@@ -125,68 +201,7 @@ function RootLayoutNav() {
         />
       </Stack>
       <StatusBar style="auto" />
-      {/* Show the connection diagnostic tool when in tunnel mode */}
       {isTunnelMode && <ConnectionDiagnostic />}
-    </ThemeProvider>
+    </>
   );
-}
-
-export default function RootLayout() {
-  const [loaded] = useFonts({
-    SpaceMono: require("@/assets/fonts/SpaceMono-Regular.ttf"),
-  });
-  const [layoutError, setLayoutError] = useState<Error | null>(null);
-
-  useEffect(() => {
-    if (loaded) {
-      SplashScreen.hideAsync().catch((error) => {
-        console.error("Error hiding splash screen:", error);
-      });
-    }
-  }, [loaded]);
-
-  if (!loaded) {
-    return null;
-  }
-
-  // Error fallback
-  if (layoutError) {
-    return (
-      <View
-        style={{
-          flex: 1,
-          justifyContent: "center",
-          alignItems: "center",
-          padding: 20,
-        }}
-      >
-        <Text style={{ color: "red", fontSize: 18, marginBottom: 10 }}>
-          Application Error
-        </Text>
-        <Text style={{ textAlign: "center" }}>{layoutError.message}</Text>
-      </View>
-    );
-  }
-
-  try {
-    return (
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <AuthProvider>
-          <SubscriptionProvider>
-            <RecipeProvider>
-              <MealPlanProvider>
-                <GroceriesProvider>
-                  <RootLayoutNav />
-                </GroceriesProvider>
-              </MealPlanProvider>
-            </RecipeProvider>
-          </SubscriptionProvider>
-        </AuthProvider>
-      </GestureHandlerRootView>
-    );
-  } catch (error) {
-    console.error("Root layout error:", error);
-    setLayoutError(error instanceof Error ? error : new Error(String(error)));
-    return null;
-  }
 }

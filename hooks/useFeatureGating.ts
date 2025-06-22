@@ -1,177 +1,175 @@
+import { useCallback, useState } from "react";
+import { Alert } from "react-native";
 import { useSubscription } from "@/context/SubscriptionContext";
-import {
-  FREE_TIER_LIMITS,
-  PREMIUM_TIER_LIMITS,
-  PREMIUM_FEATURES,
-  FeatureLimits,
-  PremiumFeature,
-} from "@/constants/premiumFeatures";
-import { useState } from "react";
 
-interface FeatureCheck {
-  hasAccess: boolean;
-  limit?: number;
-  used?: number;
-  remaining?: number;
-  showPaywall: () => void;
+export interface FeatureGatingOptions {
+  showAlert?: boolean;
+  alertTitle?: string;
+  alertMessage?: string;
 }
 
+/**
+ * Hook for feature gating and subscription management
+ * Provides easy access to subscription status and paywall functionality
+ */
 export const useFeatureGating = () => {
-  const { isPremium } = useSubscription();
   const [paywallVisible, setPaywallVisible] = useState(false);
-  const [blockedFeature, setBlockedFeature] = useState<string>("");
 
-  // Get current user limits based on subscription status
-  const getCurrentLimits = (): FeatureLimits => {
-    return isPremium ? PREMIUM_TIER_LIMITS : FREE_TIER_LIMITS;
-  };
+  const {
+    isPremium,
+    isLoading,
+    currentOffering,
+    presentPaywall,
+    presentPaywallIfNeeded,
+    restorePurchases,
+    canAccessFeature,
+    getRemainingRecipeCount,
+    canAddRecipe,
+  } = useSubscription();
 
-  // Check if user has access to a specific feature
-  const checkFeatureAccess = (
-    feature: keyof typeof PREMIUM_FEATURES,
-    currentUsage?: number
-  ): FeatureCheck => {
-    const limits = getCurrentLimits();
+  /**
+   * Check if user can access a feature, with optional paywall presentation
+   * @param feature - Feature identifier
+   * @param options - Configuration options
+   * @returns Promise<boolean> - Whether user has access after check
+   */
+  const checkFeatureAccess = useCallback(
+    async (
+      feature: string,
+      options: FeatureGatingOptions = {}
+    ): Promise<boolean> => {
+      const { showAlert = true, alertTitle, alertMessage } = options;
 
-    const showPaywall = () => {
-      setBlockedFeature(feature);
-      setPaywallVisible(true);
-    };
+      if (canAccessFeature(feature)) {
+        return true;
+      }
 
-    switch (feature) {
-      case "UNLIMITED_RECIPES":
-        return {
-          hasAccess:
-            limits.recipes.unlimited ||
-            (currentUsage || 0) < limits.recipes.maxRecipes,
-          limit: limits.recipes.maxRecipes,
-          used: currentUsage,
-          remaining: limits.recipes.unlimited
-            ? -1
-            : Math.max(0, limits.recipes.maxRecipes - (currentUsage || 0)),
-          showPaywall,
-        };
+      // Feature requires premium - show paywall
+      const hasAccess = await presentPaywallIfNeeded(feature);
 
-      case "ADVANCED_MEAL_PLANNING":
-        return {
-          hasAccess: limits.mealPlanning.unlimited,
-          limit: limits.mealPlanning.maxWeeksAhead,
-          showPaywall,
-        };
+      if (!hasAccess && showAlert) {
+        Alert.alert(
+          alertTitle || "Premium Feature",
+          alertMessage ||
+            `This feature requires a premium subscription. Would you like to upgrade?`,
+          [
+            { text: "Maybe Later", style: "cancel" },
+            {
+              text: "Upgrade",
+              onPress: () => presentPaywall(feature),
+            },
+          ]
+        );
+      }
 
-      case "AUTO_SHOPPING_LISTS":
-        return {
-          hasAccess: limits.shoppingLists.autoGeneration,
-          showPaywall,
-        };
+      return hasAccess;
+    },
+    [canAccessFeature, presentPaywallIfNeeded, presentPaywall]
+  );
 
-      case "TEXT_RECOGNITION":
-        return {
-          hasAccess: limits.textRecognition.enabled,
-          limit: limits.textRecognition.maxScansPerMonth,
-          used: currentUsage,
-          remaining:
-            limits.textRecognition.maxScansPerMonth === -1
-              ? -1
-              : Math.max(
-                  0,
-                  limits.textRecognition.maxScansPerMonth - (currentUsage || 0)
-                ),
-          showPaywall,
-        };
+  /**
+   * Check if user can add a recipe (respects 10 recipe limit for free users)
+   * @param options - Configuration options
+   * @returns Promise<boolean> - Whether user can add recipe
+   */
+  const checkRecipeLimit = useCallback(
+    async (options: FeatureGatingOptions = {}): Promise<boolean> => {
+      if (canAddRecipe()) {
+        return true;
+      }
 
-      case "CLOUD_SYNC":
-        return {
-          hasAccess: limits.cloudSync.enabled,
-          showPaywall,
-        };
+      const { showAlert = true } = options;
+      const remaining = getRemainingRecipeCount();
 
-      case "PDF_EXPORT":
-        return {
-          hasAccess: limits.export.pdfExport,
-          showPaywall,
-        };
+      if (remaining <= 0) {
+        const hasAccess = await presentPaywallIfNeeded("unlimited_recipes");
 
-      case "NUTRITION_ANALYSIS":
-        return {
-          hasAccess: limits.advanced.nutritionAnalysis,
-          showPaywall,
-        };
+        if (!hasAccess && showAlert) {
+          Alert.alert(
+            "Recipe Limit Reached",
+            "Free users can save up to 10 recipes. Upgrade to Premium for unlimited recipes!",
+            [
+              { text: "Maybe Later", style: "cancel" },
+              {
+                text: "Upgrade to Premium",
+                onPress: () => presentPaywall("unlimited_recipes"),
+              },
+            ]
+          );
+        }
 
-      case "RECIPE_TAGS":
-        return {
-          hasAccess: limits.advanced.recipeTags,
-          showPaywall,
-        };
+        return hasAccess;
+      }
 
-      case "BULK_OPERATIONS":
-        return {
-          hasAccess: limits.export.bulkExport,
-          showPaywall,
-        };
+      return true;
+    },
+    [
+      canAddRecipe,
+      getRemainingRecipeCount,
+      presentPaywallIfNeeded,
+      presentPaywall,
+    ]
+  );
 
-      default:
-        return {
-          hasAccess: isPremium,
-          showPaywall,
-        };
-    }
-  };
+  /**
+   * Get user-friendly subscription status text
+   */
+  const getSubscriptionStatusText = useCallback((): string => {
+    if (isLoading) return "Checking subscription...";
+    if (isPremium) return "Premium Active";
 
-  // Convenient helper functions
-  const canAddRecipe = (currentRecipeCount: number) =>
-    checkFeatureAccess("UNLIMITED_RECIPES", currentRecipeCount);
+    const remaining = getRemainingRecipeCount();
+    if (remaining === -1) return "Premium Active";
+    return `Free Plan (${remaining}/10 recipes)`;
+  }, [isLoading, isPremium, getRemainingRecipeCount]);
 
-  const canUseMealPlanning = (weeksFromNow: number) => {
-    const limits = getCurrentLimits();
-    const hasAccess =
-      Math.abs(weeksFromNow) <= limits.mealPlanning.maxWeeksAhead;
-    return {
-      hasAccess,
-      showPaywall: () => {
-        setBlockedFeature("ADVANCED_MEAL_PLANNING");
-        setPaywallVisible(true);
-      },
-    };
-  };
+  /**
+   * Feature-specific access checkers
+   */
+  const featureCheckers = {
+    // Recipe Management
+    canExtractFromURL: () => canAccessFeature("recipe_url_extraction"),
+    canExportRecipes: () => canAccessFeature("recipe_export"),
+    canBulkImport: () => canAccessFeature("bulk_import_export"),
+    canAccessPremiumCollections: () => canAccessFeature("premium_collections"),
 
-  const canUseTextRecognition = (currentUsage: number = 0) =>
-    checkFeatureAccess("TEXT_RECOGNITION", currentUsage);
+    // Meal Planning
+    canAccessAdvancedMealPlanning: () =>
+      canAccessFeature("advanced_meal_planning"),
+    canGenerateShoppingLists: () =>
+      canAccessFeature("shopping_list_generation"),
 
-  const canExportToPDF = () => checkFeatureAccess("PDF_EXPORT");
+    // Analysis & Sync
+    canAccessNutritionAnalysis: () => canAccessFeature("nutrition_analysis"),
+    canSyncAcrossDevices: () => canAccessFeature("cross_device_sync"),
 
-  const canUseCloudSync = () => checkFeatureAccess("CLOUD_SYNC");
-
-  // Feature gate wrapper for UI components
-  const withFeatureGate = (
-    feature: keyof typeof PREMIUM_FEATURES,
-    component: React.ReactNode,
-    fallback?: React.ReactNode
-  ) => {
-    const { hasAccess } = checkFeatureAccess(feature);
-    return hasAccess ? component : fallback;
+    // Recipe limit
+    hasUnlimitedRecipes: () => canAccessFeature("unlimited_recipes"),
   };
 
   return {
-    // Core functions
-    checkFeatureAccess,
-    getCurrentLimits,
+    // Subscription state
     isPremium,
+    isLoading,
+    currentOffering,
 
-    // Convenience functions
-    canAddRecipe,
-    canUseMealPlanning,
-    canUseTextRecognition,
-    canExportToPDF,
-    canUseCloudSync,
-    withFeatureGate,
-
-    // Paywall state
+    // Paywall visibility
     paywallVisible,
     setPaywallVisible,
-    blockedFeature,
 
-    // Quick access to limits
-    limits: getCurrentLimits(),
+    // Core actions
+    checkFeatureAccess,
+    checkRecipeLimit,
+    presentPaywall,
+    presentPaywallIfNeeded,
+    restorePurchases,
+
+    // Helpers
+    getSubscriptionStatusText,
+    getRemainingRecipeCount,
+    canAddRecipe,
+
+    // Feature checkers
+    ...featureCheckers,
   };
 };

@@ -47,25 +47,12 @@ const MealSlot: React.FC<MealSlotProps> = ({
   };
 
   const handleRemoveMeal = async (recipeId: string) => {
-    Alert.alert(
-      "Remove Meal",
-      "Are you sure you want to remove this meal from your plan?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Remove",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await removeMealFromDay(date, mealType, recipeId);
-            } catch (error) {
-              console.error("Failed to remove meal:", error);
-              Alert.alert("Error", "Failed to remove meal from plan");
-            }
-          },
-        },
-      ]
-    );
+    try {
+      await removeMealFromDay(date, mealType, recipeId);
+    } catch (error) {
+      console.error("Failed to remove meal:", error);
+      Alert.alert("Error", "Failed to remove meal from plan");
+    }
   };
 
   const getRecipeById = (recipeId: string) => {
@@ -105,6 +92,12 @@ const MealSlot: React.FC<MealSlotProps> = ({
                   <Text style={styles.compactMealTitle} numberOfLines={1}>
                     {recipe?.title || "Unknown Recipe"}
                   </Text>
+                  <TouchableOpacity
+                    style={styles.compactRemoveButton}
+                    onPress={() => handleRemoveMeal(meal.recipe_id)}
+                  >
+                    <Ionicons name="close" size={14} color={colors.white} />
+                  </TouchableOpacity>
                 </View>
               );
             }
@@ -134,10 +127,11 @@ const MealSlot: React.FC<MealSlotProps> = ({
                 <TouchableOpacity
                   style={styles.removeButton}
                   onPress={() => handleRemoveMeal(meal.recipe_id)}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
                   <Ionicons
                     name="close-circle"
-                    size={20}
+                    size={24}
                     color={colors.red[500]}
                   />
                 </TouchableOpacity>
@@ -221,6 +215,7 @@ const styles = StyleSheet.create({
   mealContent: {
     flex: 1,
     marginLeft: 12,
+    marginRight: 8,
   },
   mealTitle: {
     fontSize: 14,
@@ -234,7 +229,7 @@ const styles = StyleSheet.create({
     color: colors.gray[500],
   },
   removeButton: {
-    padding: 8,
+    padding: 4,
     borderRadius: 20,
     backgroundColor: colors.red[500] + "10",
   },
@@ -284,6 +279,12 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     color: colors.white,
     flex: 1,
+  },
+  compactRemoveButton: {
+    padding: 2,
+    borderRadius: 10,
+    backgroundColor: "rgba(0, 0, 0, 0.2)",
+    marginLeft: 4,
   },
 });
 

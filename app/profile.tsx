@@ -13,6 +13,9 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/context/AuthContext";
 import { useRecipes } from "@/context/RecipeContext";
+import { useFeatureGating } from "@/hooks/useFeatureGating";
+import { useSubscription } from "@/context/SubscriptionContext";
+import { Paywall } from "@/components/subscription/Paywall";
 import { router, Stack } from "expo-router";
 import { colors, spacing, borderRadius, typography } from "@/utils/styleUtils";
 import { getUserRecipes } from "@/services/recipeService";
@@ -29,6 +32,7 @@ interface UserStats {
 export default function ProfileScreen() {
   const { user, signOut } = useAuth();
   const { recipes } = useRecipes();
+  const { isPremium, presentPaywall } = useSubscription();
   const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -236,6 +240,122 @@ export default function ProfileScreen() {
           </View>
         )}
 
+        {/* Subscription Status */}
+        <View style={styles.subscriptionSection}>
+          <Text style={styles.sectionTitle}>⭐ Subscription Status</Text>
+          <View style={styles.subscriptionCard}>
+            <View style={styles.subscriptionHeader}>
+              <View style={styles.subscriptionInfo}>
+                <View style={styles.subscriptionStatus}>
+                  <View
+                    style={[
+                      styles.statusIndicator,
+                      {
+                        backgroundColor: isPremium
+                          ? colors.green[500]
+                          : colors.orange[500],
+                      },
+                    ]}
+                  />
+                  <Text style={styles.subscriptionTitle}>
+                    {isPremium ? "Premium Member" : "Free Plan"}
+                  </Text>
+                </View>
+                <Text style={styles.subscriptionSubtitle}>
+                  {isPremium
+                    ? "Enjoy unlimited access to all features"
+                    : "Upgrade to unlock premium features"}
+                </Text>
+              </View>
+              <Ionicons
+                name={isPremium ? "star" : "star-outline"}
+                size={28}
+                color={isPremium ? colors.orange[500] : colors.orange[500]}
+              />
+            </View>
+
+            {isPremium ? (
+              <View style={styles.premiumFeatures}>
+                <Text style={styles.featuresTitle}>
+                  Active Premium Features:
+                </Text>
+                <View style={styles.featuresList}>
+                  <View style={styles.featureItem}>
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={16}
+                      color={colors.green[500]}
+                    />
+                    <Text style={styles.featureText}>Unlimited recipes</Text>
+                  </View>
+                  <View style={styles.featureItem}>
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={16}
+                      color={colors.green[500]}
+                    />
+                    <Text style={styles.featureText}>
+                      Advanced meal planning (12 weeks)
+                    </Text>
+                  </View>
+                  <View style={styles.featureItem}>
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={16}
+                      color={colors.green[500]}
+                    />
+                    <Text style={styles.featureText}>
+                      Text recognition from photos
+                    </Text>
+                  </View>
+                  <View style={styles.featureItem}>
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={16}
+                      color={colors.green[500]}
+                    />
+                    <Text style={styles.featureText}>
+                      Cloud sync & PDF export
+                    </Text>
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.manageSubscriptionButton}
+                  onPress={() => {
+                    Alert.alert(
+                      "Manage Subscription",
+                      "To manage your subscription, please go to your App Store account settings.",
+                      [{ text: "OK" }]
+                    );
+                  }}
+                >
+                  <Text style={styles.manageSubscriptionText}>
+                    Manage Subscription
+                  </Text>
+                  <Ionicons
+                    name="chevron-forward"
+                    size={16}
+                    color={colors.primary}
+                  />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.upgradeSection}>
+                <TouchableOpacity
+                  style={styles.upgradeButton}
+                  onPress={() => presentPaywall("premium_access")}
+                >
+                  <Ionicons name="star" size={20} color={colors.white} />
+                  <Text style={styles.upgradeButtonText}>
+                    Upgrade to Premium
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </View>
+
         {/* Settings & Preferences */}
         <View style={styles.settingsSection}>
           <Text style={styles.sectionTitle}>⚙️ Settings & Preferences</Text>
@@ -351,6 +471,8 @@ export default function ProfileScreen() {
           </Text>
         </View>
       </ScrollView>
+
+      <Paywall visible={false} onClose={() => {}} feature="Premium Features" />
     </SafeAreaView>
   );
 }
@@ -533,6 +655,107 @@ const styles = StyleSheet.create({
     color: colors.gray[600],
     textAlign: "center",
     fontWeight: "500",
+  },
+  subscriptionSection: {
+    backgroundColor: colors.white,
+    padding: spacing.xl,
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.lg,
+    borderRadius: borderRadius.lg,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  subscriptionCard: {
+    backgroundColor: colors.white,
+    padding: spacing.xl,
+    borderRadius: borderRadius.lg,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  subscriptionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: spacing.lg,
+  },
+  subscriptionInfo: {
+    flex: 1,
+  },
+  subscriptionStatus: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: spacing.xs,
+  },
+  statusIndicator: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    marginRight: spacing.xs,
+  },
+  subscriptionTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: colors.dark,
+  },
+  subscriptionSubtitle: {
+    fontSize: 14,
+    color: colors.gray[600],
+  },
+  premiumFeatures: {
+    marginBottom: spacing.lg,
+  },
+  featuresTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: colors.dark,
+    marginBottom: spacing.lg,
+  },
+  featuresList: {
+    gap: spacing.md,
+  },
+  featureItem: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  featureText: {
+    fontSize: 14,
+    color: colors.gray[600],
+  },
+  manageSubscriptionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: spacing.lg,
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.md,
+  },
+  manageSubscriptionText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: colors.white,
+    marginRight: spacing.sm,
+  },
+  upgradeSection: {
+    marginBottom: spacing.lg,
+  },
+  upgradeButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: spacing.lg,
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.md,
+  },
+  upgradeButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: colors.white,
+    marginRight: spacing.sm,
   },
   settingsSection: {
     backgroundColor: colors.white,

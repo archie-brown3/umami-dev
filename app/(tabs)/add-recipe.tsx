@@ -16,7 +16,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, spacing, typography } from "@/utils/styleUtils";
 import { useRecipes } from "@/context/RecipeContext";
 import { Recipe, Ingredient } from "@/types";
-import { analyzeRecipeText } from "@/services/deepseekservice";
+import {
+  analyzeRecipeText,
+  extractRecipeFromAnyUrl,
+} from "@/services/deepseekservice";
 import {
   extractRecipeFromUrl,
   validateRecipe,
@@ -42,11 +45,11 @@ export default function AddRecipeScreen() {
 
   // Add feature gating
   const {
-    canAddRecipe,
     canUseTextRecognition,
     paywallVisible,
     setPaywallVisible,
     blockedFeature,
+    checkRecipeLimit,
   } = useFeatureGating();
 
   // Get the active tab from URL params or default to manual
@@ -80,136 +83,96 @@ export default function AddRecipeScreen() {
   // Extract recipe from URL
   const handleUrlExtraction = async () => {
     // Feature gating check
-    const recipeCheck = canAddRecipe(recipes.length);
-    if (!recipeCheck.hasAccess) {
-      recipeCheck.showPaywall();
-      return;
+    const canCreate = await checkRecipeLimit();
+    if (!canCreate) {
+      return; // Paywall already shown by checkRecipeLimit
     }
 
     if (!urlInput.trim()) {
-      Alert.alert("Error", "Please enter a recipe URL");
-      return;
-    }
-
-    // Basic URL validation
-    try {
-      new URL(urlInput.trim());
-    } catch {
-      Alert.alert(
-        "Error",
-        "Please enter a valid URL (e.g., https://example.com/recipe)"
-      );
+      Alert.alert("Error", "Please enter a URL");
       return;
     }
 
     try {
       setIsLoading(true);
-      addLog(`Extracting recipe from ${urlInput}...`);
+      addLog(`Starting unified URL extraction for: ${urlInput}`);
 
-      // Use the new extractRecipeFromUrl function which handles:
-      // 1. Web scraping API for real content
-      // 2. DeepSeek analysis for recipe formatting
-      // 3. Validation and normalization
-      const extractedRecipe = await extractRecipeFromUrl(urlInput);
+      // Use the new enhanced unified extraction system
+      const extractedData = await extractRecipeFromAnyUrl(urlInput);
 
-      if (!extractedRecipe) {
-        const errorMsg = "Failed to extract recipe from the URL";
-        addLog(errorMsg);
-        Alert.alert("Error", errorMsg);
+      if (!extractedData) {
+        throw new Error("Received empty response from extraction service");
+      }
+
+      addLog(
+        `URL extraction successful: ${JSON.stringify(
+          {
+            title: extractedData.title,
+            ingredientsCount: extractedData.ingredients?.length || 0,
+            instructionsCount: extractedData.instructions?.length || 0,
+          },
+          null,
+          2
+        )}`
+      );
+
+      // Normalize the recipe data
+      const normalizedData = normalizeRecipe(extractedData);
+
+      // Validate the recipe
+      const validationErrors = validateRecipe(normalizedData);
+      if (validationErrors.length > 0) {
+        addLog(`Validation failed: ${validationErrors.join(", ")}`);
+        Alert.alert(
+          "Recipe Validation Failed",
+          `The extracted recipe is incomplete:\n\n${validationErrors.join(
+            "\n"
+          )}\n\nPlease try again or add the recipe manually.`
+        );
         setIsLoading(false);
         return;
       }
 
-      addLog(`Extraction successful! Title: "${extractedRecipe.title}"`);
-
-      // The extractRecipeFromUrl already handles validation and normalization
-      // So we can proceed directly to creating the recipe
-      const newRecipe: Recipe = {
-        id: Date.now().toString(),
-        title: extractedRecipe.title || "Untitled Recipe",
-        description: extractedRecipe.description || "",
-        ingredients: extractedRecipe.ingredients || [],
-        instructions: extractedRecipe.instructions || [],
-        prepTime: extractedRecipe.prepTime || 0,
-        cookTime: extractedRecipe.cookTime || 0,
-        servings: extractedRecipe.servings || 2,
-        imageUrl: extractedRecipe.imageUrl,
-        author: extractedRecipe.author,
-        sourceUrl: extractedRecipe.sourceUrl,
-        tags: extractedRecipe.tags,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-
-      // Add the recipe to the user's collection
-      addRecipe(newRecipe);
-      addLog(`Recipe added: ${newRecipe.title}`);
-
-      // Return to the previous screen with success message
-      Alert.alert(
-        "Success",
-        `Recipe "${newRecipe.title}" has been successfully added to your collection.`,
-        [
-          {
-            text: "OK",
-            onPress: () => router.replace("/recipes"),
-          },
-        ]
-      );
+      // Process the valid recipe
+      await processValidRecipe(normalizedData);
     } catch (error) {
       console.error("URL extraction error:", error);
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
-      addLog(`Error: ${errorMessage}`);
+      addLog(`URL extraction error: ${errorMessage}`);
 
-      // Provide more helpful error messages
-      let userMessage = `Failed to extract recipe: ${errorMessage}`;
-      let actions: {
-        text: string;
-        style?: "default" | "cancel" | "destructive";
-        onPress?: () => void;
-      }[] = [{ text: "OK", style: "cancel" }];
-
-      if (errorMessage.includes("validation failed")) {
-        userMessage =
-          "The webpage doesn't contain a complete recipe with ingredients and instructions. Please try a different URL or add the recipe manually.";
-        actions = [
-          { text: "Manual Entry", onPress: () => setActiveTab("manual") },
-          { text: "OK", style: "cancel" },
-        ];
-      } else if (errorMessage.includes("No text content found")) {
-        userMessage =
-          "Unable to extract content from this webpage. It might be protected or doesn't contain readable text.";
-        actions = [
-          { text: "Try Different URL", style: "default" },
-          { text: "Manual Entry", onPress: () => setActiveTab("manual") },
-          { text: "Cancel", style: "cancel" },
-        ];
-      } else if (
-        errorMessage.includes("Web Scraping API Error") ||
-        errorMessage.includes("fetch")
+      // Provide helpful error messages
+      if (
+        errorMessage.includes("Content too short") ||
+        errorMessage.includes("Caption too short")
       ) {
-        userMessage =
-          "The scraping service is temporarily unavailable. Please try again later or add the recipe manually.";
-        actions = [
-          { text: "Try Again", onPress: () => handleUrlExtraction() },
-          { text: "Manual Entry", onPress: () => setActiveTab("manual") },
-          { text: "Cancel", style: "cancel" },
-        ];
+        Alert.alert(
+          "Content Extraction Issue",
+          "The webpage doesn't contain enough recipe content to extract. Please ensure the URL points to a detailed recipe page.",
+          [
+            { text: "Try Different URL", style: "default" },
+            { text: "Manual Entry", onPress: () => setActiveTab("manual") },
+          ]
+        );
       } else if (
-        errorMessage.includes("timeout") ||
-        errorMessage.includes("network")
+        errorMessage.includes("Network") ||
+        errorMessage.includes("Failed to fetch")
       ) {
-        userMessage =
-          "Network timeout occurred. Please check your internet connection and try again.";
-        actions = [
-          { text: "Try Again", onPress: () => handleUrlExtraction() },
-          { text: "Cancel", style: "cancel" },
-        ];
+        Alert.alert(
+          "Network Error",
+          "Unable to connect to the extraction service. Please check your internet connection and try again.",
+          [
+            { text: "Retry", onPress: () => handleUrlExtraction() },
+            { text: "Cancel", style: "cancel" },
+          ]
+        );
+      } else {
+        Alert.alert(
+          "URL Extraction Error",
+          `Failed to extract recipe: ${errorMessage}`
+        );
       }
 
-      Alert.alert("Error", userMessage, actions);
-    } finally {
       setIsLoading(false);
     }
   };
@@ -217,10 +180,9 @@ export default function AddRecipeScreen() {
   // Extract recipe from Instagram
   const handleInstagramExtraction = async () => {
     // Feature gating check
-    const recipeCheck = canAddRecipe(recipes.length);
-    if (!recipeCheck.hasAccess) {
-      recipeCheck.showPaywall();
-      return;
+    const canCreate = await checkRecipeLimit();
+    if (!canCreate) {
+      return; // Paywall already shown by checkRecipeLimit
     }
 
     if (!instagramUrl.trim()) {
@@ -235,73 +197,19 @@ export default function AddRecipeScreen() {
 
     try {
       setIsLoading(true);
-      addLog(`Extracting recipe from ${instagramUrl}...`);
+      addLog(`Enhanced extraction starting for: ${instagramUrl}`);
 
-      // Step 1: Parse Instagram URL to extract username and post ID
-      let extractedData: Partial<Recipe>;
+      // Use the new enhanced unified extraction system
+      const extractedData = await extractRecipeFromAnyUrl(instagramUrl);
 
-      // Handle different Instagram URL formats
-      if (instagramUrl.includes("/share/")) {
-        // Share URL format: https://www.instagram.com/share/BBZ133yzEX
-        addLog("Detected Instagram share URL format");
-
-        // Use the testInstagramScraping function directly for share URLs
-        const scrapingResult = await testInstagramScraping(instagramUrl);
-
-        if (scrapingResult.success && scrapingResult.extractedData) {
-          addLog(
-            `Share URL scraping successful - Caption: ${scrapingResult.extractedData.caption.length} chars`
-          );
-
-          // Use the specialized Instagram caption extraction
-          extractedData = await extractRecipeFromInstagramCaption(
-            scrapingResult.extractedData.caption,
-            scrapingResult.extractedData.username,
-            instagramUrl,
-            scrapingResult.extractedData.thumbnail || undefined
-          );
-        } else {
-          throw new Error(
-            `Share URL extraction failed: ${scrapingResult.message}`
-          );
-        }
-      } else if (
-        instagramUrl.includes("/p/") ||
-        instagramUrl.includes("/reel/")
-      ) {
-        // Standard post URL format: https://www.instagram.com/username/p/postId/
-        addLog("Detected standard Instagram post URL format");
-
-        const urlMatch = instagramUrl.match(
-          /instagram\.com\/(?:([^\/]+)\/)?(?:p|reel)\/([^\/\?]+)/
-        );
-        if (urlMatch) {
-          const username = urlMatch[1] || "unknown";
-          const postId = urlMatch[2];
-          addLog(`Extracted username: ${username}, postId: ${postId}`);
-
-          extractedData = await extractRecipeFromInstagram(username, postId);
-        } else {
-          throw new Error("Could not parse Instagram URL format");
-        }
-      } else {
-        // Fallback: try general extraction
-        addLog("Using fallback general extraction for Instagram URL");
-        extractedData = await extractRecipeFromUrl(instagramUrl);
-      }
-
-      // Validate we've received proper data
       if (!extractedData) {
-        Alert.alert(
-          "Error",
-          "Received empty response from extraction service."
+        throw new Error(
+          "Received empty response from enhanced extraction service"
         );
-        setIsLoading(false);
-        return;
       }
 
       addLog(
-        `Extraction successful. Received: ${JSON.stringify(
+        `Enhanced extraction successful: ${JSON.stringify(
           {
             title: extractedData.title,
             ingredientsCount: extractedData.ingredients?.length || 0,
@@ -313,38 +221,6 @@ export default function AddRecipeScreen() {
         )}`
       );
 
-      // Check if we have ingredients and instructions before proceeding
-      if (
-        !extractedData.ingredients ||
-        extractedData.ingredients.length === 0
-      ) {
-        addLog(`Warning: No ingredients found in extracted data.`);
-
-        // If we have the original text, we can retry with manual analysis
-        if (extractedData.originalText) {
-          addLog(`Attempting to extract ingredients from original text...`);
-          try {
-            // Try again with direct text analysis
-            const reanalyzedData = await analyzeRecipeText(
-              extractedData.originalText
-            );
-            if (
-              reanalyzedData.ingredients &&
-              reanalyzedData.ingredients.length > 0
-            ) {
-              addLog(
-                `Successfully extracted ${reanalyzedData.ingredients.length} ingredients from text.`
-              );
-              extractedData.ingredients = reanalyzedData.ingredients;
-            }
-          } catch (reanalysisError) {
-            addLog(
-              `Failed to extract ingredients from text: ${reanalysisError}`
-            );
-          }
-        }
-      }
-
       // Normalize the recipe data
       const normalizedData = normalizeRecipe(extractedData);
 
@@ -353,7 +229,7 @@ export default function AddRecipeScreen() {
       if (validationErrors.length > 0) {
         addLog(`Validation failed: ${validationErrors.join(", ")}`);
 
-        // Check if the errors are due to extraction failure (generic placeholders)
+        // Check if the errors are due to extraction failure
         const isExtractionFailure = validationErrors.some(
           (error) =>
             error.includes("generic placeholder") ||
@@ -387,11 +263,43 @@ export default function AddRecipeScreen() {
       // Process the valid recipe
       await processValidRecipe(normalizedData);
     } catch (error) {
-      console.error("Instagram extraction error:", error);
+      console.error("Enhanced Instagram extraction error:", error);
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
-      addLog(`Error: ${errorMessage}`);
-      Alert.alert("Error", `Failed to extract recipe: ${errorMessage}`);
+      addLog(`Enhanced extraction error: ${errorMessage}`);
+
+      // Provide helpful error messages
+      if (
+        errorMessage.includes("Caption too short") ||
+        errorMessage.includes("Content too short")
+      ) {
+        Alert.alert(
+          "Content Extraction Issue",
+          "The Instagram post doesn't contain enough text content to extract a recipe. Please ensure the post contains detailed ingredients and instructions.",
+          [
+            { text: "Try Different URL", style: "default" },
+            { text: "Manual Entry", onPress: () => setActiveTab("manual") },
+          ]
+        );
+      } else if (
+        errorMessage.includes("Network") ||
+        errorMessage.includes("Failed to fetch")
+      ) {
+        Alert.alert(
+          "Network Error",
+          "Unable to connect to the extraction service. Please check your internet connection and try again.",
+          [
+            { text: "Retry", onPress: () => handleInstagramExtraction() },
+            { text: "Cancel", style: "cancel" },
+          ]
+        );
+      } else {
+        Alert.alert(
+          "Enhanced Extraction Error",
+          `Failed to extract recipe: ${errorMessage}`
+        );
+      }
+
       setIsLoading(false);
     }
   };
@@ -474,6 +382,12 @@ export default function AddRecipeScreen() {
 
   // Handle AI text analysis
   const handleRecipeTextAnalysis = async () => {
+    // Recipe limit check
+    const canCreate = await checkRecipeLimit();
+    if (!canCreate) {
+      return; // Paywall already shown by checkRecipeLimit
+    }
+
     // Feature gating check for text recognition
     const textCheck = canUseTextRecognition();
     if (!textCheck.hasAccess) {
@@ -635,11 +549,10 @@ export default function AddRecipeScreen() {
 
   // Add a recipe manually
   const handleAddRecipe = async () => {
-    // Feature gating check
-    const recipeCheck = canAddRecipe(recipes.length);
-    if (!recipeCheck.hasAccess) {
-      recipeCheck.showPaywall();
-      return;
+    // Recipe limit check
+    const canCreate = await checkRecipeLimit();
+    if (!canCreate) {
+      return; // Paywall already shown by checkRecipeLimit
     }
 
     // Enhanced validation
@@ -747,17 +660,16 @@ export default function AddRecipeScreen() {
 
   // Handle photo selection from camera roll
   const handlePhotoSelection = async () => {
+    // Recipe limit check
+    const canCreate = await checkRecipeLimit();
+    if (!canCreate) {
+      return; // Paywall already shown by checkRecipeLimit
+    }
+
     // Feature gating check for text recognition
     const textCheck = canUseTextRecognition();
     if (!textCheck.hasAccess) {
       textCheck.showPaywall();
-      return;
-    }
-
-    // Recipe limit check
-    const recipeCheck = canAddRecipe(recipes.length);
-    if (!recipeCheck.hasAccess) {
-      recipeCheck.showPaywall();
       return;
     }
 
@@ -1055,12 +967,12 @@ export default function AddRecipeScreen() {
         return (
           <View style={styles.tabContent}>
             <Text style={styles.infoText}>
-              Paste a URL from any recipe website to automatically extract the
-              recipe.
+              Paste a URL from any recipe website or social media post to
+              automatically extract the recipe.
             </Text>
             <TextInput
               style={styles.input}
-              placeholder="https://example.com/recipe"
+              placeholder="https://example.com/recipe or Instagram URL"
               value={urlInput}
               onChangeText={setUrlInput}
               autoCapitalize="none"
@@ -1174,11 +1086,12 @@ export default function AddRecipeScreen() {
         return (
           <View style={styles.tabContent}>
             <Text style={styles.infoText}>
-              Paste an Instagram post URL to extract the recipe.
+              Paste an Instagram recipe post URL to extract ingredients and
+              instructions with AI-powered analysis.
             </Text>
             <TextInput
               style={styles.input}
-              placeholder="https://instagram.com/p/..."
+              placeholder="https://instagram.com/p/... or /share/..."
               value={instagramUrl}
               onChangeText={setInstagramUrl}
               autoCapitalize="none"
@@ -1188,7 +1101,7 @@ export default function AddRecipeScreen() {
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color={colors.primary} />
                 <Text style={styles.loadingText}>
-                  Extracting recipe from Instagram...
+                  Extracting recipe with AI analysis...
                 </Text>
               </View>
             ) : (
@@ -1215,6 +1128,12 @@ export default function AddRecipeScreen() {
   }, [activeTab]);
 
   const testTextExtractionService = async () => {
+    // Recipe limit check
+    const canCreate = await checkRecipeLimit();
+    if (!canCreate) {
+      return; // Paywall already shown by checkRecipeLimit
+    }
+
     try {
       const { testTextExtractionService } = await import(
         "@/services/textRecognition"

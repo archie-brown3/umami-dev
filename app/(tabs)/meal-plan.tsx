@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, borderRadius } from "../../utils/styleUtils";
 import { useMealPlan } from "../../context/MealPlanContext";
+import { useSubscription } from "../../context/SubscriptionContext";
 import WeeklyCalendar from "../../components/meal-plan/WeeklyCalendar";
 
 export default function MealPlanTab() {
@@ -21,6 +22,7 @@ export default function MealPlanTab() {
     goToPreviousWeek,
     goToNextWeek,
   } = useMealPlan();
+  const { isPremium, presentPaywall } = useSubscription();
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
@@ -72,9 +74,24 @@ export default function MealPlanTab() {
           <Text style={styles.headerTitle}>{formatWeekRange()}</Text>
         </View>
 
-        <TouchableOpacity onPress={goToNextWeek} style={styles.headerButton}>
-          <Ionicons name="chevron-forward" size={24} color={colors.dark} />
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          {!isPremium && (
+            <TouchableOpacity
+              style={styles.premiumButton}
+              onPress={() => presentPaywall("advanced_meal_planning")}
+              activeOpacity={0.8}
+            >
+              <View style={styles.premiumButtonContent}>
+                <Ionicons name="star" size={16} color={colors.white} />
+                <Text style={styles.premiumButtonText}>Premium</Text>
+              </View>
+            </TouchableOpacity>
+          )}
+
+          <TouchableOpacity onPress={goToNextWeek} style={styles.headerButton}>
+            <Ionicons name="chevron-forward" size={24} color={colors.dark} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <WeeklyCalendar />
@@ -108,6 +125,35 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "600",
     color: colors.dark,
+  },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  premiumButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
+    backgroundColor: colors.orange[500],
+    shadowColor: colors.orange[500],
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  premiumButtonContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  premiumButtonText: {
+    color: colors.white,
+    fontWeight: "600",
+    fontSize: 14,
   },
   loadingContainer: {
     flex: 1,

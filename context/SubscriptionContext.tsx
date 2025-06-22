@@ -1,31 +1,38 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
-import { Platform, Alert } from "react-native";
-import Purchases, {
-  CustomerInfo,
-  PurchasesOffering,
-  PurchasesPackage,
-  LOG_LEVEL,
-} from "react-native-purchases";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+} from "react";
+import { CustomerInfo, PurchasesOffering } from "react-native-purchases";
+import RevenueCatUI, { PAYWALL_RESULT } from "react-native-purchases-ui";
+import {
+  checkSubscriptionStatus,
+  getOfferings,
+  restorePurchases as restoreRevenueCatPurchases,
+  setRevenueCatUserId,
+  logOutRevenueCatUser,
+} from "@/lib/revenuecat";
 import { useAuth } from "./AuthContext";
-
-// RevenueCat API Keys - Replace with your actual keys
-const REVENUECAT_API_KEYS = {
-  ios:
-    process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY || "your_ios_api_key_here",
-  android:
-    process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY ||
-    "your_android_api_key_here",
-};
+import { useRecipes } from "./RecipeContext";
 
 interface SubscriptionContextType {
+  // Subscription state
   isPremium: boolean;
   isLoading: boolean;
-  customerInfo: CustomerInfo | null;
-  offerings: PurchasesOffering | null;
-  purchasePackage: (packageToPurchase: PurchasesPackage) => Promise<boolean>;
+  currentOffering: PurchasesOffering | null;
+
+  // Actions
+  checkSubscription: () => Promise<void>;
+  presentPaywall: (feature?: string) => Promise<boolean>;
+  presentPaywallIfNeeded: (feature?: string) => Promise<boolean>;
   restorePurchases: () => Promise<boolean>;
-  checkSubscriptionStatus: () => Promise<void>;
-  initializeRevenueCat: (userId?: string) => Promise<void>;
+
+  // Feature gating
+  canAccessFeature: (feature: string) => boolean;
+  getRemainingRecipeCount: () => number;
+  canAddRecipe: () => boolean;
 }
 
 const SubscriptionContext = createContext<SubscriptionContextType | undefined>(
@@ -37,200 +44,224 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({
 }) => {
   const [isPremium, setIsPremium] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [customerInfo, setCustomerInfo] = useState<CustomerInfo | null>(null);
-  const [offerings, setOfferings] = useState<PurchasesOffering | null>(null);
+  const [currentOffering, setCurrentOffering] =
+    useState<PurchasesOffering | null>(null);
 
   const { user } = useAuth();
+  const { recipes } = useRecipes();
 
-  // Initialize RevenueCat SDK
-  const initializeRevenueCat = async (userId?: string) => {
-    try {
-      console.log("[RevenueCat] Initializing SDK...");
-
-      // Set log level for debugging
-      Purchases.setLogLevel(LOG_LEVEL.VERBOSE);
-
-      // Configure SDK with platform-specific API key
-      if (Platform.OS === "ios") {
-        await Purchases.configure({
-          apiKey: REVENUECAT_API_KEYS.ios,
-          appUserID: userId,
-        });
-      } else if (Platform.OS === "android") {
-        await Purchases.configure({
-          apiKey: REVENUECAT_API_KEYS.android,
-          appUserID: userId,
-        });
-      }
-
-      console.log("[RevenueCat] SDK initialized successfully");
-
-      // Load initial data
-      await checkSubscriptionStatus();
-      await loadOfferings();
-    } catch (error) {
-      console.error("[RevenueCat] Failed to initialize:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Check current subscription status
-  const checkSubscriptionStatus = async () => {
-    try {
-      console.log("[RevenueCat] Checking subscription status...");
-      const info = await Purchases.getCustomerInfo();
-      setCustomerInfo(info);
-
-      // Check if user has premium entitlement
-      const hasPremium =
-        typeof info.entitlements.active["premium_access"] !== "undefined";
-      setIsPremium(hasPremium);
-
-      console.log("[RevenueCat] Premium status:", hasPremium);
-    } catch (error) {
-      console.error("[RevenueCat] Error checking subscription status:", error);
-      setIsPremium(false);
-    }
-  };
-
-  // Load available offerings
-  const loadOfferings = async () => {
-    try {
-      console.log("[RevenueCat] Loading offerings...");
-      const offerings = await Purchases.getOfferings();
-
-      if (offerings.current !== null) {
-        setOfferings(offerings.current);
-        console.log(
-          "[RevenueCat] Offerings loaded:",
-          offerings.current.identifier
-        );
-      } else {
-        console.log("[RevenueCat] No offerings found");
-      }
-    } catch (error) {
-      console.error("[RevenueCat] Error loading offerings:", error);
-    }
-  };
-
-  // Purchase a package
-  const purchasePackage = async (
-    packageToPurchase: PurchasesPackage
-  ): Promise<boolean> => {
-    try {
-      setIsLoading(true);
-      console.log(
-        "[RevenueCat] Purchasing package:",
-        packageToPurchase.identifier
-      );
-
-      const { customerInfo } = await Purchases.purchasePackage(
-        packageToPurchase
-      );
-      setCustomerInfo(customerInfo);
-
-      const hasPremium =
-        typeof customerInfo.entitlements.active["premium_access"] !==
-        "undefined";
-      setIsPremium(hasPremium);
-
-      if (hasPremium) {
-        Alert.alert(
-          "Purchase Successful!",
-          "Welcome to Premium! You now have access to all features.",
-          [{ text: "OK" }]
-        );
-      }
-
-      return hasPremium;
-    } catch (error: any) {
-      console.error("[RevenueCat] Purchase error:", error);
-
-      if (!error.userCancelled) {
-        Alert.alert(
-          "Purchase Failed",
-          error.message || "Failed to complete purchase. Please try again.",
-          [{ text: "OK" }]
-        );
-      }
-
-      return false;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Restore purchases
-  const restorePurchases = async (): Promise<boolean> => {
-    try {
-      setIsLoading(true);
-      console.log("[RevenueCat] Restoring purchases...");
-
-      const info = await Purchases.restorePurchases();
-      setCustomerInfo(info);
-
-      const hasPremium =
-        typeof info.entitlements.active["premium_access"] !== "undefined";
-      setIsPremium(hasPremium);
-
-      if (hasPremium) {
-        Alert.alert(
-          "Purchases Restored!",
-          "Your premium subscription has been restored.",
-          [{ text: "OK" }]
-        );
-      } else {
-        Alert.alert(
-          "No Purchases Found",
-          "No active subscriptions were found to restore.",
-          [{ text: "OK" }]
-        );
-      }
-
-      return hasPremium;
-    } catch (error: any) {
-      console.error("[RevenueCat] Restore error:", error);
-      Alert.alert(
-        "Restore Failed",
-        error.message || "Failed to restore purchases. Please try again.",
-        [{ text: "OK" }]
-      );
-      return false;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Initialize when user changes
+  // Initialize RevenueCat when user changes
   useEffect(() => {
     if (user?.id) {
-      initializeRevenueCat(user.id);
+      setRevenueCatUserId(user.id);
+    } else {
+      logOutRevenueCatUser();
     }
   }, [user?.id]);
 
+  // Check subscription status and load offerings
+  const checkSubscription = useCallback(async () => {
+    try {
+      setIsLoading(true);
+
+      // Check current subscription status
+      const hasPremium = await checkSubscriptionStatus();
+      console.log("[SubscriptionContext] Premium status:", hasPremium);
+      setIsPremium(hasPremium);
+
+      // Load current offering for paywall
+      const offering = await getOfferings();
+      console.log("[SubscriptionContext] Available offering:", {
+        identifier: offering?.identifier,
+        availablePackages: offering?.availablePackages?.length || 0,
+      });
+      setCurrentOffering(offering);
+    } catch (error) {
+      console.error(
+        "[SubscriptionContext] Error checking subscription:",
+        error
+      );
+      setIsPremium(false);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Check subscription on mount and when user changes
+  useEffect(() => {
+    checkSubscription();
+  }, [checkSubscription]);
+
+  // Present RevenueCat paywall for specific feature
+  const presentPaywall = useCallback(
+    async (feature?: string): Promise<boolean> => {
+      try {
+        // Safety check - don't show paywall if no offering available
+        if (!currentOffering) {
+          console.warn(
+            "[SubscriptionContext] No offering available - cannot show paywall"
+          );
+          console.log(
+            "[SubscriptionContext] Current offering state:",
+            currentOffering
+          );
+          return false;
+        }
+
+        console.log(
+          "[SubscriptionContext] Showing paywall for feature:",
+          feature
+        );
+        console.log("[SubscriptionContext] Using offering:", {
+          identifier: currentOffering.identifier,
+          packages: currentOffering.availablePackages.map(
+            (pkg) => pkg.identifier
+          ),
+        });
+
+        const paywallResult: PAYWALL_RESULT = await RevenueCatUI.presentPaywall(
+          {
+            offering: currentOffering,
+          }
+        );
+
+        console.log("[SubscriptionContext] Paywall result:", paywallResult);
+
+        switch (paywallResult) {
+          case PAYWALL_RESULT.PURCHASED:
+          case PAYWALL_RESULT.RESTORED:
+            // Refresh subscription status after successful purchase/restore
+            await checkSubscription();
+            console.log(
+              `[SubscriptionContext] Purchase successful for feature: ${feature}`
+            );
+            return true;
+
+          case PAYWALL_RESULT.CANCELLED:
+            console.log(
+              `[SubscriptionContext] Paywall cancelled for feature: ${feature}`
+            );
+            return false;
+
+          case PAYWALL_RESULT.NOT_PRESENTED:
+          case PAYWALL_RESULT.ERROR:
+          default:
+            console.warn(
+              `[SubscriptionContext] Paywall error for feature: ${feature}`,
+              paywallResult
+            );
+            return false;
+        }
+      } catch (error) {
+        console.error("[SubscriptionContext] Error presenting paywall:", error);
+        return false;
+      }
+    },
+    [currentOffering, checkSubscription]
+  );
+
+  // Feature gating helpers
+  const canAccessFeature = useCallback(
+    (feature: string): boolean => {
+      if (isPremium) return true;
+
+      // Define which features require premium
+      const premiumFeatures = [
+        "unlimited_recipes",
+        "advanced_meal_planning",
+        "recipe_url_extraction",
+        "shopping_list_generation",
+        "recipe_export",
+        "cross_device_sync",
+        "nutrition_analysis",
+        "bulk_import_export",
+        "premium_collections",
+      ];
+
+      return !premiumFeatures.includes(feature);
+    },
+    [isPremium]
+  );
+
+  // Present paywall only if needed (user doesn't have access)
+  const presentPaywallIfNeeded = useCallback(
+    async (feature?: string): Promise<boolean> => {
+      // If user is already premium, no need to show paywall
+      if (isPremium) {
+        return true;
+      }
+
+      // If feature is specified, check if it requires premium
+      if (feature && canAccessFeature(feature)) {
+        return true;
+      }
+
+      // Show paywall since user needs premium
+      return presentPaywall(feature);
+    },
+    [isPremium, canAccessFeature, presentPaywall]
+  );
+
+  // Restore purchases
+  const restorePurchases = useCallback(async (): Promise<boolean> => {
+    try {
+      setIsLoading(true);
+      const success = await restoreRevenueCatPurchases();
+      setIsPremium(success);
+
+      if (success) {
+        await checkSubscription(); // Refresh all subscription data
+      }
+
+      return success;
+    } catch (error) {
+      console.error("[SubscriptionContext] Error restoring purchases:", error);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [checkSubscription]);
+
+  const getRemainingRecipeCount = useCallback((): number => {
+    if (isPremium) return -1; // Unlimited
+
+    // Get actual recipe count from RecipeContext
+    const currentRecipeCount = recipes?.length || 0;
+    return Math.max(0, 10 - currentRecipeCount);
+  }, [isPremium, recipes?.length]);
+
+  const canAddRecipe = useCallback((): boolean => {
+    if (isPremium) return true;
+    const remaining = getRemainingRecipeCount();
+    return remaining > 0;
+  }, [isPremium, getRemainingRecipeCount]);
+
+  const value: SubscriptionContextType = {
+    isPremium,
+    isLoading,
+    currentOffering,
+    checkSubscription,
+    presentPaywall,
+    presentPaywallIfNeeded,
+    restorePurchases,
+    canAccessFeature,
+    getRemainingRecipeCount,
+    canAddRecipe,
+  };
+
   return (
-    <SubscriptionContext.Provider
-      value={{
-        isPremium,
-        isLoading,
-        customerInfo,
-        offerings,
-        purchasePackage,
-        restorePurchases,
-        checkSubscriptionStatus,
-        initializeRevenueCat,
-      }}
-    >
+    <SubscriptionContext.Provider value={value}>
       {children}
     </SubscriptionContext.Provider>
   );
 };
 
-export const useSubscription = () => {
+export const useSubscription = (): SubscriptionContextType => {
   const context = useContext(SubscriptionContext);
   if (!context) {
-    throw new Error("useSubscription must be used within SubscriptionProvider");
+    throw new Error(
+      "useSubscription must be used within a SubscriptionProvider"
+    );
   }
   return context;
 };

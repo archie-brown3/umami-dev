@@ -446,6 +446,9 @@ PODS:
   - PromisesObjC (2.4.0)
   - PurchasesHybridCommon (13.32.0):
     - RevenueCat (= 5.24.0)
+  - PurchasesHybridCommonUI (13.32.0):
+    - PurchasesHybridCommon (= 13.32.0)
+    - RevenueCatUI (= 5.24.0)
   - RCT-Folly (2024.11.18.00):
     - boost
     - DoubleConversion
@@ -2123,6 +2126,8 @@ PODS:
     - React-perflogger (= 0.79.2)
     - React-utils (= 0.79.2)
   - RevenueCat (5.24.0)
+  - RevenueCatUI (5.24.0):
+    - RevenueCat (= 5.24.0)
   - RNCAsyncStorage (2.1.2):
     - React-Core
   - RNGestureHandler (2.24.0):
@@ -2156,7 +2161,10 @@ PODS:
     - GoogleMLKit/TextRecognitionJapanese (= 6.0.0)
     - GoogleMLKit/TextRecognitionKorean (= 6.0.0)
     - React
-  - RNPurchases (8.10.1):
+  - RNPaywalls (8.11.0):
+    - PurchasesHybridCommonUI (= 13.32.0)
+    - React-Core
+  - RNPurchases (8.11.0):
     - PurchasesHybridCommon (= 13.32.0)
     - React-Core
   - RNReanimated (3.17.5):
@@ -2283,7 +2291,7 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
-  - RNScreens (4.10.0):
+  - RNScreens (4.11.1):
     - DoubleConversion
     - glog
     - hermes-engine
@@ -2432,6 +2440,7 @@ DEPENDENCIES:
   - "RNCAsyncStorage (from `../node_modules/@react-native-async-storage/async-storage`)"
   - RNGestureHandler (from `../node_modules/react-native-gesture-handler`)
   - "RNMLKitTextRecognition (from `../node_modules/@react-native-ml-kit/text-recognition`)"
+  - RNPaywalls (from `../node_modules/react-native-purchases-ui`)
   - RNPurchases (from `../node_modules/react-native-purchases`)
   - RNReanimated (from `../node_modules/react-native-reanimated`)
   - RNScreens (from `../node_modules/react-native-screens`)
@@ -2459,7 +2468,9 @@ SPEC REPOS:
     - nanopb
     - PromisesObjC
     - PurchasesHybridCommon
+    - PurchasesHybridCommonUI
     - RevenueCat
+    - RevenueCatUI
     - SDWebImage
     - SDWebImageWebPCoder
     - SocketRocket
@@ -2681,6 +2692,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native-gesture-handler"
   RNMLKitTextRecognition:
     :path: "../node_modules/@react-native-ml-kit/text-recognition"
+  RNPaywalls:
+    :path: "../node_modules/react-native-purchases-ui"
   RNPurchases:
     :path: "../node_modules/react-native-purchases"
   RNReanimated:
@@ -2750,6 +2763,7 @@ SPEC CHECKSUMS:
   nanopb: 438bc412db1928dac798aa6fd75726007be04262
   PromisesObjC: f5707f49cb48b9636751c5b2e7d227e43fba9f47
   PurchasesHybridCommon: 662aa1f4769ff4ef594e35adf1a5d0ad7b3d08b7
+  PurchasesHybridCommonUI: ce17a7fcc23bc9e47b6ed117fb87b4fc99539e15
   RCT-Folly: e78785aa9ba2ed998ea4151e314036f6c49e6d82
   RCTDeprecation: 83ffb90c23ee5cea353bd32008a7bca100908f8c
   RCTRequired: eb7c0aba998009f47a540bec9e9d69a54f68136e
@@ -2817,12 +2831,14 @@ SPEC CHECKSUMS:
   ReactCodegen: c63eda03ba1d94353fb97b031fc84f75a0d125ba
   ReactCommon: 76d2dc87136d0a667678668b86f0fca0c16fdeb0
   RevenueCat: 2d3639d30b8a71cbfe3d99cef8243c602793e0ec
+  RevenueCatUI: 80bec9099c200c254c0ec0025b4fb83a85fbacce
   RNCAsyncStorage: b9f5f78da5d16a853fe3dc22e8268d932fc45a83
   RNGestureHandler: ce4a87dba81030b374d7f1993c4376f5c230da2e
   RNMLKitTextRecognition: ff4ec181537d3ec3bd53f48038ed3d0c381ff66a
-  RNPurchases: 555d778354db6027f6a30e0b2dd5be3dd6c4f3ee
+  RNPaywalls: d9b41b43dbc9d6d61cfa0df1bb4c6f0fc1bcea8a
+  RNPurchases: 4ddfd516e40b558dcb168625bddbea690ed8a81a
   RNReanimated: efe63b33e23e1b5b06e5e087779eceeee742452b
-  RNScreens: 586139d98cad59cc4c56443b9bd5c8b9b0b6da0e
+  RNScreens: 62fdbbc4c984150b34c36f095c6ba2510ca9b6a5
   RNSVG: ab84f2de7dd4f2c86d01825b8a65e0ef712fc36b
   SDWebImage: f84b0feeb08d2d11e6a9b843cb06d75ebf5b8868
   SDWebImageWebPCoder: e38c0a70396191361d60c092933e22c20d5b1380
@@ -2830,6 +2846,6 @@ SPEC CHECKSUMS:
   Yoga: c758bfb934100bb4bf9cbaccb52557cee35e8bdf
   ZXingObjC: 8898711ab495761b2dbbdec76d90164a6d7e14c5
 
-PODFILE CHECKSUM: c078272c5150f5198cafbd51b6b71e34d970e340
+PODFILE CHECKSUM: 1396963555642a7154bdfd06d7e6892051841701
 
 COCOAPODS: 1.16.2

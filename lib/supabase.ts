@@ -1,8 +1,13 @@
 import "react-native-url-polyfill/auto";
 // AsyncStorage will be conditionally assigned later.
 // import AsyncStorage from "@react-native-async-storage/async-storage"; // REMOVED TOP-LEVEL IMPORT
-import { createClient, SupportedStorage } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
 import { Platform } from "react-native";
+import type {
+  AuthChangeEvent,
+  Session,
+  SupportedStorage,
+} from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
@@ -45,11 +50,15 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     storage: storageAdapter,
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: false,
+    detectSessionInUrl: true,
+    flowType: "pkce",
+    debug: __DEV__, // Only enable debug in development
   },
   global: {
     headers: {
-      "X-Client-Info": "expo-react-native",
+      "X-Client-Info": `UmamiApp/${Platform.OS} @${
+        process.env.EXPO_PUBLIC_APP_VERSION || "1.0.0"
+      }`,
     },
   },
   db: {

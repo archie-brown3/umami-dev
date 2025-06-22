@@ -20,6 +20,8 @@ import { useFeatureGating } from "@/hooks/useFeatureGating";
 import { Paywall } from "@/components/subscription/Paywall";
 import TodaysMealPlan from "@/components/meal-planning/TodaysMealPlan";
 import { Recipe } from "@/types";
+import { TestPaywall } from "@/components/subscription/TestPaywall";
+import { useSubscription } from "@/context/SubscriptionContext";
 
 // Separate component for recipe items to avoid hooks in render functions
 const RecentRecipeItem = ({
@@ -146,11 +148,11 @@ export default function HomeScreen() {
   const { recipes } = useRecipes();
   const { weekMeals } = useMealPlan();
   const { user } = useAuth();
-  const { isPremium, paywallVisible, setPaywallVisible } = useFeatureGating();
+  const { isPremium } = useFeatureGating();
+  const { presentPaywall } = useSubscription();
 
   const [greeting, setGreeting] = useState("");
   const [recentRecipes, setRecentRecipes] = useState<Recipe[]>([]);
-  const [totalRecipeCount, setTotalRecipeCount] = useState(0);
   const [isLoadingRecipes, setIsLoadingRecipes] = useState(false);
 
   // Set greeting based on time of day
@@ -168,7 +170,6 @@ export default function HomeScreen() {
   // Update recipe data when recipes from context change
   useEffect(() => {
     if (recipes && recipes.length > 0) {
-      setTotalRecipeCount(recipes.length);
       // Get the 6 most recently created recipes
       const recent = [...recipes]
         .sort(
@@ -179,7 +180,6 @@ export default function HomeScreen() {
       setRecentRecipes(recent);
       setIsLoadingRecipes(false);
     } else {
-      setTotalRecipeCount(0);
       setRecentRecipes([]);
       // Only set loading to false if we're sure recipes have been loaded (not just empty)
       if (recipes !== undefined) {
@@ -195,27 +195,18 @@ export default function HomeScreen() {
     }
   }, []);
 
-  // Refresh data when screen comes into focus
-  useFocusEffect(
-    React.useCallback(() => {
-      // Data is already managed by contexts, no need to fetch again
-      if (recipes && recipes.length > 0) {
-        setTotalRecipeCount(recipes.length);
-        const recent = [...recipes]
-          .sort(
-            (a, b) =>
-              new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-          )
-          .slice(0, 6);
-        setRecentRecipes(recent);
-      }
-    }, [recipes])
-  );
+  // Get total number of recipes
+  const totalRecipeCount = recipes?.length || 0;
 
   // Get planned meals for today from the meal plan
   const today = new Date().toISOString().split("T")[0];
   const todaysMeals = weekMeals?.[today] || {};
-  const plannedMealsToday = Object.values(todaysMeals).filter(Boolean).length;
+  const plannedMealsToday = Object.values(todaysMeals).reduce(
+    (total, meals) => {
+      return total + (Array.isArray(meals) ? meals.length : 0);
+    },
+    0
+  );
 
   const handleMealPress = (mealType: string) => {
     router.push(`/(tabs)/meal-plan?meal=${mealType}&date=${today}`);
@@ -240,6 +231,9 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
+        {/* Add TestPaywall at the top for easy testing */}
+        {__DEV__ && <TestPaywall />}
+
         {/* Welcome Section */}
         <View style={styles.welcomeSection}>
           <View style={styles.welcomeHeader}>
@@ -251,7 +245,7 @@ export default function HomeScreen() {
               {!isPremium && (
                 <TouchableOpacity
                   style={styles.premiumButton}
-                  onPress={() => setPaywallVisible(true)}
+                  onPress={() => presentPaywall("premium_access")}
                   activeOpacity={0.8}
                 >
                   <View style={styles.premiumButtonContent}>
@@ -378,8 +372,8 @@ export default function HomeScreen() {
       </ScrollView>
 
       <Paywall
-        visible={paywallVisible}
-        onClose={() => setPaywallVisible(false)}
+        visible={false}
+        onClose={() => {}}
         feature="Premium Home Features"
       />
     </SafeAreaView>

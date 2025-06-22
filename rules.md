@@ -106,27 +106,29 @@ Refer to the `DOCS/` folder, particularly `project-roadmap-mvp.md` and `project-
 1.  **✅ RECOMMENDED DEVELOPMENT WORKFLOWS**:
 
     ```bash
-    # ✅ PRIMARY: Development server (daily development - 90% of work)
+    # ✅ PRIMARY: Development server (daily development)
     npx expo start
     # Press 'i' for iOS simulator, 'w' for web, or scan QR for device
 
-    # ✅ PRODUCTION: EAS builds (native feature testing, TestFlight, App Store)
+    # ✅ XCODE: Local iOS development and debugging
+    # Open ios/umami-dev.xcworkspace in Xcode
+    # Select your target device/simulator
+    # Click Run (▶️) or CMD + R to build and run
+
+    # ✅ PRODUCTION: EAS builds (TestFlight, App Store)
     npx eas build --platform ios --profile preview    # TestFlight
     npx eas build --platform ios --profile production # App Store
 
     # ✅ ALTERNATIVE: Web development (cross-platform testing)
     npx expo start --web
-
-    # ⚠️ AVOID: Local iOS builds (hit Swift compatibility header issue)
-    npm run ios  # Use EAS builds instead for native features
     ```
 
 2.  **Build System Status**:
 
     - **EAS Cloud Builds**: ✅ PERFECT - Use for all production deployment
     - **Development Server**: ✅ EXCELLENT - Use for daily development
+    - **Xcode Builds**: ✅ WORKING - Use for iOS development and debugging
     - **Web Builds**: ✅ WORKING - Use for cross-platform testing
-    - **Local iOS Builds**: ⚠️ Swift header limitation - use EAS instead
 
 3.  **✅ NEW ARCHITECTURE STATUS**:
 
@@ -219,39 +221,39 @@ Refer to the `DOCS/` folder, particularly `project-roadmap-mvp.md` and `project-
 
 ## Common Error Patterns and Solutions
 
-### Swift Compatibility Header Error ⚠️ KNOWN LIMITATION
+### Build and Development Environment Setup
 
-**Error Message**: `"unsupported Swift architecture"`
+**✅ Development Options**:
 
-**Status**: **CONFIRMED EXPO SDK LIMITATION** - affects local builds only
+1. **Xcode Development**:
 
-**✅ SOLUTIONS (in order of preference)**:
+   ```bash
+   # Open the workspace in Xcode
+   open ios/umami-dev.xcworkspace
 
-1. **Use EAS builds** (RECOMMENDED for all production work):
+   # Build and run using Xcode interface
+   # - Select your target device/simulator
+   # - Click Run (▶️) or use CMD + R
+   ```
 
+2. **Development Server**:
+
+   ```bash
+   npx expo start  # For daily development tasks
+   ```
+
+3. **Production Builds**:
    ```bash
    npx eas build --platform ios --profile preview    # TestFlight
    npx eas build --platform ios --profile production # App Store
    ```
 
-2. **Use development server** (for daily development):
-
-   ```bash
-   npx expo start  # Works perfectly for 90% of development
-   ```
-
-3. **Use web development** (for cross-platform testing):
-   ```bash
-   npx expo start --web  # Excellent for UI and logic testing
-   ```
-
 **Key Points**:
 
-- ✅ Does NOT affect app functionality
-- ✅ Does NOT affect EAS cloud builds
-- ✅ Does NOT affect TestFlight or App Store deployment
-- ✅ All native modules compile successfully before this error
-- ⚠️ Only affects final linking stage of local iOS builds
+- ✅ All build methods are now fully functional
+- ✅ Xcode builds work for local development and debugging
+- ✅ Native modules compile and run successfully
+- ✅ Full debugging capabilities available in Xcode
 
 ### Invalid Hook Call Error
 

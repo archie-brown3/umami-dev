@@ -6,6 +6,11 @@ import {
   TouchableOpacity,
   Text,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  Keyboard,
+  TouchableWithoutFeedback,
 } from "react-native";
 import { useAuth } from "@/context/AuthContext";
 import { Link, router } from "expo-router";
@@ -70,63 +75,89 @@ export default function RegisterScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.formContainer}>
-        <Text style={styles.title}>Create Account</Text>
-        <Text style={styles.subtitle}>Sign up to get started</Text>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.keyboardAvoid}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.formContainer}>
+              <Text style={styles.title}>Create Account</Text>
+              <Text style={styles.subtitle}>Sign up to get started</Text>
 
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          keyboardType="email-address"
-        />
+              <TextInput
+                style={styles.input}
+                placeholder="Email"
+                value={email}
+                onChangeText={setEmail}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                autoComplete="email"
+                textContentType="emailAddress"
+                returnKeyType="next"
+                enablesReturnKeyAutomatically
+              />
 
-        <TextInput
-          style={styles.input}
-          placeholder="Password"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-        />
+              <TextInput
+                style={styles.input}
+                placeholder="Password"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                autoComplete="new-password"
+                textContentType="newPassword"
+                returnKeyType="next"
+                enablesReturnKeyAutomatically
+              />
 
-        <TextInput
-          style={styles.input}
-          placeholder="Confirm Password"
-          value={confirmPassword}
-          onChangeText={setConfirmPassword}
-          secureTextEntry
-        />
+              <TextInput
+                style={styles.input}
+                placeholder="Confirm Password"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                secureTextEntry
+                autoComplete="new-password"
+                textContentType="newPassword"
+                returnKeyType="done"
+                enablesReturnKeyAutomatically
+                onSubmitEditing={handleRegister}
+              />
 
-        <TouchableOpacity
-          style={styles.button}
-          onPress={handleRegister}
-          disabled={loading}
-        >
-          <Text style={styles.buttonText}>
-            {loading ? "Creating Account..." : "Create Account"}
-          </Text>
-        </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.button, loading && styles.buttonDisabled]}
+                onPress={handleRegister}
+                disabled={loading}
+              >
+                <Text style={styles.buttonText}>
+                  {loading ? "Creating Account..." : "Create Account"}
+                </Text>
+              </TouchableOpacity>
 
-        {/* Divider */}
-        <AuthDivider />
+              {/* Divider */}
+              <AuthDivider />
 
-        {/* Apple Sign In Button */}
-        <AppleSignInButton
-          onSuccess={handleAppleSignInSuccess}
-          onError={handleAppleSignInError}
-        />
+              {/* Apple Sign In Button */}
+              <AppleSignInButton
+                onSuccess={handleAppleSignInSuccess}
+                onError={handleAppleSignInError}
+              />
 
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>Already have an account? </Text>
-          <Link href="/(auth)/login" asChild>
-            <TouchableOpacity>
-              <Text style={styles.link}>Log In</Text>
-            </TouchableOpacity>
-          </Link>
-        </View>
-      </View>
+              <View style={styles.footer}>
+                <Text style={styles.footerText}>Already have an account? </Text>
+                <Link href="/(auth)/login" asChild>
+                  <TouchableOpacity>
+                    <Text style={styles.link}>Log In</Text>
+                  </TouchableOpacity>
+                </Link>
+              </View>
+            </View>
+          </ScrollView>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -135,6 +166,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.white,
+  },
+  keyboardAvoid: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
   },
   formContainer: {
     flex: 1,
@@ -160,6 +197,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     marginBottom: spacing.md,
     fontSize: 16,
+    color: colors.gray[900],
   },
   button: {
     backgroundColor: colors.primary,
@@ -167,6 +205,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: "center",
     marginTop: spacing.sm,
+  },
+  buttonDisabled: {
+    opacity: 0.7,
   },
   buttonText: {
     color: colors.white,

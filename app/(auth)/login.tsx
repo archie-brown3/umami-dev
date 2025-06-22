@@ -6,13 +6,18 @@ import {
   TouchableOpacity,
   Text,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  Keyboard,
+  TouchableWithoutFeedback,
 } from "react-native";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "@/context/AuthContext";
 import { Link, router } from "expo-router";
-import { colors, spacing } from "../../utils/styleUtils";
+import { colors, spacing } from "@/utils/styleUtils";
 import { SafeAreaView } from "react-native-safe-area-context";
-import AppleSignInButton from "../../components/AppleSignInButton";
-import AuthDivider from "../../components/AuthDivider";
+import AppleSignInButton from "@/components/AppleSignInButton";
+import AuthDivider from "@/components/AuthDivider";
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
@@ -27,21 +32,11 @@ export default function LoginScreen() {
     }
 
     setLoading(true);
-    try {
-      const { error } = await signIn(email, password);
+    const { error } = await signIn(email, password);
+    setLoading(false);
 
-      if (error) {
-        Alert.alert("Error", error.message || "Failed to sign in");
-      } else {
-        // Successful login - the RootLayoutNav will handle the redirection
-        router.replace("/(tabs)");
-      }
-    } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "An unknown error occurred";
-      Alert.alert("Error", errorMessage);
-    } finally {
-      setLoading(false);
+    if (error) {
+      Alert.alert("Error", error.message);
     }
   };
 
@@ -57,61 +52,83 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.formContainer}>
-        <Text style={styles.title}>Recipe App</Text>
-        <Text style={styles.subtitle}>Log in to your account</Text>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.keyboardAvoid}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.formContainer}>
+              <Text style={styles.title}>Recipe App</Text>
+              <Text style={styles.subtitle}>Log in to your account</Text>
 
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          keyboardType="email-address"
-        />
+              <TextInput
+                style={styles.input}
+                placeholder="Email"
+                value={email}
+                onChangeText={setEmail}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                autoComplete="email"
+                textContentType="emailAddress"
+                returnKeyType="next"
+                enablesReturnKeyAutomatically
+              />
 
-        <TextInput
-          style={styles.input}
-          placeholder="Password"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-        />
+              <TextInput
+                style={styles.input}
+                placeholder="Password"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                autoComplete="password"
+                textContentType="password"
+                returnKeyType="done"
+                enablesReturnKeyAutomatically
+                onSubmitEditing={handleLogin}
+              />
 
-        <TouchableOpacity
-          style={styles.button}
-          onPress={handleLogin}
-          disabled={loading}
-        >
-          <Text style={styles.buttonText}>
-            {loading ? "Logging in..." : "Log In"}
-          </Text>
-        </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.button, loading && styles.buttonDisabled]}
+                onPress={handleLogin}
+                disabled={loading}
+              >
+                <Text style={styles.buttonText}>
+                  {loading ? "Logging in..." : "Log In"}
+                </Text>
+              </TouchableOpacity>
 
-        {/* Divider */}
-        <AuthDivider />
+              {/* Divider */}
+              <AuthDivider />
 
-        {/* Apple Sign In Button */}
-        <AppleSignInButton
-          onSuccess={handleAppleSignInSuccess}
-          onError={handleAppleSignInError}
-        />
+              {/* Apple Sign In Button */}
+              <AppleSignInButton
+                onSuccess={handleAppleSignInSuccess}
+                onError={handleAppleSignInError}
+              />
 
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>Don't have an account? </Text>
-          <Link href="/(auth)/register" asChild>
-            <TouchableOpacity>
-              <Text style={styles.link}>Sign Up</Text>
-            </TouchableOpacity>
-          </Link>
-        </View>
+              <View style={styles.footer}>
+                <Text style={styles.footerText}>Don't have an account? </Text>
+                <Link href="/(auth)/register" asChild>
+                  <TouchableOpacity>
+                    <Text style={styles.link}>Sign Up</Text>
+                  </TouchableOpacity>
+                </Link>
+              </View>
 
-        <Link href="/(auth)/forgot-password" asChild>
-          <TouchableOpacity style={styles.forgotPassword}>
-            <Text style={styles.link}>Forgot Password?</Text>
-          </TouchableOpacity>
-        </Link>
-      </View>
+              <Link href="/(auth)/forgot-password" asChild>
+                <TouchableOpacity style={styles.forgotPassword}>
+                  <Text style={styles.link}>Forgot Password?</Text>
+                </TouchableOpacity>
+              </Link>
+            </View>
+          </ScrollView>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -120,6 +137,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.white,
+  },
+  keyboardAvoid: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
   },
   formContainer: {
     flex: 1,
@@ -145,6 +168,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     marginBottom: spacing.md,
     fontSize: 16,
+    color: colors.gray[900],
   },
   button: {
     backgroundColor: colors.primary,
@@ -152,6 +176,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: "center",
     marginTop: spacing.sm,
+  },
+  buttonDisabled: {
+    opacity: 0.7,
   },
   buttonText: {
     color: colors.white,
