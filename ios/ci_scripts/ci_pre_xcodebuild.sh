@@ -32,48 +32,112 @@ echo "Changed to workspace: $(pwd)"
 echo "📁 Workspace contents:"
 ls -la
 
-# Add Node.js paths that are common in CI environments
-export PATH="/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:$PATH"
+# Add comprehensive Node.js paths including the Homebrew paths we see in PATH
+export PATH="/usr/local/bin:/opt/homebrew/bin:/Users/local/Homebrew/bin:/usr/bin:/bin:$PATH"
 
 # Try to find Node.js in CI environment
 echo "🔍 Looking for Node.js..."
 NODE_PATH=""
 NPM_PATH=""
 
-# Check common CI locations first
-if [ -f "/usr/local/bin/node" ]; then
-    NODE_PATH="/usr/local/bin/node"
-    NPM_PATH="/usr/local/bin/npm"
-    echo "✅ Found Node.js at: $NODE_PATH"
-elif [ -f "/opt/homebrew/bin/node" ]; then
-    NODE_PATH="/opt/homebrew/bin/node"
-    NPM_PATH="/opt/homebrew/bin/npm"
-    echo "✅ Found Node.js at: $NODE_PATH"
-elif command -v node >/dev/null 2>&1; then
+# Check all possible locations including the Homebrew paths we see
+POSSIBLE_NODE_LOCATIONS=(
+    "/usr/local/bin/node"
+    "/opt/homebrew/bin/node"
+    "/Users/local/Homebrew/bin/node"
+    "/usr/bin/node"
+    "/bin/node"
+)
+
+POSSIBLE_NPM_LOCATIONS=(
+    "/usr/local/bin/npm"
+    "/opt/homebrew/bin/npm"
+    "/Users/local/Homebrew/bin/npm"
+    "/usr/bin/npm"
+    "/bin/npm"
+)
+
+# Try each location
+for node_loc in "${POSSIBLE_NODE_LOCATIONS[@]}"; do
+    if [ -f "$node_loc" ]; then
+        NODE_PATH="$node_loc"
+        echo "✅ Found Node.js at: $NODE_PATH"
+        break
+    fi
+done
+
+# If still not found, try command -v as last resort
+if [ -z "$NODE_PATH" ] && command -v node >/dev/null 2>&1; then
     NODE_PATH=$(command -v node)
-    NPM_PATH=$(command -v npm)
-    echo "✅ Found Node.js at: $NODE_PATH"
-else
-    echo "❌ Node.js not found in standard locations"
-    echo "🔍 Searching for Node.js..."
-    # Try to find node anywhere
-    find /usr -name "node" -type f 2>/dev/null | head -5
-    find /opt -name "node" -type f 2>/dev/null | head -5
-    echo "PATH contents:"
-    echo "$PATH" | tr ':' '\n'
-    exit 1
+    echo "✅ Found Node.js via command at: $NODE_PATH"
 fi
 
-# Verify npm exists
-if [ ! -f "$NPM_PATH" ]; then
-    # Try to find npm in the same directory as node
-    NODE_DIR=$(dirname "$NODE_PATH")
-    if [ -f "$NODE_DIR/npm" ]; then
-        NPM_PATH="$NODE_DIR/npm"
+# Try to find npm in the same locations
+for npm_loc in "${POSSIBLE_NPM_LOCATIONS[@]}"; do
+    if [ -f "$npm_loc" ]; then
+        NPM_PATH="$npm_loc"
+        echo "✅ Found npm at: $NPM_PATH"
+        break
+    fi
+done
+
+# If still not found, try command -v as last resort
+if [ -z "$NPM_PATH" ] && command -v npm >/dev/null 2>&1; then
+    NPM_PATH=$(command -v npm)
+    echo "✅ Found npm via command at: $NPM_PATH"
+fi
+
+# If Node.js is still not found, try to install it using Homebrew
+if [ -z "$NODE_PATH" ]; then
+    echo "❌ Node.js not found in any location"
+    echo "🔍 Attempting to install Node.js using Homebrew..."
+    
+    # Check if Homebrew is available
+    BREW_PATH=""
+    if [ -f "/Users/local/Homebrew/bin/brew" ]; then
+        BREW_PATH="/Users/local/Homebrew/bin/brew"
+    elif [ -f "/opt/homebrew/bin/brew" ]; then
+        BREW_PATH="/opt/homebrew/bin/brew"
+    elif [ -f "/usr/local/bin/brew" ]; then
+        BREW_PATH="/usr/local/bin/brew"
+    elif command -v brew >/dev/null 2>&1; then
+        BREW_PATH=$(command -v brew)
+    fi
+    
+    if [ -n "$BREW_PATH" ]; then
+        echo "✅ Found Homebrew at: $BREW_PATH"
+        echo "📦 Installing Node.js..."
+        $BREW_PATH install node
+        
+        # Try to find Node.js again after installation
+        for node_loc in "${POSSIBLE_NODE_LOCATIONS[@]}"; do
+            if [ -f "$node_loc" ]; then
+                NODE_PATH="$node_loc"
+                echo "✅ Node.js installed successfully at: $NODE_PATH"
+                break
+            fi
+        done
+        
+        for npm_loc in "${POSSIBLE_NPM_LOCATIONS[@]}"; do
+            if [ -f "$npm_loc" ]; then
+                NPM_PATH="$npm_loc"
+                echo "✅ npm available at: $NPM_PATH"
+                break
+            fi
+        done
     else
-        echo "❌ npm not found"
+        echo "❌ Homebrew not found, cannot install Node.js"
+        echo "🔍 Available executables in common paths:"
+        find /usr/local/bin -name "*node*" 2>/dev/null || echo "No node executables in /usr/local/bin"
+        find /Users/local/Homebrew/bin -name "*node*" 2>/dev/null || echo "No node executables in /Users/local/Homebrew/bin"
         exit 1
     fi
+fi
+
+# Final check
+if [ -z "$NODE_PATH" ] || [ -z "$NPM_PATH" ]; then
+    echo "❌ Failed to locate Node.js and npm"
+    exit 1
 fi
 
 # Get pod path - CocoaPods should be available in Xcode Cloud
