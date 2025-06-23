@@ -140,6 +140,17 @@ if [ -z "$NODE_PATH" ] || [ -z "$NPM_PATH" ]; then
     exit 1
 fi
 
+# Find npx
+NPX_PATH=""
+NODE_DIR=$(dirname "$NODE_PATH")
+if [ -f "$NODE_DIR/npx" ]; then
+    NPX_PATH="$NODE_DIR/npx"
+elif [ -f "/usr/local/bin/npx" ]; then
+    NPX_PATH="/usr/local/bin/npx"
+elif command -v npx >/dev/null 2>&1; then
+    NPX_PATH=$(command -v npx)
+fi
+
 # Get pod path - CocoaPods should be available in Xcode Cloud
 POD_PATH=""
 if command -v pod >/dev/null 2>&1; then
@@ -158,6 +169,9 @@ fi
 # Print versions
 echo "Node version: $($NODE_PATH --version)"
 echo "npm version: $($NPM_PATH --version)"
+if [ -n "$NPX_PATH" ]; then
+    echo "npx version: $($NPX_PATH --version)"
+fi
 echo "CocoaPods version: $($POD_PATH --version)"
 
 # Check if package.json exists
@@ -172,7 +186,20 @@ echo "📦 Installing Node.js dependencies..."
 $NPM_PATH ci
 
 echo "🔧 Running Expo prebuild to generate iOS project..."
-$NPM_PATH exec expo prebuild --platform ios --clean
+
+# Try different approaches to run expo prebuild
+if [ -n "$NPX_PATH" ]; then
+    echo "✅ Using npx at: $NPX_PATH"
+    $NPX_PATH expo prebuild --platform ios --clean
+elif [ -f "node_modules/.bin/expo" ]; then
+    echo "✅ Using local expo binary"
+    ./node_modules/.bin/expo prebuild --platform ios --clean
+else
+    echo "❌ Cannot find expo executable"
+    echo "🔍 Looking for expo in node_modules..."
+    find node_modules -name "expo" -type f 2>/dev/null | head -5
+    exit 1
+fi
 
 echo "📱 Installing CocoaPods dependencies..."
 cd ios
