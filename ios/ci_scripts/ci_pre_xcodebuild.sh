@@ -187,13 +187,28 @@ $NPM_PATH ci
 
 echo "🔧 Running Expo prebuild to generate iOS project..."
 
+# Fix CI environment variables that cause issues with Expo
+echo "🔧 Setting up CI environment variables..."
+export CI=1
+export EXPO_NO_TELEMETRY=1
+export EXPO_NO_DOCTOR=1
+export EXPO_BETA=0
+export NODE_ENV=production
+
+# Print current environment variables for debugging
+echo "📊 CI Environment variables:"
+echo "CI: $CI"
+echo "EXPO_NO_TELEMETRY: $EXPO_NO_TELEMETRY"
+echo "EXPO_NO_DOCTOR: $EXPO_NO_DOCTOR"
+echo "NODE_ENV: $NODE_ENV"
+
 # Try different approaches to run expo prebuild
 if [ -n "$NPX_PATH" ]; then
     echo "✅ Using npx at: $NPX_PATH"
-    $NPX_PATH expo prebuild --platform ios --clean
+    $NPX_PATH expo prebuild --platform ios --clean --non-interactive
 elif [ -f "node_modules/.bin/expo" ]; then
     echo "✅ Using local expo binary"
-    ./node_modules/.bin/expo prebuild --platform ios --clean
+    ./node_modules/.bin/expo prebuild --platform ios --clean --non-interactive
 else
     echo "❌ Cannot find expo executable"
     echo "🔍 Looking for expo in node_modules..."
