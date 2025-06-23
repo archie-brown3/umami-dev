@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "ci": {
+    "node_version": "20.x"
+  }
+}
