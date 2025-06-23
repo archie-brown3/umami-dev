@@ -34,22 +34,24 @@ for file in package.json app.config.ts ios/Podfile; do
     fi
 done
 
-# Set up Node.js environment
-export PATH="/usr/local/bin:/opt/homebrew/bin:/Users/local/Homebrew/bin:/usr/bin:/bin:/opt/local/bin:$PATH"
-
-# Verify Node.js tools
-echo "🔍 Verifying Node.js tools..."
-if command -v node >/dev/null 2>&1; then
-    echo "✅ Node.js: $(node --version)"
+# Check for iOS directory structure
+echo "🔍 Verifying iOS project structure..."
+if [ -d "ios" ]; then
+    echo "✅ ios directory exists"
+    if [ -f "ios/Podfile" ]; then
+        echo "✅ Podfile exists"
+    else
+        echo "❌ Podfile missing"
+        exit 1
+    fi
+    if [ -d "ios/ci_scripts" ]; then
+        echo "✅ ci_scripts directory exists"
+    else
+        echo "❌ ci_scripts directory missing"
+        exit 1
+    fi
 else
-    echo "❌ Node.js not found"
-    exit 1
-fi
-
-if command -v npm >/dev/null 2>&1; then
-    echo "✅ npm: $(npm --version)"
-else
-    echo "❌ npm not found"
+    echo "❌ ios directory missing"
     exit 1
 fi
 
@@ -58,4 +60,32 @@ echo "🔧 Setting execute permissions for CI scripts..."
 chmod +x ios/ci_scripts/ci_pre_xcodebuild.sh
 chmod +x ios/ci_scripts/ci_post_clone.sh
 
-echo "✅ Post-clone setup completed successfully" 
+# Verify CI scripts exist and are executable
+echo "🔍 Verifying CI scripts..."
+if [ -x "ios/ci_scripts/ci_pre_xcodebuild.sh" ]; then
+    echo "✅ ci_pre_xcodebuild.sh is executable"
+else
+    echo "❌ ci_pre_xcodebuild.sh not found or not executable"
+    exit 1
+fi
+
+if [ -x "ios/ci_scripts/ci_post_clone.sh" ]; then
+    echo "✅ ci_post_clone.sh is executable"
+else
+    echo "❌ ci_post_clone.sh not found or not executable"
+    exit 1
+fi
+
+# Print Xcode Cloud configuration info
+echo "🔍 Checking Xcode Cloud configuration..."
+if [ -f ".xcode-cloud-config.json" ]; then
+    echo "✅ .xcode-cloud-config.json exists"
+    echo "📄 Configuration preview:"
+    head -10 .xcode-cloud-config.json
+else
+    echo "❌ .xcode-cloud-config.json missing"
+    exit 1
+fi
+
+echo "✅ Post-clone setup completed successfully"
+echo "📝 Note: Node.js tools will be verified in the pre-build script" 
