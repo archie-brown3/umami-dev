@@ -5,7 +5,26 @@
   },
   "build": {
     "environment_variables": {
-      "NODE_OPTIONS": "--max-old-space-size=4096"
+      "NODE_OPTIONS": "--max-old-space-size=4096",
+      "CI": "1",
+      "EXPO_NO_TELEMETRY": "1",
+      "EXPO_NO_DOCTOR": "1",
+      "EXPO_BETA": "0",
+      "NODE_ENV": "production",
+      "EXPO_USE_COMMUNITY_AUTOLINKING": "0",
+      "RCT_NEW_ARCH_ENABLED": "0"
+    }
+  },
+  "archive": {
+    "environment_variables": {
+      "NODE_OPTIONS": "--max-old-space-size=4096",
+      "CI": "1",
+      "EXPO_NO_TELEMETRY": "1",
+      "EXPO_NO_DOCTOR": "1",
+      "EXPO_BETA": "0",
+      "NODE_ENV": "production",
+      "EXPO_USE_COMMUNITY_AUTOLINKING": "0",
+      "RCT_NEW_ARCH_ENABLED": "0"
     }
   }
 }
