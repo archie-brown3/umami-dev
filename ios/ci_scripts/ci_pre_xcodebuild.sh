@@ -11,6 +11,7 @@ echo "USER: $USER"
 echo "HOME: $HOME"
 echo "CI_WORKSPACE: $CI_WORKSPACE"
 echo "CI_PRIMARY_REPOSITORY_PATH: $CI_PRIMARY_REPOSITORY_PATH"
+echo "NODE_BINARY: $NODE_BINARY"
 
 # Determine the correct workspace directory
 WORKSPACE_DIR=""
@@ -43,60 +44,134 @@ if [ ! -f "package.json" ]; then
     exit 1
 fi
 
-# Set up Node.js environment - More robust PATH setup for Xcode Cloud
+# Enhanced Node.js discovery for Xcode Cloud
+echo "🔧 Setting up Node.js environment for Xcode Cloud..."
+
+# Set up comprehensive PATH for Xcode Cloud
 export PATH="/usr/local/bin:/opt/homebrew/bin:/Users/local/Homebrew/bin:/usr/bin:/bin:/opt/local/bin:$PATH"
 
-# Find Node.js with better error handling
+# Try to source Node.js from .xcode.env if it exists
+if [ -f "ios/.xcode.env" ]; then
+    echo "📄 Sourcing .xcode.env..."
+    source ios/.xcode.env
+fi
+
+if [ -f "ios/.xcode.env.local" ]; then
+    echo "📄 Sourcing .xcode.env.local..."
+    source ios/.xcode.env.local
+fi
+
+# Enhanced Node.js discovery with multiple strategies
 NODE_PATH=""
-if command -v node >/dev/null 2>&1; then
+NPM_PATH=""
+NPX_PATH=""
+
+echo "🔍 Searching for Node.js in Xcode Cloud environment..."
+
+# Strategy 1: Check if NODE_BINARY is set by Xcode Cloud
+if [ -n "$NODE_BINARY" ] && [ -f "$NODE_BINARY" ]; then
+    NODE_PATH="$NODE_BINARY"
+    echo "✅ Found Node.js via NODE_BINARY: $NODE_PATH"
+fi
+
+# Strategy 2: Check command availability
+if [ -z "$NODE_PATH" ] && command -v node >/dev/null 2>&1; then
     NODE_PATH=$(command -v node)
-    echo "✅ Found Node.js at: $NODE_PATH"
-else
-    echo "❌ Node.js not found in PATH: $PATH"
-    # Try common locations
-    for path in /usr/local/bin/node /opt/homebrew/bin/node /Users/local/Homebrew/bin/node; do
-        if [ -f "$path" ]; then
+    echo "✅ Found Node.js via command: $NODE_PATH"
+fi
+
+# Strategy 3: Check common Xcode Cloud locations
+if [ -z "$NODE_PATH" ]; then
+    echo "🔍 Checking common Xcode Cloud Node.js locations..."
+    for path in \
+        "/usr/local/bin/node" \
+        "/opt/homebrew/bin/node" \
+        "/Users/local/Homebrew/bin/node" \
+        "/Users/local/.nvm/versions/node/*/bin/node" \
+        "/var/folders/*/T/*/node" \
+        "$HOME/.nvm/versions/node/*/bin/node" \
+        "/usr/bin/node" \
+        "/bin/node"; do
+        
+        # Handle glob patterns
+        if [[ "$path" == *"*"* ]]; then
+            for expanded_path in $path; do
+                if [ -f "$expanded_path" ]; then
+                    NODE_PATH="$expanded_path"
+                    echo "✅ Found Node.js at: $NODE_PATH"
+                    break 2
+                fi
+            done
+        elif [ -f "$path" ]; then
             NODE_PATH="$path"
             echo "✅ Found Node.js at: $NODE_PATH"
             break
         fi
     done
-    if [ -z "$NODE_PATH" ]; then
-        echo "❌ Node.js not found in any common location"
+fi
+
+# Strategy 4: Try to install Node.js if not found
+if [ -z "$NODE_PATH" ]; then
+    echo "⚠️ Node.js not found, attempting to install..."
+    
+    # Try using homebrew if available
+    if command -v brew >/dev/null 2>&1; then
+        echo "🍺 Installing Node.js via Homebrew..."
+        brew install node
+        if command -v node >/dev/null 2>&1; then
+            NODE_PATH=$(command -v node)
+            echo "✅ Node.js installed via Homebrew: $NODE_PATH"
+        fi
+    fi
+    
+    # Try using package manager
+    if [ -z "$NODE_PATH" ] && command -v apt-get >/dev/null 2>&1; then
+        echo "📦 Installing Node.js via apt-get..."
+        apt-get update && apt-get install -y nodejs npm
+        if command -v node >/dev/null 2>&1; then
+            NODE_PATH=$(command -v node)
+            echo "✅ Node.js installed via apt-get: $NODE_PATH"
+        fi
+    fi
+fi
+
+# Final check for Node.js
+if [ -z "$NODE_PATH" ]; then
+    echo "❌ Node.js could not be found or installed"
+    echo "🔍 Available commands:"
+    which -a node || echo "node command not found"
+    echo "🔍 PATH: $PATH"
+    echo "🔍 Contents of common directories:"
+    ls -la /usr/local/bin/ | grep node || echo "No node in /usr/local/bin/"
+    ls -la /opt/homebrew/bin/ | grep node || echo "No node in /opt/homebrew/bin/"
+    exit 1
+fi
+
+# Find npm and npx relative to Node.js
+NODE_DIR=$(dirname "$NODE_PATH")
+NPM_PATH="$NODE_DIR/npm"
+NPX_PATH="$NODE_DIR/npx"
+
+# Verify npm exists
+if [ ! -f "$NPM_PATH" ]; then
+    echo "⚠️ npm not found at expected location: $NPM_PATH"
+    if command -v npm >/dev/null 2>&1; then
+        NPM_PATH=$(command -v npm)
+        echo "✅ Found npm via command: $NPM_PATH"
+    else
+        echo "❌ npm not found anywhere"
         exit 1
     fi
 fi
 
-# Find npm with better error handling
-NPM_PATH=""
-if command -v npm >/dev/null 2>&1; then
-    NPM_PATH=$(command -v npm)
-    echo "✅ Found npm at: $NPM_PATH"
-else
-    echo "❌ npm not found in PATH: $PATH"
-    # Try to find npm relative to node
-    NPM_PATH="$(dirname "$NODE_PATH")/npm"
-    if [ -f "$NPM_PATH" ]; then
-        echo "✅ Found npm at: $NPM_PATH"
+# Verify npx exists
+if [ ! -f "$NPX_PATH" ]; then
+    echo "⚠️ npx not found at expected location: $NPX_PATH"
+    if command -v npx >/dev/null 2>&1; then
+        NPX_PATH=$(command -v npx)
+        echo "✅ Found npx via command: $NPX_PATH"
     else
-        echo "❌ npm not found"
-        exit 1
-    fi
-fi
-
-# Find npx with better error handling
-NPX_PATH=""
-if command -v npx >/dev/null 2>&1; then
-    NPX_PATH=$(command -v npx)
-    echo "✅ Found npx at: $NPX_PATH"
-else
-    echo "❌ npx not found in PATH: $PATH"
-    # Try to find npx relative to node
-    NPX_PATH="$(dirname "$NODE_PATH")/npx"
-    if [ -f "$NPX_PATH" ]; then
-        echo "✅ Found npx at: $NPX_PATH"
-    else
-        echo "❌ npx not found"
+        echo "❌ npx not found anywhere"
         exit 1
     fi
 fi
