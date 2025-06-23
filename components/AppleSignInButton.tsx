@@ -65,6 +65,8 @@ export default function AppleSignInButton({
     try {
       setIsLoading(true);
 
+      console.log("[Apple Sign In] Starting authentication process...");
+
       // Check if Supabase is properly configured
       if (!isSupabaseConfigured()) {
         Alert.alert(
@@ -92,8 +94,6 @@ export default function AppleSignInButton({
         );
         return;
       }
-
-      console.log("[Apple Sign In] Starting authentication process...");
 
       // Request credential from Apple
       const credential = await AppleAuthentication.signInAsync({
@@ -176,6 +176,12 @@ export default function AppleSignInButton({
       } else if (error.message?.includes("Supabase")) {
         errorMessage =
           "Authentication service temporarily unavailable. Please try email/password sign in.";
+      } else if (error.message?.includes("Invalid login credentials")) {
+        errorMessage =
+          "Apple Sign In failed. Your Apple ID may not be configured for this app.";
+      } else if (error.message?.includes("signInWithIdToken")) {
+        errorMessage =
+          "Apple authentication server error. Please try email/password sign in.";
       }
 
       // Show error for other cases

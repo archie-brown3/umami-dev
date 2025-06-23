@@ -18,6 +18,7 @@ import { colors, spacing } from "@/utils/styleUtils";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AppleSignInButton from "@/components/AppleSignInButton";
 import AuthDivider from "@/components/AuthDivider";
+import AuthDiagnostic from "@/components/AuthDiagnostic";
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
@@ -31,16 +32,21 @@ export default function LoginScreen() {
       return;
     }
 
+    console.log("[Login] Attempting login for:", email);
     setLoading(true);
     const { error } = await signIn(email, password);
     setLoading(false);
 
     if (error) {
+      console.error("[Login] Login failed:", error);
       Alert.alert("Error", error.message);
+    } else {
+      console.log("[Login] Login successful");
     }
   };
 
   const handleAppleSignInSuccess = () => {
+    console.log("[Login] Apple Sign In successful, navigating to tabs");
     // Navigate to main app on successful Apple Sign In
     router.replace("/(tabs)");
   };
@@ -110,6 +116,9 @@ export default function LoginScreen() {
                 onSuccess={handleAppleSignInSuccess}
                 onError={handleAppleSignInError}
               />
+
+              {/* Auth Diagnostic Tool */}
+              <AuthDiagnostic />
 
               <View style={styles.footer}>
                 <Text style={styles.footerText}>Don't have an account? </Text>
