@@ -13,7 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { useAuth } from "@/context/AuthContext";
 import { colors, spacing } from "@/utils/styleUtils";
-import { supabase } from "@/lib/supabase";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import Constants from "expo-constants";
 
 interface AppleSignInButtonProps {
@@ -34,25 +34,19 @@ export default function AppleSignInButton({
   useEffect(() => {
     const checkAvailability = async () => {
       try {
-        // On simulator, we need to check if we're running iOS 18.4
-        const isSimulator =
-          Constants.appOwnership === "expo" ||
-          Constants.executionEnvironment === "storeClient";
-        const iosVersion =
-          Platform.OS === "ios"
-            ? NativeModules.PlatformConstants?.osVersion
-            : null;
+        // Check app environment
+        const appOwnership = Constants.appOwnership;
+        const executionEnvironment = Constants.executionEnvironment;
 
-        if (isSimulator && iosVersion?.startsWith("18.4")) {
-          console.log(
-            "Running on iOS 18.4 simulator - Apple Sign In may not work properly"
-          );
-          // We still show the button but warn the user
-          setIsAvailable(true);
-          return;
-        }
+        console.log("[Apple Sign In] Environment check:", {
+          appOwnership,
+          executionEnvironment,
+          isDev: __DEV__,
+        });
 
         const available = await AppleAuthentication.isAvailableAsync();
+        console.log("[Apple Sign In] Native availability:", available);
+
         setIsAvailable(available);
       } catch (error) {
         console.error("Error checking Apple Sign In availability:", error);
@@ -71,7 +65,17 @@ export default function AppleSignInButton({
     try {
       setIsLoading(true);
 
-      // Check if we're on iOS 18.4 simulator
+      // Check if Supabase is properly configured
+      if (!isSupabaseConfigured()) {
+        Alert.alert(
+          "Authentication Not Available",
+          "Apple Sign In is temporarily unavailable. Please try email/password authentication or contact support.",
+          [{ text: "OK" }]
+        );
+        return;
+      }
+
+      // Check if we're on iOS 18.4 simulator (development issue)
       const isSimulator =
         Constants.appOwnership === "expo" ||
         Constants.executionEnvironment === "storeClient";
@@ -89,6 +93,8 @@ export default function AppleSignInButton({
         return;
       }
 
+      console.log("[Apple Sign In] Starting authentication process...");
+
       // Request credential from Apple
       const credential = await AppleAuthentication.signInAsync({
         requestedScopes: [
@@ -97,17 +103,25 @@ export default function AppleSignInButton({
         ],
       });
 
+      console.log("[Apple Sign In] Received credential:", {
+        hasIdentityToken: !!credential.identityToken,
+        hasEmail: !!credential.email,
+        hasFullName: !!credential.fullName,
+      });
+
       if (!credential.identityToken) {
         throw new Error("No identity token received from Apple");
       }
 
       // Sign in with Supabase using the Apple credential
+      console.log("[Apple Sign In] Authenticating with Supabase...");
       const { data, error } = await supabase.auth.signInWithIdToken({
         provider: "apple",
         token: credential.identityToken,
       });
 
       if (error) {
+        console.error("[Apple Sign In] Supabase authentication error:", error);
         throw error;
       }
 
@@ -115,10 +129,13 @@ export default function AppleSignInButton({
         throw new Error("No user data received from Supabase");
       }
 
+      console.log("[Apple Sign In] Supabase authentication successful");
+
       // If we have user info from Apple, update the Supabase user profile
       if (credential.fullName) {
         const { givenName, familyName } = credential.fullName;
         if (givenName || familyName) {
+          console.log("[Apple Sign In] Updating user profile...");
           const { error: updateError } = await supabase
             .from("profiles")
             .upsert({
@@ -130,6 +147,9 @@ export default function AppleSignInButton({
 
           if (updateError) {
             console.error("Error updating user profile:", updateError);
+            // Don't throw here - profile update is optional
+          } else {
+            console.log("[Apple Sign In] Profile updated successfully");
           }
         }
       }
@@ -145,12 +165,21 @@ export default function AppleSignInButton({
         return;
       }
 
+      // Handle specific errors with helpful messages
+      let errorMessage = "Failed to sign in with Apple. Please try again.";
+
+      if (error.message?.includes("network")) {
+        errorMessage =
+          "Network error. Please check your internet connection and try again.";
+      } else if (error.message?.includes("timeout")) {
+        errorMessage = "The request timed out. Please try again.";
+      } else if (error.message?.includes("Supabase")) {
+        errorMessage =
+          "Authentication service temporarily unavailable. Please try email/password sign in.";
+      }
+
       // Show error for other cases
-      Alert.alert(
-        "Sign In Failed",
-        error.message || "Failed to sign in with Apple. Please try again.",
-        [{ text: "OK" }]
-      );
+      Alert.alert("Sign In Failed", errorMessage, [{ text: "OK" }]);
       onError?.(error);
     } finally {
       setIsLoading(false);

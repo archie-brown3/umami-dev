@@ -21,6 +21,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     config: {
       usesNonExemptEncryption: false,
     },
+    // Enable Apple Sign In capability
+    usesAppleSignIn: true,
     infoPlist: {
       // Camera permission for taking recipe photos and text recognition
       NSCameraUsageDescription:
@@ -51,6 +53,18 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       // Speech recognition (if implementing voice-to-text features)
       NSSpeechRecognitionUsageDescription:
         "Umami can use speech recognition to help you add recipe instructions by voice.",
+
+      // Apple Sign In URL schemes
+      CFBundleURLTypes: [
+        {
+          CFBundleURLName: "apple-sign-in",
+          CFBundleURLSchemes: ["io.recipesaver.app"],
+        },
+        {
+          CFBundleURLName: "app-scheme",
+          CFBundleURLSchemes: ["umami-dev"],
+        },
+      ],
     },
   },
   android: {
@@ -96,6 +110,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         },
       },
     ],
+    // Apple Authentication plugin - REQUIRED for TestFlight
+    "expo-apple-authentication",
     [
       "expo-image-picker",
       {

@@ -139,6 +139,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "Umami" */;
 			buildPhases = (
+				1A2B3C4D5E6F7890123456 /* [Pre-Build] Setup Dependencies */,
 				08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */,
 				CA1E3D1A925F83D8D8EB6F31 /* [Expo] Configure project */,
 				13B07F871A680F5B00A75B9A /* Sources */,
@@ -203,6 +204,21 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		1A2B3C4D5E6F7890123456 /* [Pre-Build] Setup Dependencies */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "[Pre-Build] Setup Dependencies";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e\n\necho \"🚀 [Pre-Build] Starting dependency setup\"\n\n# Determine workspace directory\nWORKSPACE_DIR=\"$PROJECT_DIR/..\"\necho \"📁 Workspace: $WORKSPACE_DIR\"\n\n# Change to workspace directory\ncd \"$WORKSPACE_DIR\"\n\n# Set up PATH for Node.js tools\nexport PATH=\"/usr/local/bin:/opt/homebrew/bin:/Users/local/Homebrew/bin:/usr/bin:/bin:$PATH\"\n\n# Check if package.json exists\nif [ ! -f \"package.json\" ]; then\n  echo \"❌ package.json not found in $(pwd)\"\n  exit 1\nfi\n\n# Find and verify Node.js tools\nif ! command -v node >/dev/null 2>&1; then\n  echo \"❌ Node.js not found\"\n  exit 1\nfi\n\nif ! command -v npm >/dev/null 2>&1; then\n  echo \"❌ npm not found\"\n  exit 1\nfi\n\nif ! command -v npx >/dev/null 2>&1; then\n  echo \"❌ npx not found\"\n  exit 1\nfi\n\necho \"✅ Node.js tools found\"\necho \"Node: $(node --version)\"\necho \"npm: $(npm --version)\"\n\n# Install Node.js dependencies\necho \"📦 Installing Node.js dependencies...\"\nnpm ci\n\n# Set up environment variables for Expo\nexport CI=1\nexport EXPO_NO_TELEMETRY=1\nexport EXPO_NO_DOCTOR=1\nexport NODE_ENV=production\n\n# Run Expo prebuild to generate iOS project\necho \"🔧 Running Expo prebuild...\"\nnpx expo prebuild --platform ios --clean --non-interactive\n\n# Change to iOS directory\ncd ios\n\n# Check if CocoaPods is available\nif ! command -v pod >/dev/null 2>&1; then\n  echo \"❌ CocoaPods not found\"\n  exit 1\nfi\n\necho \"✅ CocoaPods found: $(pod --version)\"\n\n# Clean existing Pods installation\necho \"🧹 Cleaning Pods...\"\nrm -rf Pods\nrm -f Podfile.lock\n\n# Install CocoaPods dependencies\necho \"📱 Installing CocoaPods dependencies...\"\npod install --repo-update --verbose\n\n# Verify xcconfig files were created\nif [ -d \"Pods/Target Support Files\" ]; then\n  echo \"✅ CocoaPods configuration files created successfully\"\nelse\n  echo \"❌ CocoaPods configuration files not found\"\n  exit 1\nfi\n\necho \"✅ [Pre-Build] Setup completed successfully\"\n";
+		};
 		00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;

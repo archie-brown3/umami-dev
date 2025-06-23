@@ -12,15 +12,33 @@ import type {
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
-// Check for missing environment variables
+// For TestFlight builds, we'll use default values if environment variables are missing
+// This prevents the app from crashing in production while still working when properly configured
+const defaultSupabaseUrl = "https://placeholder.supabase.co";
+const defaultSupabaseKey = "placeholder-key";
+
+const finalSupabaseUrl = supabaseUrl || defaultSupabaseUrl;
+const finalSupabaseKey = supabaseAnonKey || defaultSupabaseKey;
+
+// Check if we're using placeholder values and warn in development
 if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error(
-    "Missing Supabase environment variables. Check your .env file and ensure the app is rebuilt after any changes."
-  );
+  if (__DEV__) {
+    console.warn(
+      "[Supabase] Missing environment variables. Using placeholder values. Authentication will not work until properly configured."
+    );
+    console.warn(
+      "[Supabase] Add EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY to your environment variables."
+    );
+  } else {
+    // In production (TestFlight), log that authentication is disabled
+    console.log(
+      "[Supabase] Environment variables not configured. Authentication features disabled."
+    );
+  }
 }
 
 // For debugging purposes, log a masked version of the URL (not the key)
-const maskedUrl = supabaseUrl.replace(/^(https?:\/\/[^.]+)(.*)$/, "$1...");
+const maskedUrl = finalSupabaseUrl.replace(/^(https?:\/\/[^.]+)(.*)$/, "$1...");
 console.log("[Supabase] Connecting to URL:", maskedUrl);
 
 let storageAdapter: SupportedStorage;
@@ -45,7 +63,7 @@ if (Platform.OS === "web" && typeof window !== "undefined") {
 }
 
 // Configure client with more detailed error handling and retries
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+export const supabase = createClient(finalSupabaseUrl, finalSupabaseKey, {
   auth: {
     storage: storageAdapter,
     autoRefreshToken: true,
@@ -68,6 +86,19 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     timeout: 30000,
   },
 });
+
+// Export helper function to check if Supabase is properly configured
+export const isSupabaseConfigured = (): boolean => {
+  return !!(supabaseUrl && supabaseAnonKey);
+};
+
+// Export configuration status for debugging
+export const supabaseConfig = {
+  isConfigured: isSupabaseConfigured(),
+  url: maskedUrl,
+  hasValidUrl: finalSupabaseUrl !== defaultSupabaseUrl,
+  hasValidKey: finalSupabaseKey !== defaultSupabaseKey,
+};
 
 // Helper function to check if Supabase connection is available
 export const checkSupabaseConnection = async () => {
