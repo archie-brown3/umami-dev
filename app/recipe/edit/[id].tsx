@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -28,6 +28,7 @@ import {
   updateRecipeFromApp,
 } from "@/services/recipeService";
 import { emitRecipeUpdated } from "@/utils/eventEmitter";
+import { useRecipes } from "@/context/RecipeContext";
 
 // Import edit components
 import EditHeader from "@/components/recipe/edit/EditHeader";
@@ -51,6 +52,7 @@ interface EditState {
 
 const RecipeEditScreen: React.FC = () => {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { removeRecipe } = useRecipes();
 
   const [state, setState] = useState<EditState>({
     recipe: {} as Recipe,
@@ -391,7 +393,7 @@ const RecipeEditScreen: React.FC = () => {
     }
   }, [state.isDirty]);
 
-  const handleDelete = useCallback(() => {
+  const handleDelete = useCallback(async () => {
     Alert.alert(
       "Delete Recipe",
       "Are you sure you want to delete this recipe? This action cannot be undone.",
@@ -402,10 +404,12 @@ const RecipeEditScreen: React.FC = () => {
           style: "destructive",
           onPress: async () => {
             try {
-              // Implementation would call deleteRecipe from context
-              // await deleteRecipe(state.recipe.id);
-              router.back();
+              // Use the RecipeContext's removeRecipe function for proper deletion
+              await removeRecipe(state.recipe.id);
+              Alert.alert("Success", "Recipe deleted successfully.");
+              router.replace("/(tabs)/recipes");
             } catch (error) {
+              console.error("Error deleting recipe:", error);
               Alert.alert(
                 "Error",
                 "Failed to delete recipe. Please try again."
@@ -415,7 +419,7 @@ const RecipeEditScreen: React.FC = () => {
         },
       ]
     );
-  }, [state.recipe.id]);
+  }, [state.recipe.id, removeRecipe]);
 
   if (state.isLoading) {
     return <LoadingOverlay message="Loading recipe..." />;

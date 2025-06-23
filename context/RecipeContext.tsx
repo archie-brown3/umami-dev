@@ -4,7 +4,7 @@ import { Recipe, MealPlan, RecipeContextType } from "@/types";
 import { generateId } from "@/lib/utils";
 import { addRecipeToSupabase, getUserRecipes } from "@/services/recipeService";
 import { useAuth } from "./AuthContext";
-import { emitRecipeCreated } from "@/utils/eventEmitter";
+import { emitRecipeCreated, eventEmitter, EVENTS } from "@/utils/eventEmitter";
 import { extractRecipeFromUrl } from "../services/recipeExtractor";
 
 // Create a more specific type for daily meal plan structure
@@ -21,20 +21,25 @@ interface MealPlanState {
   dayMeals: DayMeals;
 }
 
+// Enhanced context type with refresh functionality
+interface EnhancedRecipeContextType extends RecipeContextType {
+  mealPlan: MealPlanState;
+  getRecipeById: (id: string) => Recipe | undefined;
+  refreshRecipes: () => Promise<void>;
+  isLoading: boolean;
+}
+
 // Create context
-const RecipeContext = createContext<
-  | (RecipeContextType & {
-      mealPlan: MealPlanState;
-      getRecipeById: (id: string) => Recipe | undefined;
-    })
-  | undefined
->(undefined);
+const RecipeContext = createContext<EnhancedRecipeContextType | undefined>(
+  undefined
+);
 
 // Provider component
 export function RecipeProvider({ children }: { children: React.ReactNode }) {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [mealPlans, setMealPlans] = useState<MealPlan[]>([]);
   const [mealPlan, setMealPlan] = useState<MealPlanState>({ dayMeals: {} });
+  const [isLoading, setIsLoading] = useState(false);
 
   // Get auth context - should be safe since AuthProvider wraps RecipeProvider in _layout.tsx
   const { user } = useAuth();
@@ -48,10 +53,30 @@ export function RecipeProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user?.id]);
 
+  // Listen for refresh events
+  useEffect(() => {
+    const handleRefreshNeeded = () => {
+      console.log("[RecipeContext] Refresh event received, reloading recipes");
+      if (user?.id) {
+        loadRecipesFromSupabase();
+      }
+    };
+
+    eventEmitter.on(EVENTS.RECIPES_REFRESH_NEEDED, handleRefreshNeeded);
+
+    return () => {
+      eventEmitter.off(EVENTS.RECIPES_REFRESH_NEEDED, handleRefreshNeeded);
+    };
+  }, [user?.id]);
+
   const loadRecipesFromSupabase = async () => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      console.log("[RecipeContext] No user ID, skipping Supabase load");
+      return;
+    }
 
     try {
+      setIsLoading(true);
       console.log(
         "[RecipeContext] Loading recipes from Supabase for user:",
         user.id
@@ -59,9 +84,13 @@ export function RecipeProvider({ children }: { children: React.ReactNode }) {
       const supabaseRecipes = await getUserRecipes(user.id);
       setRecipes(supabaseRecipes);
       console.log(
-        "[RecipeContext] Loaded",
+        "[RecipeContext] Successfully loaded",
         supabaseRecipes.length,
         "recipes from Supabase"
+      );
+      console.log(
+        "[RecipeContext] Recipe titles:",
+        supabaseRecipes.map((r) => r.title).join(", ")
       );
     } catch (error) {
       console.error(
@@ -70,6 +99,8 @@ export function RecipeProvider({ children }: { children: React.ReactNode }) {
       );
       // Fallback to AsyncStorage
       await loadData();
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -92,6 +123,16 @@ export function RecipeProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (error) {
       console.error("Error loading recipe data:", error);
+    }
+  };
+
+  // Public refresh function that can be called by components
+  const refreshRecipes = async () => {
+    console.log("[RecipeContext] Manual refresh requested");
+    if (user?.id) {
+      await loadRecipesFromSupabase();
+    } else {
+      await loadData();
     }
   };
 
@@ -124,16 +165,27 @@ export function RecipeProvider({ children }: { children: React.ReactNode }) {
           if (user?.id) {
             const savedRecipe = await addRecipeToSupabase(finalRecipe, user.id);
             if (savedRecipe) {
-              // Refresh recipes from Supabase to ensure consistency
+              // Refresh recipes from Supabase to get the complete updated list
               await loadRecipesFromSupabase();
 
-              // Find the newly added recipe
-              const newRecipe =
-                recipes.find((r) => r.id === savedRecipe.id) ||
-                transformSupabaseToRecipe(savedRecipe, finalRecipe);
+              // Find the recipe in the refreshed data
+              const refreshedRecipes = await getUserRecipes(user.id);
+              const newRecipe = refreshedRecipes.find(
+                (r) => r.id === savedRecipe.id
+              );
 
-              emitRecipeCreated(newRecipe);
-              return newRecipe;
+              if (newRecipe) {
+                emitRecipeCreated(newRecipe);
+                return newRecipe;
+              } else {
+                // Fallback transformation if not found in refreshed data
+                const fallbackRecipe = transformSupabaseToRecipe(
+                  savedRecipe,
+                  finalRecipe
+                );
+                emitRecipeCreated(fallbackRecipe);
+                return fallbackRecipe;
+              }
             } else {
               throw new Error("Failed to save recipe to Supabase");
             }
@@ -186,16 +238,27 @@ export function RecipeProvider({ children }: { children: React.ReactNode }) {
       if (user?.id) {
         const savedRecipe = await addRecipeToSupabase(recipe, user.id);
         if (savedRecipe) {
-          // Refresh recipes from Supabase to ensure consistency
+          // Refresh recipes from Supabase to get the complete updated list
           await loadRecipesFromSupabase();
 
-          // Find the newly added recipe
-          const newRecipe =
-            recipes.find((r) => r.id === savedRecipe.id) ||
-            transformSupabaseToRecipe(savedRecipe, recipe);
+          // Find the recipe in the refreshed data
+          const refreshedRecipes = await getUserRecipes(user.id);
+          const newRecipe = refreshedRecipes.find(
+            (r) => r.id === savedRecipe.id
+          );
 
-          emitRecipeCreated(newRecipe);
-          return newRecipe;
+          if (newRecipe) {
+            emitRecipeCreated(newRecipe);
+            return newRecipe;
+          } else {
+            // Fallback transformation if not found in refreshed data
+            const fallbackRecipe = transformSupabaseToRecipe(
+              savedRecipe,
+              recipe
+            );
+            emitRecipeCreated(fallbackRecipe);
+            return fallbackRecipe;
+          }
         } else {
           throw new Error("Failed to save recipe to Supabase");
         }
@@ -238,12 +301,48 @@ export function RecipeProvider({ children }: { children: React.ReactNode }) {
   };
 
   const removeRecipe = async (id: string) => {
+    console.log(`[RecipeContext] Starting recipe deletion: ${id}`);
+
     try {
-      const updatedRecipes = recipes.filter((recipe) => recipe.id !== id);
-      setRecipes(updatedRecipes);
-      await AsyncStorage.setItem("recipes", JSON.stringify(updatedRecipes));
+      if (user?.id) {
+        // Delete from Supabase database using the service function
+        const { RecipeService } = require("@/services/recipeService");
+        console.log(`[RecipeContext] Deleting recipe ${id} from Supabase`);
+        await RecipeService.deleteRecipe(id);
+
+        console.log(
+          `[RecipeContext] Recipe ${id} deleted from database, refreshing context`
+        );
+
+        // Immediately refresh recipes from Supabase to get updated list
+        await loadRecipesFromSupabase();
+
+        console.log(
+          `[RecipeContext] Context refreshed, emitting deletion event`
+        );
+
+        // Emit deletion event for other parts of the app
+        const { emitRecipeDeleted } = require("@/utils/eventEmitter");
+        emitRecipeDeleted(id);
+
+        console.log(
+          `[RecipeContext] Recipe ${id} successfully deleted and UI updated`
+        );
+      } else {
+        // Fallback to AsyncStorage if no user (offline mode)
+        console.log(
+          `[RecipeContext] No user, removing recipe ${id} from local storage`
+        );
+        const updatedRecipes = recipes.filter((recipe) => recipe.id !== id);
+        setRecipes(updatedRecipes);
+        await AsyncStorage.setItem("recipes", JSON.stringify(updatedRecipes));
+
+        // Still emit the event for local state updates
+        const { emitRecipeDeleted } = require("@/utils/eventEmitter");
+        emitRecipeDeleted(id);
+      }
     } catch (error) {
-      console.error("Error removing recipe:", error);
+      console.error(`[RecipeContext] Error removing recipe ${id}:`, error);
       throw error;
     }
   };
@@ -320,6 +419,8 @@ export function RecipeProvider({ children }: { children: React.ReactNode }) {
         updateMealPlan,
         mealPlan,
         getRecipeById,
+        refreshRecipes,
+        isLoading,
       }}
     >
       {children}

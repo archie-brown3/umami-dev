@@ -3,9 +3,11 @@
  * Used to trigger refreshes when data changes
  */
 
+import { Recipe } from "@/types";
+
 type EventCallback = (...args: any[]) => void;
 
-class EventEmitter {
+class CustomEventEmitter {
   private events: { [key: string]: EventCallback[] } = {};
 
   on(event: string, callback: EventCallback) {
@@ -41,7 +43,7 @@ class EventEmitter {
 }
 
 // Global event emitter instance
-export const eventEmitter = new EventEmitter();
+export const eventEmitter = new CustomEventEmitter();
 
 // Debounce mechanism to prevent rapid-fire events
 let refreshTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -51,7 +53,8 @@ export const EVENTS = {
   RECIPE_CREATED: "recipe:created",
   RECIPE_UPDATED: "recipe:updated",
   RECIPE_DELETED: "recipe:deleted",
-  RECIPES_REFRESH_NEEDED: "recipes:refresh_needed",
+  RECIPES_REFRESH: "recipes:refresh",
+  SHOPPING_LIST_UPDATED: "shopping_list:updated",
 } as const;
 
 // Helper function to emit refresh with debouncing
@@ -62,19 +65,19 @@ const emitRefreshDebounced = () => {
 
   refreshTimeout = setTimeout(() => {
     console.log("[EventEmitter] Emitting debounced refresh event");
-    eventEmitter.emit(EVENTS.RECIPES_REFRESH_NEEDED);
+    eventEmitter.emit(EVENTS.RECIPES_REFRESH);
     refreshTimeout = null;
   }, 100); // 100ms debounce
 };
 
 // Helper functions for common events
-export const emitRecipeCreated = (recipe: any) => {
+export const emitRecipeCreated = (recipe: Recipe) => {
   console.log("[EventEmitter] Recipe created, triggering refresh");
   eventEmitter.emit(EVENTS.RECIPE_CREATED, recipe);
   emitRefreshDebounced();
 };
 
-export const emitRecipeUpdated = (recipe: any) => {
+export const emitRecipeUpdated = (recipe: Recipe | string) => {
   console.log("[EventEmitter] Recipe updated, triggering refresh");
   eventEmitter.emit(EVENTS.RECIPE_UPDATED, recipe);
   emitRefreshDebounced();
@@ -84,4 +87,8 @@ export const emitRecipeDeleted = (recipeId: string) => {
   console.log("[EventEmitter] Recipe deleted, triggering refresh");
   eventEmitter.emit(EVENTS.RECIPE_DELETED, recipeId);
   emitRefreshDebounced();
+};
+
+export const emitRecipesRefresh = () => {
+  eventEmitter.emit(EVENTS.RECIPES_REFRESH);
 };

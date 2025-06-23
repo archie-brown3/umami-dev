@@ -4,7 +4,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: "Umami",
   slug: "umami-dev",
-  version: "1.0.0",
+  version: "2.0.2",
   orientation: "portrait",
   // Temporarily remove icon references until we have proper assets
   // icon: "./assets/icon.png",
@@ -34,7 +34,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   extra: {
     eas: {
-      projectId: "your-project-id",
+      projectId: "8c925526-896e-49cf-8e9d-60f6540d4a20",
     },
   },
   plugins: [
@@ -53,5 +53,5 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     tsconfigPaths: true,
     typedRoutes: true,
   },
-  owner: "your-expo-username",
+  owner: "mightyarch",
 });

@@ -20,7 +20,7 @@ import { useFeatureGating } from "@/hooks/useFeatureGating";
 import { Paywall } from "@/components/subscription/Paywall";
 import TodaysMealPlan from "@/components/meal-planning/TodaysMealPlan";
 import { Recipe } from "@/types";
-import { TestPaywall } from "@/components/subscription/TestPaywall";
+
 import { useSubscription } from "@/context/SubscriptionContext";
 
 // Separate component for recipe items to avoid hooks in render functions
@@ -231,9 +231,6 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Add TestPaywall at the top for easy testing */}
-        {__DEV__ && <TestPaywall />}
-
         {/* Welcome Section */}
         <View style={styles.welcomeSection}>
           <View style={styles.welcomeHeader}>

@@ -56,7 +56,7 @@ export default function RecipeDetailScreen() {
   const [isTogglingFavorite, setIsTogglingFavorite] = useState(false);
   const [showAllTags, setShowAllTags] = useState(false);
   const { addItemToShoppingList } = useGroceries();
-  const { updateRecipe } = useRecipes();
+  const { updateRecipe, removeRecipe } = useRecipes();
 
   const fetchRecipeDetails = async () => {
     setIsLoading(true);
@@ -229,16 +229,11 @@ export default function RecipeDetailScreen() {
           onPress: async () => {
             setDeleting(true);
             try {
-              const { error: deleteError } = await supabase
-                .from("recipes")
-                .delete()
-                .eq("id", recipeId);
+              // Use the RecipeContext's removeRecipe function for proper deletion
+              await removeRecipe(recipeId as string);
 
-              if (deleteError) {
-                throw deleteError;
-              }
               Alert.alert("Success", "Recipe deleted successfully.");
-              router.replace("/recipes");
+              router.replace("/(tabs)/recipes");
             } catch (e) {
               const msg =
                 e instanceof Error ? e.message : "Could not delete recipe.";

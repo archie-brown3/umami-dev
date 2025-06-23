@@ -41,16 +41,22 @@ function transformRecipeListItem(dbRecipe: Partial<DbRecipe>): Recipe {
 
 // Fetch a user's recipes and map them to the app's Recipe type
 export async function getUserRecipes(userId: string): Promise<Recipe[]> {
-  console.log(
-    `[recipeService.ts] getUserRecipes: Fetching recipes for userId: ${userId}`
-  );
+  console.log(`[getUserRecipes] Starting fetch for userId: ${userId}`);
+
+  if (!userId) {
+    console.error("[getUserRecipes] No userId provided!");
+    return [];
+  }
+
   try {
+    console.log("[getUserRecipes] Making Supabase query...");
+
     const { data, error } = await supabase
       .from("recipes")
       .select(
         `
         id, user_id, title, description, image_url, prep_time, cook_time,
-        servings, is_favorite, created_at, updated_at,
+        servings, is_favorite, created_at, updated_at, author, source_url,
         recipe_tags (
           tag_id,
           tags (
@@ -63,24 +69,31 @@ export async function getUserRecipes(userId: string): Promise<Recipe[]> {
       .eq("user_id", userId)
       .order("updated_at", { ascending: false });
 
+    console.log("[getUserRecipes] Supabase query completed");
+    console.log("[getUserRecipes] Error:", error);
+    console.log("[getUserRecipes] Data count:", data?.length || 0);
+
     if (error) {
       console.error(
-        "[recipeService.ts] getUserRecipes: Error fetching user recipes from Supabase:",
+        "[getUserRecipes] Supabase error:",
         JSON.stringify(error, null, 2)
       );
       throw error;
     }
+
     if (!data) {
-      console.log(
-        "[recipeService.ts] getUserRecipes: No data returned from Supabase for userId:",
-        userId
-      );
+      console.log("[getUserRecipes] No data returned from Supabase");
       return [];
     }
-    console.log(
-      "[recipeService.ts] getUserRecipes: Raw data from Supabase:",
-      JSON.stringify(data, null, 2)
-    );
+
+    console.log("[getUserRecipes] Raw recipes from database:");
+    data.forEach((recipe, index) => {
+      console.log(
+        `  ${index + 1}. ID: ${recipe.id}, Title: "${recipe.title}", Created: ${
+          recipe.created_at
+        }`
+      );
+    });
 
     const transformedRecipes = data.map((dbRecipe) => {
       const recipe = transformRecipeListItem(dbRecipe);
@@ -89,22 +102,24 @@ export async function getUserRecipes(userId: string): Promise<Recipe[]> {
         dbRecipe.recipe_tags
           ?.map((rt: any) => rt.tags?.name || "")
           .filter(Boolean) || [];
+
+      // Add missing fields that might not be in transformRecipeListItem
+      recipe.author = dbRecipe.author;
+      recipe.sourceUrl = dbRecipe.source_url;
+
       console.log(
-        `[recipeService.ts] Recipe ${recipe.id} has ${recipe.tags.length} tags:`,
-        recipe.tags
+        `[getUserRecipes] Transformed recipe: ${recipe.title} (${recipe.id})`
       );
       return recipe;
     });
+
     console.log(
-      "[recipeService.ts] getUserRecipes: Transformed recipes:",
-      JSON.stringify(transformedRecipes, null, 2)
+      `[getUserRecipes] Successfully transformed ${transformedRecipes.length} recipes`
     );
+
     return transformedRecipes;
   } catch (error) {
-    console.error(
-      "[recipeService.ts] getUserRecipes: Error in service function:",
-      error
-    );
+    console.error("[getUserRecipes] Error in service function:", error);
     throw error;
   }
 }
@@ -644,7 +659,115 @@ export class RecipeService {
   }
 
   static async deleteRecipe(recipeId: string): Promise<void> {
-    // Implementation needs to be careful about type conversions
+    console.log(`[RecipeService] Starting deletion of recipe ${recipeId}`);
+
+    try {
+      // Delete in correct order (foreign key dependencies)
+
+      // 1. Delete recipe steps/instructions
+      console.log(
+        `[RecipeService] Deleting recipe steps for recipe ${recipeId}`
+      );
+      const { error: stepsError } = await supabase
+        .from("recipe_steps")
+        .delete()
+        .eq("recipe_id", recipeId);
+
+      if (stepsError) {
+        console.warn(
+          `[RecipeService] Error deleting steps: ${stepsError.message}`
+        );
+        // Continue with deletion even if steps fail
+      }
+
+      // 2. Delete recipe ingredients
+      console.log(
+        `[RecipeService] Deleting recipe ingredients for recipe ${recipeId}`
+      );
+      const { error: ingredientsError } = await supabase
+        .from("recipe_ingredients")
+        .delete()
+        .eq("recipe_id", recipeId);
+
+      if (ingredientsError) {
+        console.warn(
+          `[RecipeService] Error deleting ingredients: ${ingredientsError.message}`
+        );
+        // Continue with deletion even if ingredients fail
+      }
+
+      // 3. Delete recipe tags
+      console.log(
+        `[RecipeService] Deleting recipe tags for recipe ${recipeId}`
+      );
+      const { error: tagsError } = await supabase
+        .from("recipe_tags")
+        .delete()
+        .eq("recipe_id", recipeId);
+
+      if (tagsError) {
+        console.warn(
+          `[RecipeService] Error deleting tags: ${tagsError.message}`
+        );
+        // Continue with deletion even if tags fail
+      }
+
+      // 4. Delete recipe nutrition (if exists)
+      console.log(
+        `[RecipeService] Deleting recipe nutrition for recipe ${recipeId}`
+      );
+      const { error: nutritionError } = await supabase
+        .from("recipe_nutrition")
+        .delete()
+        .eq("recipe_id", recipeId);
+
+      if (nutritionError) {
+        console.warn(
+          `[RecipeService] Error deleting nutrition: ${nutritionError.message}`
+        );
+        // Continue with deletion even if nutrition fails
+      }
+
+      // 5. Delete recipe media (if exists)
+      console.log(
+        `[RecipeService] Deleting recipe media for recipe ${recipeId}`
+      );
+      const { error: mediaError } = await supabase
+        .from("recipe_media")
+        .delete()
+        .eq("recipe_id", recipeId);
+
+      if (mediaError) {
+        console.warn(
+          `[RecipeService] Error deleting media: ${mediaError.message}`
+        );
+        // Continue with deletion even if media fails
+      }
+
+      // 6. Finally, delete the main recipe record
+      console.log(`[RecipeService] Deleting main recipe record ${recipeId}`);
+      const { error: recipeError } = await supabase
+        .from("recipes")
+        .delete()
+        .eq("id", recipeId);
+
+      if (recipeError) {
+        console.error(
+          `[RecipeService] Failed to delete recipe: ${recipeError.message}`
+        );
+        throw recipeError;
+      }
+
+      console.log(
+        `[RecipeService] Successfully deleted recipe ${recipeId} and all related data`
+      );
+    } catch (error) {
+      console.error(
+        `[RecipeService] Error deleting recipe ${recipeId}:`,
+        error
+      );
+      throw error;
+    }
   }
 }
 
@@ -662,6 +785,38 @@ export const addRecipeToSupabase = async (
     console.error("User not authenticated. Cannot save recipe.");
     Alert.alert("Error", "You must be logged in to save recipes.");
     return null;
+  }
+
+  // Check recipe limits using RevenueCat (not Supabase)
+  try {
+    const { checkSubscriptionStatus } = require("@/lib/revenuecat");
+    const hasPremium = await checkSubscriptionStatus();
+
+    if (!hasPremium) {
+      // For free users, check if they've reached the 10 recipe limit
+      const { data: existingRecipes, error: countError } = await supabase
+        .from("recipes")
+        .select("id", { count: "exact" })
+        .eq("user_id", userId);
+
+      if (countError) {
+        console.error("Error checking recipe count:", countError);
+        // Don't block saving if we can't check the count
+      } else if (existingRecipes && existingRecipes.length >= 10) {
+        Alert.alert(
+          "Recipe Limit Reached",
+          "Free users can save up to 10 recipes. Upgrade to Premium for unlimited recipes!",
+          [{ text: "OK" }]
+        );
+        return null;
+      }
+    }
+  } catch (revenueCatError) {
+    console.warn(
+      "RevenueCat check failed, proceeding with save:",
+      revenueCatError
+    );
+    // Don't block recipe saving if RevenueCat check fails
   }
 
   // Process the image URL to avoid localhost issues

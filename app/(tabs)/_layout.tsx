@@ -106,19 +106,6 @@ export default function TabLayout() {
             ),
           }}
         />
-        <Tabs.Screen
-          name="debug"
-          options={{
-            title: "Debug",
-            tabBarIcon: ({ color, focused }) => (
-              <Ionicons
-                name={focused ? "bug" : "bug-outline"}
-                size={24}
-                color={color}
-              />
-            ),
-          }}
-        />
       </Tabs>
       <StatusBar style={colorScheme === "dark" ? "light" : "dark"} />
     </View>

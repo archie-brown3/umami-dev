@@ -163,15 +163,39 @@ export async function scrapeFromUrl(
     // For Instagram URLs, use dedicated Instagram API
     if (domain.includes("instagram.com")) {
       console.log(`[Instagram] Starting extraction for URL: ${cleanedUrl}`);
+      console.log(
+        `[Instagram] API Endpoint: ${API_ENDPOINTS.EXTRACT_API_URL}/api/scrape-web`
+      );
 
       try {
         // Check if API is available first
         const apiAvailable = await isExtractApiAvailable();
+        console.log(`[Instagram] API Available: ${apiAvailable}`);
 
         if (apiAvailable) {
           // Use dedicated API service for Instagram extraction
+          console.log(`[Instagram] Making API request...`);
           const apiResponse = await extractFromInstagramScraping(cleanedUrl);
-          console.log(`[Instagram] API response received`);
+          console.log(
+            `[Instagram] API Response:`,
+            JSON.stringify(
+              {
+                caption_length: apiResponse?.caption?.length || 0,
+                has_username: !!apiResponse?.username,
+                has_thumbnail: !!apiResponse?.thumbnail,
+                media_count: apiResponse?.mediaUrls?.length || 0,
+                metadata: {
+                  has_og: !!apiResponse?.raw_scraped_data?.metadata?.open_graph,
+                  has_description:
+                    !!apiResponse?.raw_scraped_data?.metadata?.description,
+                  title:
+                    apiResponse?.raw_scraped_data?.metadata?.title || "none",
+                },
+              },
+              null,
+              2
+            )
+          );
 
           if (apiResponse) {
             const result = {
@@ -392,7 +416,7 @@ async function extractFromInstagramScraping(
   instagramUrl: string
 ): Promise<any> {
   console.log(
-    `[Instagram] Making scrape-web API request to ${API_ENDPOINTS.EXTRACT_API_URL}/api/scrape-web`
+    `[Instagram] Making extract-enhanced API request to ${API_ENDPOINTS.EXTRACT_API_URL}/api/extract-enhanced`
   );
 
   const maxRetries = 2;
@@ -402,71 +426,96 @@ async function extractFromInstagramScraping(
   while (retryCount <= maxRetries) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout for scraping
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
+      console.log(
+        `[Instagram] Attempt ${retryCount + 1}/${
+          maxRetries + 1
+        } - Making request to extract-enhanced endpoint`
+      );
 
       const response = await fetch(
-        `${API_ENDPOINTS.EXTRACT_API_URL}/api/scrape-web`,
+        `${API_ENDPOINTS.EXTRACT_API_URL}/api/extract-enhanced`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            url: instagramUrl,
-            options: {
-              text: true,
-              metadata: true,
-              images: true,
-              headings: true,
-              links: false,
-              tables: false,
-              forms: false,
-            },
-          }),
+          body: JSON.stringify({ url: instagramUrl }),
           signal: controller.signal,
         }
       );
 
       clearTimeout(timeoutId);
 
-      console.log(`[Instagram] Scrape API Response Status: ${response.status}`);
+      console.log(
+        `[Instagram] Response Status: ${response.status} ${response.statusText}`
+      );
 
       const responseText = await response.text();
       console.log(
-        `[Instagram] Raw Scrape Response: ${responseText.substring(0, 300)}...`
+        `[Instagram] Raw Response Preview (first 200 chars): ${responseText.substring(
+          0,
+          200
+        )}...`
       );
 
       if (!response.ok) {
         console.error(
-          `[Instagram] Scrape API Error: ${response.status} ${response.statusText}`
+          `[Instagram] Extract API Error: ${response.status} ${response.statusText}`
         );
         throw new Error(
-          `Scrape API Error: ${response.status} ${response.statusText}`
+          `Extract API Error: ${response.status} ${response.statusText}`
         );
       }
 
-      const scrapedData = JSON.parse(responseText);
-      console.log(`[Instagram] Successfully parsed scrape response`);
+      const result = JSON.parse(responseText);
+      console.log(`[Instagram] Successfully parsed extract-enhanced response`);
 
-      // Log what we got for testing
-      addServiceLog(`Instagram scrape result: {
-        "text_length": ${scrapedData.text?.full_text?.length || 0},
-        "word_count": ${scrapedData.text?.word_count || 0},
-        "images_count": ${scrapedData.images?.total_images || 0},
-        "metadata_title": "${scrapedData.metadata?.title || "none"}",
-        "has_open_graph": ${!!scrapedData.metadata?.open_graph}
-      }`);
+      if (result.success) {
+        // Extract the structured data directly from the API response
+        const extractedData = {
+          caption: result.data.caption,
+          author:
+            result.data.metadata?.og_title?.split(" on Instagram")[0] ||
+            "Unknown",
+          username:
+            result.data.metadata?.og_title?.split(" on Instagram")[0] ||
+            "Unknown",
+          thumbnail: result.data.metadata?.og_image || null,
+          imageUrl: result.data.metadata?.og_image || null,
+          url: instagramUrl,
+          raw_scraped_data: result.data, // Keep raw data for debugging
+        };
 
-      // Extract Instagram-specific data
-      const instagramData = extractInstagramDataFromScrape(
-        scrapedData,
-        instagramUrl
-      );
-      return instagramData;
+        console.log(
+          `[Instagram] Extracted Data Summary:`,
+          JSON.stringify(
+            {
+              caption_length: extractedData.caption?.length || 0,
+              has_author: !!extractedData.author,
+              has_thumbnail: !!extractedData.thumbnail,
+              author: extractedData.author,
+            },
+            null,
+            2
+          )
+        );
+
+        addServiceLog(`Instagram extract-enhanced result: {
+          "caption_length": ${extractedData.caption?.length || 0},
+          "author": "${extractedData.author}",
+          "has_thumbnail": ${!!extractedData.thumbnail}
+        }`);
+
+        return extractedData;
+      } else {
+        throw new Error(result.error || "Failed to extract Instagram data");
+      }
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
       console.warn(
-        `[Instagram] Scrape attempt ${retryCount + 1} failed: ${
+        `[Instagram] Extract attempt ${retryCount + 1} failed: ${
           lastError.message
         }`
       );
@@ -481,62 +530,7 @@ async function extractFromInstagramScraping(
   }
 
   if (lastError) throw lastError;
-  throw new Error("Failed to scrape Instagram post");
-}
-
-/**
- * Extract Instagram-specific data from scraped content
- */
-function extractInstagramDataFromScrape(
-  scrapedData: any,
-  instagramUrl: string
-): any {
-  // Extract caption from text content
-  const fullText = scrapedData.text?.full_text || "";
-
-  // Try to extract username from URL
-  const username = extractInstagramUsername(scrapedData.metadata);
-
-  // ENHANCED: Smart image selection for Instagram content
-  let thumbnailUrl = selectBestInstagramImage(scrapedData, instagramUrl);
-
-  // Extract caption - look for patterns in the scraped text
-  let caption = "";
-
-  // First try to get from Open Graph description
-  if (scrapedData.metadata?.open_graph?.description) {
-    caption = scrapedData.metadata.open_graph.description;
-  }
-  // Then try regular meta description
-  else if (scrapedData.metadata?.description) {
-    caption = scrapedData.metadata.description;
-  }
-  // Fallback to looking in the text content
-  else if (fullText) {
-    // Try to extract meaningful content from the full text
-    // This is basic - we'll refine based on test results
-    const lines = fullText
-      .split("\n")
-      .filter((line: string) => line.trim().length > 0);
-    caption = lines.slice(0, 3).join(" ").substring(0, 500); // First few lines, max 500 chars
-  }
-
-  const result = {
-    caption: caption || "No caption extracted",
-    username: username || "unknown",
-    thumbnail: thumbnailUrl || null,
-    url: instagramUrl,
-    raw_scraped_data: scrapedData, // Include for testing/debugging
-    extraction_method: "scrape-web",
-  };
-
-  addServiceLog(`Extracted Instagram data: {
-    "caption_length": ${result.caption.length},
-    "username": "${result.username}",
-    "has_thumbnail": ${!!result.thumbnail}
-  }`);
-
-  return result;
+  throw new Error("Failed to extract Instagram data");
 }
 
 /**
@@ -1144,93 +1138,235 @@ export async function analyzeRecipeText(
 }
 
 /**
- * Main function to extract recipe from any URL
- * This is the primary export that the app uses
+ * SIMPLIFIED: Main function to extract recipe from any URL
+ * Uses the exact same approach as the working test-exact-url.js
  */
-export async function extractRecipeFromAnyUrl(
-  url: string
-): Promise<Partial<Recipe>> {
-  console.log(`[DeepSeekService] Starting extraction for URL: ${url}`);
-  addServiceLog(`Starting extraction for URL: ${url}`);
+export async function extractRecipeFromUrl(url: string): Promise<any> {
+  console.log(
+    `[DeepSeekService] Starting dynamic extraction for ANY webpage: ${url}`
+  );
+
+  // Check if it's an Instagram URL
+  if (url.includes("instagram.com")) {
+    console.log(
+      `[DeepSeekService] Instagram URL detected, using Instagram extraction`
+    );
+    return await extractFromInstagramScraping(url);
+  }
+
+  // For ANY other webpage, use the Render API service
+  console.log(
+    `[DeepSeekService] Regular website detected, using Render API service for: ${
+      new URL(url).hostname
+    }`
+  );
 
   try {
-    // Step 1: Scrape content from the URL
-    const scrapedContent = await scrapeFromUrl(url);
+    // Step 1: Call Render API service to scrape the webpage
+    const API_BASE_URL = "https://recipeextractionservice.onrender.com";
+    console.log(`[DeepSeekService] 🌐 Calling Render API to scrape: ${url}`);
 
-    if (
-      !scrapedContent ||
-      !scrapedContent.caption ||
-      scrapedContent.caption.length < 50
-    ) {
+    const scrapeResponse = await fetch(`${API_BASE_URL}/api/scrape-web`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        url: url,
+        options: {
+          text: true,
+          metadata: true,
+          images: true,
+          headings: true,
+          links: false,
+          tables: false,
+          forms: false,
+        },
+      }),
+    });
+
+    if (!scrapeResponse.ok) {
       throw new Error(
-        `Insufficient content extracted from URL. Got ${
-          scrapedContent?.caption?.length || 0
-        } characters`
+        `Render API failed: ${scrapeResponse.status} ${scrapeResponse.statusText}`
+      );
+    }
+
+    const scrapedData = await scrapeResponse.json();
+    console.log(`[DeepSeekService] ✅ Render API response received`);
+    console.log(
+      `[DeepSeekService] 📊 Scraped ${
+        scrapedData.text?.word_count || 0
+      } words from ${scrapedData.url}`
+    );
+
+    // Step 2: Extract the best content for AI processing
+    let contentForAI = "";
+    let contentSource = "render_api_text";
+    let sourceImageUrl: string | undefined = undefined;
+    let pageTitle = "";
+
+    // Get page metadata
+    if (scrapedData.metadata) {
+      pageTitle =
+        scrapedData.metadata.title ||
+        scrapedData.metadata.open_graph?.title ||
+        "";
+
+      // Extract image from metadata
+      if (scrapedData.metadata.open_graph?.image) {
+        sourceImageUrl = scrapedData.metadata.open_graph.image;
+      }
+    }
+
+    // Get images from scraped data
+    if (!sourceImageUrl && scrapedData.images?.images?.length > 0) {
+      sourceImageUrl = scrapedData.images.images[0].url;
+    }
+
+    // Build comprehensive content for AI analysis using ALL available data
+    const contentParts: string[] = [];
+
+    // Add title and description
+    if (pageTitle) {
+      contentParts.push(`Title: ${pageTitle}`);
+    }
+
+    if (scrapedData.metadata?.description) {
+      contentParts.push(`Description: ${scrapedData.metadata.description}`);
+    }
+
+    // Add Open Graph data for richer context
+    if (scrapedData.metadata?.open_graph) {
+      const og = scrapedData.metadata.open_graph;
+      if (og.title && og.title !== pageTitle) {
+        contentParts.push(`Recipe Name: ${og.title}`);
+      }
+      if (og.description) {
+        contentParts.push(`Recipe Description: ${og.description}`);
+      }
+    }
+
+    // Add ALL headings for comprehensive structure
+    if (scrapedData.headings && Array.isArray(scrapedData.headings)) {
+      const headingsByLevel: { [key: number]: string[] } = {};
+
+      // Group headings by level
+      scrapedData.headings.forEach((heading: any) => {
+        if (heading.text && heading.level) {
+          if (!headingsByLevel[heading.level]) {
+            headingsByLevel[heading.level] = [];
+          }
+          headingsByLevel[heading.level].push(heading.text);
+        }
+      });
+
+      // Add headings in order of importance
+      Object.keys(headingsByLevel)
+        .sort((a, b) => parseInt(a) - parseInt(b))
+        .forEach((level) => {
+          const headings = headingsByLevel[parseInt(level)];
+          if (headings.length > 0) {
+            contentParts.push(`\nH${level} Headings: ${headings.join(", ")}`);
+          }
+        });
+    }
+
+    // Add main text content if available
+    if (scrapedData.text?.full_text) {
+      contentParts.push(`\nContent:\n${scrapedData.text.full_text}`);
+      contentSource = "render_api_structured";
+    } else if (scrapedData.text?.preview) {
+      contentParts.push(`\nContent:\n${scrapedData.text.preview}`);
+      contentSource = "render_api_preview";
+    }
+
+    // Add image information for context
+    if (scrapedData.images?.images?.length > 0) {
+      const imageDescriptions = scrapedData.images.images
+        .slice(0, 3) // First 3 images
+        .map((img: any) => img.alt || "Recipe image")
+        .filter((alt: string) => alt && alt !== "Recipe image");
+
+      if (imageDescriptions.length > 0) {
+        contentParts.push(
+          `\nImage Descriptions: ${imageDescriptions.join(", ")}`
+        );
+      }
+    }
+
+    contentForAI = contentParts.join("\n").substring(0, 8000); // Limit for AI processing
+
+    console.log(
+      `[DeepSeekService] 📝 Built comprehensive content: ${contentForAI.length} chars`
+    );
+    console.log(
+      `[DeepSeekService] 📊 Content preview: ${contentForAI.substring(
+        0,
+        200
+      )}...`
+    );
+
+    // Lower the minimum content threshold since we're building from rich metadata
+    if (contentForAI.length < 30) {
+      throw new Error(
+        `Insufficient content extracted from ${url}: ${contentForAI.length} characters`
       );
     }
 
     console.log(
-      `[DeepSeekService] Scraped ${scrapedContent.caption.length} characters`
+      `[DeepSeekService] 🤖 Enhancing ${contentSource} with AI (${contentForAI.length} chars)`
     );
-    addServiceLog(`Scraped ${scrapedContent.caption.length} characters`);
 
-    // Step 2: Analyze the content with AI
-    const isInstagram = isInstagramUrl(url);
-    const recipe = await analyzeRecipeText(scrapedContent.caption, isInstagram);
+    // Step 3: ALWAYS send to AI for professional enhancement and comprehensive tagging
+    const recipe = await analyzeRecipeText(contentForAI, false);
 
-    // Step 3: Enhance with metadata
-    const enhancedRecipe: Partial<Recipe> = {
+    // Step 4: Enhance AI result with scraped metadata
+    const enhancedRecipe = {
       ...recipe,
+      title:
+        recipe.title || pageTitle || `Recipe from ${new URL(url).hostname}`,
       sourceUrl: url,
-      author: scrapedContent.author || scrapedContent.username,
-      imageUrl: scrapedContent.imageUrl,
-      title: recipe.title || scrapedContent.title || "Extracted Recipe",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      // Priority: AI extracted image > scraped OG image > scraped images > none
+      imageUrl: recipe.imageUrl || sourceImageUrl,
+      source: new URL(url).hostname,
     };
 
     console.log(
-      `[DeepSeekService] Extraction complete: ${
-        enhancedRecipe.ingredients?.length || 0
-      } ingredients, ${enhancedRecipe.instructions?.length || 0} instructions`
+      `[DeepSeekService] ✅ AI-enhanced recipe from ${new URL(url).hostname}: ${
+        enhancedRecipe.title
+      }`
     );
-    addServiceLog(
-      `Extraction complete: ${
-        enhancedRecipe.ingredients?.length || 0
-      } ingredients, ${enhancedRecipe.instructions?.length || 0} instructions`
+    console.log(
+      `[DeepSeekService] 📊 Enhanced with ${
+        enhancedRecipe.tags?.length || 0
+      } tags, ${enhancedRecipe.ingredients?.length || 0} ingredients`
     );
 
     return enhancedRecipe;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error(`[DeepSeekService] Extraction failed: ${errorMessage}`);
-    addServiceLog(`❌ Extraction failed: ${errorMessage}`);
+    console.error(
+      `[DeepSeekService] ❌ Dynamic extraction failed for ${url}:`,
+      error
+    );
 
-    // Return a basic fallback recipe structure
-    return {
-      title: "Failed Recipe Extraction",
-      description: `Failed to extract recipe from ${url}. Please try again or check the URL.`,
-      ingredients: [
-        {
-          id: `fallback-${Date.now()}`,
-          name: "Recipe extraction failed",
-          amount: 1,
-          unit: "",
-        },
-      ],
-      instructions: [
-        "Recipe extraction failed. Please try again with a different URL or check your internet connection.",
-      ],
-      prepTime: 0,
-      cookTime: 0,
-      servings: 1,
-      tags: ["Failed Extraction"],
-      sourceUrl: url,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    // Enhanced error message for debugging
+    if (errorMessage.includes("Render API failed")) {
+      console.error(
+        `[DeepSeekService] 🚨 Render API service issue - check service status`
+      );
+    }
+
+    throw new Error(
+      `Failed to extract recipe from ${new URL(url).hostname}: ${errorMessage}`
+    );
   }
 }
+
+/**
+ * ALIAS: Alternative export name for compatibility
+ */
+export const extractRecipeFromAnyUrl = extractRecipeFromUrl;
 
 // MISSING FUNCTION IMPLEMENTATIONS
 
@@ -1287,27 +1423,54 @@ async function analyzeComprehensiveRecipeInfo(
   );
 
   try {
-    // Use DeepSeek API to analyze the content
-    const prompt = `Analyze this recipe content and extract structured information. Return ONLY valid JSON:
+    // Enhanced comprehensive recipe analysis prompt
+    const prompt = `You are a professional chef and recipe expert. Analyze this recipe content and extract comprehensive structured information with extensive tagging.
 
-${text.substring(0, 2000)}
+RECIPE CONTENT:
+${text.substring(0, 3000)}
 
-Return this exact format:
+Please provide a professionally formatted recipe with extensive tagging and cleaned ingredients. Return ONLY valid JSON in this exact format:
+
 {
-  "title": "Recipe title here",
-  "description": "Brief description",
+  "title": "Clean, professional recipe title (remove any duplicates or noise)",
+  "description": "Detailed, appetizing description (2-3 sentences that would entice someone to make this)",
   "ingredients": [
-    {"amount": 1, "unit": "cup", "name": "ingredient name"}
+    {"amount": 200, "unit": "g", "name": "fillet steak (clean up any duplicate text like '200g 200g' to just the ingredient)"}
   ],
   "instructions": [
-    "Step 1 instruction",
-    "Step 2 instruction"
+    "Clear, professional step-by-step instruction 1",
+    "Clear, professional step-by-step instruction 2"
   ],
-  "prepTime": 15,
-  "cookTime": 30,
+  "prepTime": 25,
+  "cookTime": 0,
   "servings": 4,
-  "tags": ["tag1", "tag2"]
-}`;
+  "tags": [
+    "Cuisine type (e.g., French, Italian, Asian, Mexican)",
+    "Main ingredient (e.g., Beef, Chicken, Fish, Vegetarian)", 
+    "Cooking method (e.g., Grilled, Baked, Raw, Fried, Steamed)",
+    "Meal type (e.g., Appetizer, Main Course, Dessert, Snack)",
+    "Difficulty (e.g., Easy, Medium, Advanced)",
+    "Dietary restrictions if applicable (e.g., Gluten-Free, Keto, Vegan, Low-Carb)",
+    "Occasion if applicable (e.g., Date Night, Quick Weeknight, Holiday, Party)",
+    "Traditional or Classic dishes should include 'Traditional' tag"
+  ]
+}
+
+CRITICAL INSTRUCTIONS:
+1. CLEAN INGREDIENTS: Remove any duplicate text in ingredients (e.g., "200g 200g fillet steak" becomes "fillet steak")
+2. COMPREHENSIVE TAGS: Generate 6-8 comprehensive tags covering:
+   - Cuisine type (French, Italian, etc.)
+   - Main ingredient (Beef, Chicken, etc.)
+   - Cooking method (Grilled, Raw, etc.) 
+   - Meal type (Appetizer, Main Course, etc.)
+   - Difficulty level (Easy, Medium, Advanced)
+   - Dietary restrictions if applicable
+   - Special occasions if applicable
+   - Traditional/Classic designation if applicable
+3. PROFESSIONAL DESCRIPTIONS: Make descriptions appetizing and professional
+4. CLEAR INSTRUCTIONS: Ensure instructions are step-by-step and easy to follow
+5. ACCURATE TIMING: If raw/uncooked dishes, use cookTime: 0. Separate prep and cook times accurately.
+6. PROPER AMOUNTS: Extract accurate quantities and units from ingredient text`;
 
     const response = await fetch(API_ENDPOINTS.DEEPSEEK_API_URL, {
       method: "POST",
@@ -1427,6 +1590,10 @@ function createManualWebRecipe(text: string, title?: string): Partial<Recipe> {
   };
 }
 
+// REMOVED: convertStructuredDataToAIText function
+// This was used for local HTML parsing with structured data.
+// Now using Render API service which provides clean, structured content.
+
 /**
  * Extract title from content
  */
@@ -1462,3 +1629,14 @@ function createSimpleHash(text: string): string {
 
   return Math.abs(hash).toString(36); // Convert to base36 for shorter string
 }
+
+// REMOVED: findRecipeInStructuredData function
+// This was used for local HTML parsing. Now using Render API service.
+
+// REMOVED: transformStructuredDataToRecipe function
+// This function previously bypassed AI enhancement. Now structured data
+// is converted to text and sent to AI for comprehensive enhancement.
+
+// REMOVED: extractAmount, extractUnit, parseISO8601Duration helper functions
+// These were only used by the old transformStructuredDataToRecipe function
+// that bypassed AI enhancement. Now the AI handles all parsing and formatting.

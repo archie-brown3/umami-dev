@@ -35,6 +35,7 @@ import { extractTextFromImage } from "@/services/textRecognition";
 import * as ImagePicker from "expo-image-picker";
 import { useFeatureGating } from "@/hooks/useFeatureGating";
 import { Paywall } from "@/components/subscription/Paywall";
+import { useSubscription } from "@/context/SubscriptionContext";
 
 type TabType = "manual" | "url" | "ai" | "instagram";
 
@@ -45,12 +46,14 @@ export default function AddRecipeScreen() {
 
   // Add feature gating
   const {
-    canUseTextRecognition,
+    checkRecipeLimit,
+    checkFeatureAccess,
     paywallVisible,
     setPaywallVisible,
-    blockedFeature,
-    checkRecipeLimit,
   } = useFeatureGating();
+
+  // Add subscription context
+  const { canAccessFeature } = useSubscription();
 
   // Get the active tab from URL params or default to manual
   const initialTab = (params?.tab as TabType) || "manual";
@@ -82,10 +85,15 @@ export default function AddRecipeScreen() {
 
   // Extract recipe from URL
   const handleUrlExtraction = async () => {
-    // Feature gating check
-    const canCreate = await checkRecipeLimit();
-    if (!canCreate) {
-      return; // Paywall already shown by checkRecipeLimit
+    // Check if user can access URL extraction feature
+    const hasAccess = await checkFeatureAccess("recipe_url_extraction", {
+      alertTitle: "Premium Feature",
+      alertMessage:
+        "Recipe URL extraction is available for Premium users only!",
+    });
+
+    if (!hasAccess) {
+      return; // Paywall already shown by checkFeatureAccess
     }
 
     if (!urlInput.trim()) {
@@ -97,7 +105,7 @@ export default function AddRecipeScreen() {
       setIsLoading(true);
       addLog(`Starting unified URL extraction for: ${urlInput}`);
 
-      // Use the new enhanced unified extraction system
+      // Use the enhanced unified extraction system
       const extractedData = await extractRecipeFromAnyUrl(urlInput);
 
       if (!extractedData) {
@@ -136,53 +144,26 @@ export default function AddRecipeScreen() {
       // Process the valid recipe
       await processValidRecipe(normalizedData);
     } catch (error) {
-      console.error("URL extraction error:", error);
       const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-      addLog(`URL extraction error: ${errorMessage}`);
-
-      // Provide helpful error messages
-      if (
-        errorMessage.includes("Content too short") ||
-        errorMessage.includes("Caption too short")
-      ) {
-        Alert.alert(
-          "Content Extraction Issue",
-          "The webpage doesn't contain enough recipe content to extract. Please ensure the URL points to a detailed recipe page.",
-          [
-            { text: "Try Different URL", style: "default" },
-            { text: "Manual Entry", onPress: () => setActiveTab("manual") },
-          ]
-        );
-      } else if (
-        errorMessage.includes("Network") ||
-        errorMessage.includes("Failed to fetch")
-      ) {
-        Alert.alert(
-          "Network Error",
-          "Unable to connect to the extraction service. Please check your internet connection and try again.",
-          [
-            { text: "Retry", onPress: () => handleUrlExtraction() },
-            { text: "Cancel", style: "cancel" },
-          ]
-        );
-      } else {
-        Alert.alert(
-          "URL Extraction Error",
-          `Failed to extract recipe: ${errorMessage}`
-        );
-      }
-
+        error instanceof Error ? error.message : String(error);
+      addLog(`Error: ${errorMessage}`);
+      Alert.alert("Error", errorMessage);
+    } finally {
       setIsLoading(false);
     }
   };
 
   // Extract recipe from Instagram
   const handleInstagramExtraction = async () => {
-    // Feature gating check
-    const canCreate = await checkRecipeLimit();
-    if (!canCreate) {
-      return; // Paywall already shown by checkRecipeLimit
+    // Check if user can access URL extraction feature
+    const hasAccess = await checkFeatureAccess("recipe_url_extraction", {
+      alertTitle: "Premium Feature",
+      alertMessage:
+        "Recipe extraction from Instagram is available for Premium users only!",
+    });
+
+    if (!hasAccess) {
+      return; // Paywall already shown by checkFeatureAccess
     }
 
     if (!instagramUrl.trim()) {
@@ -190,7 +171,7 @@ export default function AddRecipeScreen() {
       return;
     }
 
-    if (!instagramUrl.trim() || !instagramUrl.includes("instagram.com")) {
+    if (!instagramUrl.includes("instagram.com")) {
       Alert.alert("Error", "Please enter a valid Instagram URL");
       return;
     }
@@ -199,7 +180,7 @@ export default function AddRecipeScreen() {
       setIsLoading(true);
       addLog(`Enhanced extraction starting for: ${instagramUrl}`);
 
-      // Use the new enhanced unified extraction system
+      // Use the enhanced unified extraction system
       const extractedData = await extractRecipeFromAnyUrl(instagramUrl);
 
       if (!extractedData) {
@@ -228,34 +209,12 @@ export default function AddRecipeScreen() {
       const validationErrors = validateRecipe(normalizedData);
       if (validationErrors.length > 0) {
         addLog(`Validation failed: ${validationErrors.join(", ")}`);
-
-        // Check if the errors are due to extraction failure
-        const isExtractionFailure = validationErrors.some(
-          (error) =>
-            error.includes("generic placeholder") ||
-            error.includes("extraction failed") ||
-            error.includes("extraction may have failed")
+        Alert.alert(
+          "Recipe Validation Failed",
+          `The extracted recipe is incomplete:\n\n${validationErrors.join(
+            "\n"
+          )}\n\nPlease try again or add the recipe manually.`
         );
-
-        if (isExtractionFailure) {
-          Alert.alert(
-            "Instagram Extraction Failed",
-            "The Instagram post couldn't be automatically extracted. This often happens with Instagram's anti-bot measures.\n\nOptions:\n1. Try a different Instagram URL\n2. Copy the recipe text manually and use the 'AI Analysis' tab\n3. Add the recipe manually",
-            [
-              { text: "Try Different URL", style: "default" },
-              { text: "Manual Entry", onPress: () => setActiveTab("manual") },
-              { text: "AI Analysis", onPress: () => setActiveTab("ai") },
-            ]
-          );
-        } else {
-          Alert.alert(
-            "Recipe Validation Failed",
-            `The extracted recipe is incomplete:\n\n${validationErrors.join(
-              "\n"
-            )}\n\nPlease try again or add the recipe manually.`
-          );
-        }
-
         setIsLoading(false);
         return;
       }
@@ -263,43 +222,11 @@ export default function AddRecipeScreen() {
       // Process the valid recipe
       await processValidRecipe(normalizedData);
     } catch (error) {
-      console.error("Enhanced Instagram extraction error:", error);
       const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-      addLog(`Enhanced extraction error: ${errorMessage}`);
-
-      // Provide helpful error messages
-      if (
-        errorMessage.includes("Caption too short") ||
-        errorMessage.includes("Content too short")
-      ) {
-        Alert.alert(
-          "Content Extraction Issue",
-          "The Instagram post doesn't contain enough text content to extract a recipe. Please ensure the post contains detailed ingredients and instructions.",
-          [
-            { text: "Try Different URL", style: "default" },
-            { text: "Manual Entry", onPress: () => setActiveTab("manual") },
-          ]
-        );
-      } else if (
-        errorMessage.includes("Network") ||
-        errorMessage.includes("Failed to fetch")
-      ) {
-        Alert.alert(
-          "Network Error",
-          "Unable to connect to the extraction service. Please check your internet connection and try again.",
-          [
-            { text: "Retry", onPress: () => handleInstagramExtraction() },
-            { text: "Cancel", style: "cancel" },
-          ]
-        );
-      } else {
-        Alert.alert(
-          "Enhanced Extraction Error",
-          `Failed to extract recipe: ${errorMessage}`
-        );
-      }
-
+        error instanceof Error ? error.message : String(error);
+      addLog(`Error: ${errorMessage}`);
+      Alert.alert("Error", errorMessage);
+    } finally {
       setIsLoading(false);
     }
   };
@@ -389,16 +316,8 @@ export default function AddRecipeScreen() {
     }
 
     // Feature gating check for text recognition
-    const textCheck = canUseTextRecognition();
-    if (!textCheck.hasAccess) {
-      textCheck.showPaywall();
-      return;
-    }
-
-    // Recipe limit check
-    const recipeCheck = canAddRecipe(recipes.length);
-    if (!recipeCheck.hasAccess) {
-      recipeCheck.showPaywall();
+    const hasAccess = await checkFeatureAccess("text_recognition");
+    if (!hasAccess) {
       return;
     }
 
@@ -667,9 +586,8 @@ export default function AddRecipeScreen() {
     }
 
     // Feature gating check for text recognition
-    const textCheck = canUseTextRecognition();
-    if (!textCheck.hasAccess) {
-      textCheck.showPaywall();
+    const hasAccess = await checkFeatureAccess("text_recognition");
+    if (!hasAccess) {
       return;
     }
 
@@ -1039,18 +957,12 @@ export default function AddRecipeScreen() {
                 <View style={styles.photoButtonsContainer}>
                   <Pressable
                     style={[styles.uploadButton, styles.halfButton]}
-                    onPress={() => {
+                    onPress={async () => {
                       // Feature gating check for text recognition
-                      const textCheck = canUseTextRecognition();
-                      if (!textCheck.hasAccess) {
-                        textCheck.showPaywall();
-                        return;
-                      }
-
-                      // Recipe limit check
-                      const recipeCheck = canAddRecipe(recipes.length);
-                      if (!recipeCheck.hasAccess) {
-                        recipeCheck.showPaywall();
+                      const hasAccess = await checkFeatureAccess(
+                        "text_recognition"
+                      );
+                      if (!hasAccess) {
                         return;
                       }
 
@@ -1151,26 +1063,6 @@ export default function AddRecipeScreen() {
       } else {
         console.log("[AddRecipe] Text extraction service is working properly");
       }
-
-      // Test ingredient parsing logic
-      const { testIngredientParsing } = await import(
-        "@/services/deepseekservice"
-      );
-      testIngredientParsing();
-
-      // Test enhanced AI recipe quality
-      const { testEnhancedRecipeQuality } = await import(
-        "@/services/deepseekservice"
-      );
-      const qualityTestResult = await testEnhancedRecipeQuality();
-
-      if (qualityTestResult.success) {
-        console.log("[AddRecipe] Enhanced AI recipe quality tests passed");
-      } else {
-        console.warn(
-          `[AddRecipe] AI recipe quality needs improvement: ${qualityTestResult.message}`
-        );
-      }
     } catch (error) {
       console.error(
         "[AddRecipe] Error testing text extraction service:",
@@ -1196,11 +1088,10 @@ export default function AddRecipeScreen() {
         {renderTabContent()}
       </ScrollView>
 
-      {/* Paywall for premium features */}
+      {/* Paywall */}
       <Paywall
         visible={paywallVisible}
         onClose={() => setPaywallVisible(false)}
-        feature={blockedFeature || "Premium Recipe Features"}
       />
     </View>
   );

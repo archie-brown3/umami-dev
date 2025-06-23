@@ -2,52 +2,42 @@
 
 This document details the database schema used in the Recipe Saver application. The application uses Supabase for data storage with the following tables and relationships.
 
-## Database Functions and Triggers
+## ⚠️ **IMPORTANT: Subscription Management**
 
-### Recipe Limit Enforcement
+**RevenueCat is the single source of truth for subscription management.**
 
-**Function: `check_recipe_limit()`**
+- ❌ **REMOVED**: `user_subscriptions` table (never created)
+- ❌ **REMOVED**: `check_recipe_limit()` database function
+- ❌ **REMOVED**: `recipe_limit_trigger` database trigger
+- ✅ **ACTIVE**: Recipe limits handled by RevenueCat in app code
 
-- **Purpose**: Enforces 10-recipe limit for free users, unlimited for premium users
-- **Trigger**: `recipe_limit_trigger` (already exists on recipes table)
-- **Status**: ✅ Successfully implemented
-- **Behavior**:
-  - Checks user subscription status from `user_subscriptions` table
-  - Allows unlimited recipes for premium users (`status = 'premium'`)
-  - Blocks recipe creation for free users when count ≥ 10
-  - Raises exception: "Recipe limit reached. Upgrade to Premium for unlimited recipes."
+### Migration Required
+
+If you have the old trigger/function in your database, remove it with:
 
 ```sql
--- Function successfully created
-CREATE OR REPLACE FUNCTION check_recipe_limit()
-RETURNS TRIGGER AS $$
-BEGIN
-  -- Check if user has premium access
-  IF EXISTS (
-    SELECT 1 FROM user_subscriptions
-    WHERE user_id = NEW.user_id AND status = 'premium'
-  ) THEN
-    RETURN NEW; -- Allow unlimited for premium users
-  END IF;
+-- Remove the problematic trigger and function
+DROP TRIGGER IF EXISTS recipe_limit_trigger ON recipes;
+DROP FUNCTION IF EXISTS check_recipe_limit();
 
-  -- Count existing recipes for free users
-  IF (
-    SELECT COUNT(*) FROM recipes
-    WHERE user_id = NEW.user_id
-  ) >= 10 THEN
-    RAISE EXCEPTION 'Recipe limit reached. Upgrade to Premium for unlimited recipes.';
-  END IF;
-
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- Trigger already exists on recipes table
--- CREATE TRIGGER recipe_limit_trigger
---   BEFORE INSERT ON recipes
---   FOR EACH ROW
---   EXECUTE FUNCTION check_recipe_limit();
+-- RevenueCat handles subscription logic - no database functions needed
 ```
+
+## Recipe Limit Implementation
+
+Recipe limits are now handled in the application layer using RevenueCat:
+
+- **Free Users**: 10 recipes maximum (checked in `addRecipeToSupabase()`)
+- **Premium Users**: Unlimited recipes (via RevenueCat subscription status)
+- **Extraction**: Premium-only feature (checked in `extractRecipeFromAnyUrl()`)
+
+## Database Functions and Triggers
+
+~~**Function: `check_recipe_limit()`** - REMOVED~~
+
+- **Status**: ❌ **REMOVED** - Caused `user_subscriptions` table errors
+- **Replaced by**: RevenueCat subscription checks in application code
+- **Location**: `services/recipeService.ts` and `services/deepseekservice.ts`
 
 ## Core Tables
 

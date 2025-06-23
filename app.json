@@ -2,7 +2,7 @@
   "expo": {
     "name": "umami-dev",
     "slug": "umami-dev",
-    "version": "2.0.1",
+    "version": "2.0.2",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "umami-dev",
@@ -11,7 +11,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "io.recipesaver.app",
-      "buildNumber": "11",
+      "buildNumber": "12",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "We need access to your camera to let you take photos of your recipes and meals",
@@ -57,9 +57,6 @@
     "extra": {
       "router": {
         "origin": false
-      },
-      "eas": {
-        "projectId": "8c925526-896e-49cf-8e9d-60f6540d4a20"
       }
     },
     "owner": "mightyarch",

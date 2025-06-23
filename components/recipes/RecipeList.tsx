@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   View,
   FlatList,
@@ -15,6 +15,7 @@ import { Recipe } from "@/types";
 import { RecipeCard } from "@/components/recipes/RecipeCard";
 import CategorizedTagFilter from "@/components/recipes/CategorizedTagFilter";
 import EmptyState from "@/components/common/EmptyState";
+import { useRecipes } from "@/context/RecipeContext";
 
 interface RecipeListProps {
   recipes: Recipe[];
@@ -29,8 +30,26 @@ const RecipeList: React.FC<RecipeListProps> = ({
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const router = useRouter();
+
+  // Get the refresh function from context
+  const { refreshRecipes, isLoading } = useRecipes();
+
+  // Update filtered recipes when recipes prop changes
+  useEffect(() => {
+    setFilteredRecipes(recipes);
+  }, [recipes]);
+
+  // Handle refresh
+  const handleRefresh = useCallback(async () => {
+    console.log("[RecipeList] Pull to refresh triggered");
+    try {
+      await refreshRecipes();
+      console.log("[RecipeList] Refresh completed successfully");
+    } catch (error) {
+      console.error("[RecipeList] Refresh failed:", error);
+    }
+  }, [refreshRecipes]);
 
   // Handle filter changes
   const handleFilterChange = useCallback(
@@ -136,14 +155,7 @@ const RecipeList: React.FC<RecipeListProps> = ({
         contentContainerStyle={styles.recipeGrid}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={() => {
-              setIsRefreshing(true);
-              // Add your refresh logic here
-              setTimeout(() => setIsRefreshing(false), 1000);
-            }}
-          />
+          <RefreshControl refreshing={isLoading} onRefresh={handleRefresh} />
         }
         ListEmptyComponent={
           <EmptyState
