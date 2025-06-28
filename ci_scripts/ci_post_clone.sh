@@ -2,39 +2,39 @@
 
 set -e
 
-echo "🚀 [Xcode Cloud] Post-clone script detected and running!"
-echo "📍 Current directory: $(pwd)"
-echo "📁 Repository contents:"
+echo "🚀 [Xcode Cloud] Post-clone script starting..."
+echo "📍 Working directory: $(pwd)"
+echo "📁 Repository structure:"
 ls -la
 
 echo "📦 Installing npm dependencies..."
 npm ci
 
-echo "🔧 Checking Expo CLI..."
+echo "🔧 Verifying Expo CLI..."
 npx expo --version
 
-echo "🔨 Running Expo prebuild for iOS..."
+echo "🔨 Generating iOS project with Expo prebuild..."
 npx expo prebuild --platform ios --clean
 
-echo "📱 Verifying iOS files..."
+echo "📱 Verifying iOS project generation..."
 if [ -d "ios" ]; then
-    echo "✅ iOS directory created successfully"
+    echo "✅ iOS directory exists"
     ls -la ios/
 else
-    echo "❌ iOS directory not found!"
+    echo "❌ ERROR: iOS directory not created!"
     exit 1
 fi
 
-echo "📲 Installing CocoaPods..."
+echo "📲 Installing CocoaPods dependencies..."
 cd ios
 pod install
 cd ..
 
-echo "🔍 Verifying CocoaPods configuration..."
+echo "🔍 Final verification of CocoaPods configuration..."
 if [ -f "ios/Pods/Target Support Files/Pods-Umami/Pods-Umami.debug.xcconfig" ]; then
-    echo "✅ CocoaPods configuration created successfully!"
+    echo "✅ SUCCESS: CocoaPods configuration files created!"
 else
-    echo "❌ CocoaPods configuration missing!"
+    echo "❌ ERROR: CocoaPods configuration files missing!"
     exit 1
 fi
 
