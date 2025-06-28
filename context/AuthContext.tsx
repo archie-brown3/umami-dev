@@ -82,15 +82,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    if (!isSupabaseConfigured()) {
-      return {
-        error: {
-          message:
-            "Authentication service not available. Please try again later.",
-        },
-      };
-    }
-
     try {
       console.log("[AuthContext] Attempting to sign in...");
       setIsLoading(true);
@@ -103,10 +94,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (error) {
         console.error("[AuthContext] Sign in error:", error);
         setIsLoading(false); // Reset loading on error
+        return { error };
       }
 
-      // Don't set loading to false here - let onAuthStateChange handle it
-      return { error };
+      // Success case - onAuthStateChange will handle setting loading to false
+      console.log(
+        "[AuthContext] Sign in successful, waiting for auth state change"
+      );
+      return { error: null };
     } catch (error) {
       console.error("[AuthContext] Sign in exception:", error);
       setIsLoading(false);
@@ -115,15 +110,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signUp = async (email: string, password: string) => {
-    if (!isSupabaseConfigured()) {
-      return {
-        error: {
-          message:
-            "Authentication service not available. Please try again later.",
-        },
-      };
-    }
-
     try {
       console.log("[AuthContext] Attempting to sign up...");
       setIsLoading(true);
@@ -155,10 +141,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
-    if (!isSupabaseConfigured()) {
-      return;
-    }
-
     try {
       console.log("[AuthContext] Signing out...");
       setIsLoading(true);
@@ -172,15 +154,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const resetPassword = async (email: string) => {
-    if (!isSupabaseConfigured()) {
-      return {
-        error: {
-          message:
-            "Authentication service not available. Please try again later.",
-        },
-      };
-    }
-
     try {
       console.log("[AuthContext] Resetting password for:", email);
       setIsLoading(true);

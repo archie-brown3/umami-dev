@@ -13,7 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { useAuth } from "@/context/AuthContext";
 import { colors, spacing } from "@/utils/styleUtils";
-import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
 import Constants from "expo-constants";
 
 interface AppleSignInButtonProps {
@@ -66,16 +66,6 @@ export default function AppleSignInButton({
       setIsLoading(true);
 
       console.log("[Apple Sign In] Starting authentication process...");
-
-      // Check if Supabase is properly configured
-      if (!isSupabaseConfigured()) {
-        Alert.alert(
-          "Authentication Not Available",
-          "Apple Sign In is temporarily unavailable. Please try email/password authentication or contact support.",
-          [{ text: "OK" }]
-        );
-        return;
-      }
 
       // Check if we're on iOS 18.4 simulator (development issue)
       const isSimulator =

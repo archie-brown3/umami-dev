@@ -18,7 +18,6 @@ import { colors, spacing } from "@/utils/styleUtils";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AppleSignInButton from "@/components/AppleSignInButton";
 import AuthDivider from "@/components/AuthDivider";
-import AuthDiagnostic from "@/components/AuthDiagnostic";
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
@@ -116,9 +115,6 @@ export default function LoginScreen() {
                 onSuccess={handleAppleSignInSuccess}
                 onError={handleAppleSignInError}
               />
-
-              {/* Auth Diagnostic Tool */}
-              <AuthDiagnostic />
 
               <View style={styles.footer}>
                 <Text style={styles.footerText}>Don't have an account? </Text>
