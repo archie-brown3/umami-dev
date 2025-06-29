@@ -10,7 +10,9 @@
     "test": "jest --watchAll",
     "lint": "expo lint",
     "dev-tunnel": "expo start --tunnel",
-    "tunnel-debug": "EXPO_DEBUG=true expo start --tunnel"
+    "tunnel-debug": "EXPO_DEBUG=true expo start --tunnel",
+    "prepare-ios": "npx expo prebuild --platform ios --clean && cd ios && pod install && cd ..",
+    "postinstall": "npx expo prebuild --platform ios"
   },
   "jest": {
     "preset": "jest-expo"
