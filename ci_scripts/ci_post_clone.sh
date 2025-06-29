@@ -1,17 +1,27 @@
 #!/bin/bash
 set -e
 
-echo "Post-clone script starting"
+echo "🔥 FORCING COMPLETE REBUILD FOR XCODE CLOUD"
 
 # Install dependencies
+echo "📦 Installing dependencies..."
 npm ci
 
-# Prebuild
-npx expo prebuild --platform ios --clean
+# Clean everything
+echo "🧹 Cleaning build artifacts..."
+rm -rf ios/build
+rm -rf node_modules/.cache
+rm -rf ~/.expo/cache
 
-# Install pods
+# Force prebuild
+echo "🔧 Force prebuilding..."
+npx expo prebuild --platform ios --clean --clear
+
+# Install pods with update
+echo "📱 Installing pods with repo update..."
 cd ios
-pod install
+rm -rf Pods Podfile.lock build
+pod install --repo-update
 cd ..
 
-echo "Post-clone script completed"
+echo "✅ Complete rebuild finished!" 
