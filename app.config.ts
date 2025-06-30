@@ -95,11 +95,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   web: {
     // favicon: "./assets/favicon.png",
   },
-  extra: {
-    eas: {
-      projectId: "8c925526-896e-49cf-8e9d-60f6540d4a20",
-    },
-  },
+  // extra: {
+  //   eas: {
+  //     projectId: "will-be-generated-by-new-account",
+  //   },
+  // },
   plugins: [
     "expo-router",
     [
@@ -143,5 +143,5 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     tsconfigPaths: true,
     typedRoutes: true,
   },
-  owner: "mightyarch",
+  owner: "mightyarch3",
 });
