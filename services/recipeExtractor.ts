@@ -897,8 +897,8 @@ export async function testWebScrapingFlow(url: string): Promise<{
 }
 
 /**
- * NEW: Test Instagram scraping with /extract-enhanced endpoint
- * This function uses the simplified Instagram extraction API
+ * FIXED: Test Instagram scraping with /scrape-web endpoint (generic web scraper)
+ * This function uses the scalable generic web scraping approach that works reliably
  */
 export async function testInstagramScraping(url: string): Promise<{
   success: boolean;
@@ -913,7 +913,7 @@ export async function testInstagramScraping(url: string): Promise<{
 }> {
   try {
     addServiceLog(
-      `Starting Instagram extraction with extract-enhanced for: ${url}`
+      `Starting Instagram extraction with generic web scraper for: ${url}`
     );
 
     // Validate it's an Instagram URL
@@ -924,65 +924,112 @@ export async function testInstagramScraping(url: string): Promise<{
       };
     }
 
-    // Use the extract-enhanced endpoint
+    // Use the generic scrape-web endpoint for scalability
     const response = await fetch(
-      `${RECIPE_EXTRACTION_SERVICE_URL}/api/extract-enhanced`,
+      `${RECIPE_EXTRACTION_SERVICE_URL}/api/scrape-web`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({
+          url,
+          options: {
+            text: true,
+            metadata: true,
+            images: true,
+            headings: true,
+            links: true,
+            tables: false,
+            forms: false,
+          },
+        }),
       }
     );
 
     if (!response.ok) {
       return {
         success: false,
-        message: `Extract API Error: ${response.status} ${response.statusText}`,
+        message: `Scrape API Error: ${response.status} ${response.statusText}`,
       };
     }
 
     const result = await response.json();
 
-    if (result.success) {
-      // Extract the structured data directly from the API response
-      const extractedData = {
-        caption: result.data.caption,
-        username:
-          result.data.metadata?.og_title?.split(" on Instagram")[0] ||
-          "Unknown",
-        thumbnail: result.data.metadata?.og_image || null,
-      };
+    // Extract Instagram-specific data from the generic web scraper response
+    const caption =
+      result.metadata?.open_graph?.description ||
+      result.metadata?.description ||
+      result.text?.full_text ||
+      "No caption extracted";
 
-      addServiceLog(`Instagram extract-enhanced completed: {
-        "caption_length": ${extractedData.caption.length},
-        "username": "${extractedData.username}",
-        "has_thumbnail": ${!!extractedData.thumbnail}
-      }`);
+    const username = extractUsernameFromUrl(url, result);
+    const thumbnail =
+      result.metadata?.open_graph?.image ||
+      result.images?.images?.[0]?.url ||
+      null;
 
-      return {
-        success: true,
-        message: "Instagram extraction successful with extract-enhanced",
-        scrapedData: result.data,
-        extractedData,
-        rawResponse: result.data,
-      };
-    } else {
+    // Validate we have substantial content
+    if (caption.length < 500) {
       return {
         success: false,
-        message: result.error || "Failed to extract Instagram data",
+        message: `Caption too short: ${caption.length} chars. Instagram may be blocking access.`,
       };
     }
+
+    const extractedData = {
+      caption,
+      username,
+      thumbnail,
+    };
+
+    addServiceLog(`Instagram generic web scraping completed: {
+      "caption_length": ${extractedData.caption.length},
+      "username": "${extractedData.username}",
+      "has_thumbnail": ${!!extractedData.thumbnail}
+    }`);
+
+    return {
+      success: true,
+      message: "Instagram extraction successful with generic web scraper",
+      scrapedData: result,
+      extractedData,
+      rawResponse: result,
+    };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    addServiceLog(`Instagram extract-enhanced failed: ${errorMessage}`);
+    addServiceLog(`Instagram generic web scraping failed: ${errorMessage}`);
 
     return {
       success: false,
       message: `Instagram extraction failed: ${errorMessage}`,
     };
   }
+}
+
+/**
+ * Helper function to extract username from URL and scraped data
+ */
+function extractUsernameFromUrl(url: string, scrapedData: any): string {
+  // Try to extract from URL first
+  const urlMatch = url.match(/instagram\.com\/([^\/\?]+)/i);
+  if (
+    urlMatch &&
+    urlMatch[1] !== "share" &&
+    urlMatch[1] !== "p" &&
+    urlMatch[1] !== "reel"
+  ) {
+    return urlMatch[1];
+  }
+
+  // Try to extract from Open Graph title
+  const ogTitle = scrapedData.metadata?.open_graph?.title;
+  if (ogTitle) {
+    const match = ogTitle.match(/(\w+) on Instagram/i);
+    if (match) return match[1];
+  }
+
+  return "unknown";
 }
 
 /**
@@ -1200,7 +1247,7 @@ export async function extractRecipeFromInstagramWithFallback(
 }
 
 /**
- * Simple test function to verify Instagram extraction with the new API
+ * FIXED: Simple test function to verify Instagram extraction with generic web scraper
  */
 export async function testInstagramExtractionSimple(url: string): Promise<{
   success: boolean;
@@ -1213,33 +1260,55 @@ export async function testInstagramExtractionSimple(url: string): Promise<{
 }> {
   try {
     const response = await fetch(
-      `${RECIPE_EXTRACTION_SERVICE_URL}/api/extract-enhanced`,
+      `${RECIPE_EXTRACTION_SERVICE_URL}/api/scrape-web`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({
+          url,
+          options: {
+            text: true,
+            metadata: true,
+            images: true,
+            headings: false,
+            links: false,
+            tables: false,
+            forms: false,
+          },
+        }),
       }
     );
 
     const result = await response.json();
 
-    if (result.success) {
+    if (response.ok && result) {
+      // Extract data using the same logic as the main function
+      const caption =
+        result.metadata?.open_graph?.description ||
+        result.metadata?.description ||
+        result.text?.full_text ||
+        "No caption extracted";
+
+      const author = extractUsernameFromUrl(url, result);
+      const thumbnail =
+        result.metadata?.open_graph?.image ||
+        result.images?.images?.[0]?.url ||
+        null;
+
       return {
         success: true,
         data: {
-          caption: result.data.caption,
-          author:
-            result.data.metadata?.og_title?.split(" on Instagram")[0] ||
-            "Unknown",
-          thumbnail: result.data.metadata?.og_image || null,
+          caption,
+          author,
+          thumbnail,
         },
       };
     } else {
       return {
         success: false,
-        error: result.error || "Failed to extract Instagram data",
+        error: "Failed to extract Instagram data with generic web scraper",
       };
     }
   } catch (error) {

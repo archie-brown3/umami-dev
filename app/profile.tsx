@@ -19,13 +19,13 @@ import { Paywall } from "@/components/subscription/Paywall";
 import { router, Stack } from "expo-router";
 import { colors, spacing, borderRadius, typography } from "@/utils/styleUtils";
 import { getUserRecipes } from "@/services/recipeService";
+import * as ImagePicker from "expo-image-picker";
+import { supabase } from "@/lib/supabase";
 
 interface UserStats {
   totalRecipes: number;
   favoriteRecipes: number;
   recentlyAdded: number;
-  totalCookTime: number;
-  averageRating: number;
   joinedDate: string;
 }
 
@@ -35,40 +35,52 @@ export default function ProfileScreen() {
   const { isPremium, presentPaywall } = useSubscription();
   const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
 
   useEffect(() => {
-    if (user?.id) {
+    if (user) {
       loadUserStats();
+      // Load existing avatar if available
+      if (user.user_metadata?.avatar_url) {
+        setAvatarUrl(user.user_metadata.avatar_url);
+      }
     }
-  }, [user?.id]);
+  }, [user]);
 
   const loadUserStats = async () => {
-    if (!user?.id) return;
-
+    setIsLoading(true);
     try {
-      setIsLoading(true);
-      const userRecipes = await getUserRecipes(user.id);
+      if (!user) return;
 
-      const stats: UserStats = {
-        totalRecipes: userRecipes.length,
-        favoriteRecipes: userRecipes.filter((r) => r.isFavorite).length,
-        recentlyAdded: userRecipes.filter((r) => {
-          const weekAgo = new Date();
-          weekAgo.setDate(weekAgo.getDate() - 7);
-          return new Date(r.createdAt) > weekAgo;
-        }).length,
-        totalCookTime: userRecipes.reduce(
-          (total, recipe) =>
-            total + (recipe.prepTime || 0) + (recipe.cookTime || 0),
-          0
-        ),
-        averageRating: 4.2, // Placeholder - would come from ratings system
-        joinedDate: user.created_at || new Date().toISOString(),
-      };
+      // Get recipe statistics
+      const { data: recipes, error: recipesError } = await supabase
+        .from("recipes")
+        .select("id, isFavorite, created_at")
+        .eq("userId", user.id);
 
-      setUserStats(stats);
+      if (recipesError) {
+        console.error("[Profile] Error fetching recipes:", recipesError);
+        return;
+      }
+
+      const totalRecipes = recipes?.length || 0;
+      const favoriteRecipes = recipes?.filter((r) => r.isFavorite).length || 0;
+
+      // Calculate recipes added this week
+      const oneWeekAgo = new Date();
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+      const recentlyAdded =
+        recipes?.filter((r) => new Date(r.created_at) > oneWeekAgo).length || 0;
+
+      setUserStats({
+        totalRecipes,
+        favoriteRecipes,
+        recentlyAdded,
+        joinedDate: user.created_at,
+      });
     } catch (error) {
-      console.error("Error loading user stats:", error);
+      console.error("[Profile] Error loading user stats:", error);
     } finally {
       setIsLoading(false);
     }
@@ -76,7 +88,10 @@ export default function ProfileScreen() {
 
   const handleSignOut = async () => {
     Alert.alert("Sign Out", "Are you sure you want to sign out?", [
-      { text: "Cancel", style: "cancel" },
+      {
+        text: "Cancel",
+        style: "cancel",
+      },
       {
         text: "Sign Out",
         style: "destructive",
@@ -84,8 +99,7 @@ export default function ProfileScreen() {
           try {
             await signOut();
           } catch (error) {
-            console.error("Error signing out:", error);
-            Alert.alert("Error", "Failed to sign out. Please try again.");
+            Alert.alert("Error", "Failed to sign out");
           }
         },
       },
@@ -100,13 +114,127 @@ export default function ProfileScreen() {
     });
   };
 
-  const formatCookTime = (minutes: number) => {
-    if (minutes < 60) return `${minutes}m`;
-    const hours = Math.floor(minutes / 60);
-    const remainingMinutes = minutes % 60;
-    return remainingMinutes > 0
-      ? `${hours}h ${remainingMinutes}m`
-      : `${hours}h`;
+  const handlePhotoUpload = async () => {
+    Alert.alert(
+      "Update Profile Photo",
+      "Choose how you'd like to update your profile photo",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Take Photo", onPress: () => takePicture() },
+        { text: "Choose from Library", onPress: () => pickImage() },
+        ...(avatarUrl
+          ? [
+              {
+                text: "Remove Photo",
+                onPress: () => removePhoto(),
+                style: "destructive" as const,
+              },
+            ]
+          : []),
+      ]
+    );
+  };
+
+  const takePicture = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission Required",
+          "Camera permission is required to take photos."
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        await uploadPhoto(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error("Error taking photo:", error);
+      Alert.alert("Error", "Failed to take photo. Please try again.");
+    }
+  };
+
+  const pickImage = async () => {
+    try {
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission Required",
+          "Photo library permission is required to select photos."
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        await uploadPhoto(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error("Error picking image:", error);
+      Alert.alert("Error", "Failed to select photo. Please try again.");
+    }
+  };
+
+  const uploadPhoto = async (uri: string) => {
+    setIsUploadingPhoto(true);
+    try {
+      // For now, just use the local URI
+      // In production, you'd upload to Supabase Storage
+      setAvatarUrl(uri);
+
+      // Update user metadata
+      const { error } = await supabase.auth.updateUser({
+        data: { avatar_url: uri },
+      });
+
+      if (error) {
+        console.error("Error updating avatar:", error);
+        Alert.alert("Error", "Failed to update profile photo.");
+        return;
+      }
+
+      Alert.alert("Success", "Profile photo updated successfully!");
+    } catch (error) {
+      console.error("Error uploading photo:", error);
+      Alert.alert("Error", "Failed to upload photo. Please try again.");
+    } finally {
+      setIsUploadingPhoto(false);
+    }
+  };
+
+  const removePhoto = async () => {
+    try {
+      setAvatarUrl(null);
+
+      // Update user metadata
+      const { error } = await supabase.auth.updateUser({
+        data: { avatar_url: null },
+      });
+
+      if (error) {
+        console.error("Error removing avatar:", error);
+        Alert.alert("Error", "Failed to remove profile photo.");
+        return;
+      }
+
+      Alert.alert("Success", "Profile photo removed successfully!");
+    } catch (error) {
+      console.error("Error removing photo:", error);
+      Alert.alert("Error", "Failed to remove photo. Please try again.");
+    }
   };
 
   if (!user) {
@@ -152,7 +280,7 @@ export default function ProfileScreen() {
         }}
       />
 
-      {/* Custom Header */}
+      {/* Custom Header - Simplified without edit button */}
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
@@ -163,36 +291,46 @@ export default function ProfileScreen() {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Profile</Text>
         <View style={styles.headerActions}>
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={() => {
-              // Could add edit profile functionality here
-              Alert.alert("Edit Profile", "Profile editing coming soon!");
-            }}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="create-outline" size={22} color={colors.dark} />
-          </TouchableOpacity>
+          {/* Removed edit button for cleaner UI */}
         </View>
       </View>
 
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-        {/* Profile Header */}
+        {/* Profile Header with Enhanced Photo Upload */}
         <View style={styles.profileHeader}>
           <View style={styles.avatarContainer}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {user.email?.substring(0, 2).toUpperCase() || "US"}
-              </Text>
-            </View>
-            <TouchableOpacity style={styles.editAvatarButton}>
+            <TouchableOpacity
+              style={styles.avatar}
+              onPress={handlePhotoUpload}
+              disabled={isUploadingPhoto}
+            >
+              {avatarUrl ? (
+                <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
+              ) : (
+                <Text style={styles.avatarText}>
+                  {user.email?.substring(0, 2).toUpperCase() || "US"}
+                </Text>
+              )}
+              {isUploadingPhoto && (
+                <View style={styles.uploadingOverlay}>
+                  <ActivityIndicator size="small" color={colors.white} />
+                </View>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.editAvatarButton}
+              onPress={handlePhotoUpload}
+              disabled={isUploadingPhoto}
+            >
               <Ionicons name="camera" size={16} color={colors.white} />
             </TouchableOpacity>
           </View>
 
           <View style={styles.userInfo}>
             <Text style={styles.userName}>
-              {user.user_metadata?.full_name || "Recipe Chef"}
+              {user.user_metadata?.full_name ||
+                user.email?.split("@")[0] ||
+                "Recipe Chef"}
             </Text>
             <Text style={styles.userEmail}>{user.email}</Text>
             <Text style={styles.joinDate}>
@@ -202,7 +340,7 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* User Statistics */}
+        {/* User Statistics - Removed Cook Time */}
         {isLoading ? (
           <View style={styles.statsLoadingContainer}>
             <ActivityIndicator size="small" color={colors.primary} />
@@ -229,12 +367,6 @@ export default function ProfileScreen() {
                   {userStats?.recentlyAdded || 0}
                 </Text>
                 <Text style={styles.statLabel}>This Week</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statNumber}>
-                  {userStats ? formatCookTime(userStats.totalCookTime) : "0m"}
-                </Text>
-                <Text style={styles.statLabel}>Total Cook Time</Text>
               </View>
             </View>
           </View>
@@ -270,7 +402,7 @@ export default function ProfileScreen() {
               <Ionicons
                 name={isPremium ? "star" : "star-outline"}
                 size={28}
-                color={isPremium ? colors.orange[500] : colors.orange[500]}
+                color={colors.orange[500]}
               />
             </View>
 
@@ -356,95 +488,7 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* Settings & Preferences */}
-        <View style={styles.settingsSection}>
-          <Text style={styles.sectionTitle}>⚙️ Settings & Preferences</Text>
-          <View style={styles.settingsList}>
-            <TouchableOpacity style={styles.settingItem}>
-              <View style={styles.settingIcon}>
-                <Ionicons
-                  name="notifications-outline"
-                  size={24}
-                  color={colors.gray[600]}
-                />
-              </View>
-              <View style={styles.settingContent}>
-                <Text style={styles.settingTitle}>Notifications</Text>
-                <Text style={styles.settingSubtitle}>
-                  Meal reminders and updates
-                </Text>
-              </View>
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={colors.gray[400]}
-              />
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.settingItem}>
-              <View style={styles.settingIcon}>
-                <Ionicons
-                  name="restaurant-outline"
-                  size={24}
-                  color={colors.gray[600]}
-                />
-              </View>
-              <View style={styles.settingContent}>
-                <Text style={styles.settingTitle}>Dietary Preferences</Text>
-                <Text style={styles.settingSubtitle}>
-                  Allergies and restrictions
-                </Text>
-              </View>
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={colors.gray[400]}
-              />
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.settingItem}>
-              <View style={styles.settingIcon}>
-                <Ionicons
-                  name="cloud-outline"
-                  size={24}
-                  color={colors.gray[600]}
-                />
-              </View>
-              <View style={styles.settingContent}>
-                <Text style={styles.settingTitle}>Data & Backup</Text>
-                <Text style={styles.settingSubtitle}>
-                  Sync and export options
-                </Text>
-              </View>
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={colors.gray[400]}
-              />
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.settingItem}>
-              <View style={styles.settingIcon}>
-                <Ionicons
-                  name="help-circle-outline"
-                  size={24}
-                  color={colors.gray[600]}
-                />
-              </View>
-              <View style={styles.settingContent}>
-                <Text style={styles.settingTitle}>Help & Support</Text>
-                <Text style={styles.settingSubtitle}>FAQs and contact us</Text>
-              </View>
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={colors.gray[400]}
-              />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Account Actions */}
+        {/* Account Actions - Simplified */}
         <View style={styles.accountSection}>
           <TouchableOpacity
             style={styles.signOutButton}
@@ -452,24 +496,15 @@ export default function ProfileScreen() {
           >
             <Ionicons
               name="log-out-outline"
-              size={24}
+              size={20}
               color={colors.red[500]}
             />
             <Text style={styles.signOutText}>Sign Out</Text>
           </TouchableOpacity>
-
-          <TouchableOpacity style={styles.deleteAccountButton}>
-            <Text style={styles.deleteAccountText}>Delete Account</Text>
-          </TouchableOpacity>
         </View>
 
-        {/* App Info */}
-        <View style={styles.appInfoSection}>
-          <Text style={styles.appVersion}>Umami Recipe App v1.0.0</Text>
-          <Text style={styles.appCopyright}>
-            © 2024 Umami. All rights reserved.
-          </Text>
-        </View>
+        {/* Bottom padding */}
+        <View style={{ height: 40 }} />
       </ScrollView>
 
       <Paywall visible={false} onClose={() => {}} feature="Premium Features" />
@@ -561,6 +596,12 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
+  avatarImage: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 40,
+    resizeMode: "cover",
+  },
   avatarText: {
     fontSize: 28,
     fontWeight: "700",
@@ -578,6 +619,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 3,
     borderColor: colors.white,
+  },
+  uploadingOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: colors.black + "80",
+    borderRadius: 40,
+    justifyContent: "center",
+    alignItems: "center",
   },
   userInfo: {
     alignItems: "center",
@@ -757,52 +809,6 @@ const styles = StyleSheet.create({
     color: colors.white,
     marginRight: spacing.sm,
   },
-  settingsSection: {
-    backgroundColor: colors.white,
-    padding: spacing.xl,
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.lg,
-    borderRadius: borderRadius.lg,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  settingsList: {
-    gap: spacing.md,
-  },
-  settingItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: spacing.lg,
-    backgroundColor: colors.gray[50],
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.gray[100],
-  },
-  settingIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.gray[100],
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: spacing.md,
-  },
-  settingContent: {
-    flex: 1,
-  },
-  settingTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: colors.dark,
-    marginBottom: spacing.xs,
-  },
-  settingSubtitle: {
-    fontSize: 14,
-    color: colors.gray[600],
-  },
   accountSection: {
     backgroundColor: colors.white,
     padding: spacing.xl,
@@ -831,28 +837,5 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: colors.red[600],
     marginLeft: spacing.sm,
-  },
-  deleteAccountButton: {
-    alignItems: "center",
-    padding: spacing.md,
-  },
-  deleteAccountText: {
-    fontSize: 14,
-    color: colors.red[500],
-    textDecorationLine: "underline",
-  },
-  appInfoSection: {
-    padding: spacing.xl,
-    alignItems: "center",
-    marginBottom: spacing.xxl,
-  },
-  appVersion: {
-    fontSize: 12,
-    color: colors.gray[500],
-    marginBottom: spacing.xs,
-  },
-  appCopyright: {
-    fontSize: 12,
-    color: colors.gray[400],
   },
 });

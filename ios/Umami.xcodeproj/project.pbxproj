@@ -7,11 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		027606F0D1BD215D3435C3D5 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED1BF2E29F3C19EF3929171E /* ExpoModulesProvider.swift */; };
+		0F2D26B2EDA7DE89FEFD7A61 /* libPods-Umami.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 34BE51B96AA504D8305F4EA1 /* libPods-Umami.a */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
+		2BA95CE24B5A890F9A379731 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = E91F6B836D10A23A2013AB45 /* ExpoModulesProvider.swift */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
-		86FBCEFDF1B83207DD7F58BA /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = C8C1BDBD844FC89AA96A2DE0 /* PrivacyInfo.xcprivacy */; };
-		8F5EE6388CBB3EABA2C5DC09 /* libPods-Umami.a in Frameworks */ = {isa = PBXBuildFile; fileRef = D7C98C0C3275E29A56CB8CA9 /* libPods-Umami.a */; };
+		5AD64A234AC7875511EDE89A /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = F4E3DD05EC0577764F01E74F /* PrivacyInfo.xcprivacy */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 /* End PBXBuildFile section */
@@ -20,16 +20,16 @@
 		13B07F961A680F5B00A75B9A /* Umami.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Umami.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = Umami/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = Umami/Info.plist; sourceTree = "<group>"; };
+		34BE51B96AA504D8305F4EA1 /* libPods-Umami.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-Umami.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		78FFF0E99811771C0CA5556C /* Pods-Umami.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Umami.release.xcconfig"; path = "Target Support Files/Pods-Umami/Pods-Umami.release.xcconfig"; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = Umami/SplashScreen.storyboard; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
-		C8C1BDBD844FC89AA96A2DE0 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = Umami/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		D7C98C0C3275E29A56CB8CA9 /* libPods-Umami.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-Umami.a"; sourceTree = BUILT_PRODUCTS_DIR; };
-		E919FB1C602FF6CD2108CAE0 /* Pods-Umami.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Umami.release.xcconfig"; path = "Target Support Files/Pods-Umami/Pods-Umami.release.xcconfig"; sourceTree = "<group>"; };
-		ED1BF2E29F3C19EF3929171E /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-Umami/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
+		E91F6B836D10A23A2013AB45 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-Umami/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
+		E935976F6D8F27D4C5620DA4 /* Pods-Umami.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Umami.debug.xcconfig"; path = "Target Support Files/Pods-Umami/Pods-Umami.debug.xcconfig"; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = Umami/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* Umami-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "Umami-Bridging-Header.h"; path = "Umami/Umami-Bridging-Header.h"; sourceTree = "<group>"; };
-		FA6B43D51BE7262C1CE33B39 /* Pods-Umami.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Umami.debug.xcconfig"; path = "Target Support Files/Pods-Umami/Pods-Umami.debug.xcconfig"; sourceTree = "<group>"; };
+		F4E3DD05EC0577764F01E74F /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = Umami/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -37,23 +37,13 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				8F5EE6388CBB3EABA2C5DC09 /* libPods-Umami.a in Frameworks */,
+				0F2D26B2EDA7DE89FEFD7A61 /* libPods-Umami.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		0663C773964ADF31D7F17C17 /* Pods */ = {
-			isa = PBXGroup;
-			children = (
-				FA6B43D51BE7262C1CE33B39 /* Pods-Umami.debug.xcconfig */,
-				E919FB1C602FF6CD2108CAE0 /* Pods-Umami.release.xcconfig */,
-			);
-			name = Pods;
-			path = Pods;
-			sourceTree = "<group>";
-		};
 		13B07FAE1A68108700A75B9A /* Umami */ = {
 			isa = PBXGroup;
 			children = (
@@ -63,7 +53,7 @@
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
-				C8C1BDBD844FC89AA96A2DE0 /* PrivacyInfo.xcprivacy */,
+				F4E3DD05EC0577764F01E74F /* PrivacyInfo.xcprivacy */,
 			);
 			name = Umami;
 			sourceTree = "<group>";
@@ -72,15 +62,15 @@
 			isa = PBXGroup;
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
-				D7C98C0C3275E29A56CB8CA9 /* libPods-Umami.a */,
+				34BE51B96AA504D8305F4EA1 /* libPods-Umami.a */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
-		5BF0E5A9B52EABB59BB5EF07 /* ExpoModulesProviders */ = {
+		7691D65EE93CC556A6B57D6E /* ExpoModulesProviders */ = {
 			isa = PBXGroup;
 			children = (
-				BF8E667A3F11038F6FA6CE2D /* Umami */,
+				AEAF19E8B2F6A0318425CE64 /* Umami */,
 			);
 			name = ExpoModulesProviders;
 			sourceTree = "<group>";
@@ -99,8 +89,8 @@
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
-				0663C773964ADF31D7F17C17 /* Pods */,
-				5BF0E5A9B52EABB59BB5EF07 /* ExpoModulesProviders */,
+				DA55625FEE10D853DC897073 /* Pods */,
+				7691D65EE93CC556A6B57D6E /* ExpoModulesProviders */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -115,6 +105,14 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		AEAF19E8B2F6A0318425CE64 /* Umami */ = {
+			isa = PBXGroup;
+			children = (
+				E91F6B836D10A23A2013AB45 /* ExpoModulesProvider.swift */,
+			);
+			name = Umami;
+			sourceTree = "<group>";
+		};
 		BB2F792B24A3F905000567C9 /* Supporting */ = {
 			isa = PBXGroup;
 			children = (
@@ -124,12 +122,14 @@
 			path = Umami/Supporting;
 			sourceTree = "<group>";
 		};
-		BF8E667A3F11038F6FA6CE2D /* Umami */ = {
+		DA55625FEE10D853DC897073 /* Pods */ = {
 			isa = PBXGroup;
 			children = (
-				ED1BF2E29F3C19EF3929171E /* ExpoModulesProvider.swift */,
+				E935976F6D8F27D4C5620DA4 /* Pods-Umami.debug.xcconfig */,
+				78FFF0E99811771C0CA5556C /* Pods-Umami.release.xcconfig */,
 			);
-			name = Umami;
+			name = Pods;
+			path = Pods;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -140,13 +140,13 @@
 			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "Umami" */;
 			buildPhases = (
 				08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */,
-				1B887ADD0137A37626EA22DE /* [Expo] Configure project */,
+				2BE91121C720FC845B036494 /* [Expo] Configure project */,
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
 				800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */,
-				7FDCE1FABF5A22B9F0F1855F /* [CP] Embed Pods Frameworks */,
+				8AF8B1A1DFADDE95AE44A53E /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -196,7 +196,7 @@
 				BB2F792D24A3F905000567C9 /* Expo.plist in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
-				86FBCEFDF1B83207DD7F58BA /* PrivacyInfo.xcprivacy in Resources */,
+				5AD64A234AC7875511EDE89A /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -240,7 +240,7 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
-		1B887ADD0137A37626EA22DE /* [Expo] Configure project */ = {
+		2BE91121C720FC845B036494 /* [Expo] Configure project */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
@@ -258,24 +258,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-Umami/expo-configure-project.sh\"\n";
-		};
-		7FDCE1FABF5A22B9F0F1855F /* [CP] Embed Pods Frameworks */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-Umami/Pods-Umami-frameworks.sh",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/hermes-engine/Pre-built/hermes.framework/hermes",
-			);
-			name = "[CP] Embed Pods Frameworks";
-			outputPaths = (
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/hermes.framework",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Umami/Pods-Umami-frameworks.sh\"\n";
-			showEnvVarsInLog = 0;
 		};
 		800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -355,6 +337,24 @@
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Umami/Pods-Umami-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
+		8AF8B1A1DFADDE95AE44A53E /* [CP] Embed Pods Frameworks */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-Umami/Pods-Umami-frameworks.sh",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/hermes-engine/Pre-built/hermes.framework/hermes",
+			);
+			name = "[CP] Embed Pods Frameworks";
+			outputPaths = (
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/hermes.framework",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Umami/Pods-Umami-frameworks.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -363,7 +363,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
-				027606F0D1BD215D3435C3D5 /* ExpoModulesProvider.swift in Sources */,
+				2BA95CE24B5A890F9A379731 /* ExpoModulesProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -372,14 +372,12 @@
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = FA6B43D51BE7262C1CE33B39 /* Pods-Umami.debug.xcconfig */;
+			baseConfigurationReference = E935976F6D8F27D4C5620DA4 /* Pods-Umami.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Umami/Umami.entitlements;
-				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = E89C1D3D0743431586C18A39DE4E748;
 				ENABLE_BITCODE = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
@@ -391,7 +389,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.0.3;
+				MARKETING_VERSION = 1.0;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
@@ -410,21 +408,19 @@
 		};
 		13B07F951A680F5B00A75B9A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = E919FB1C602FF6CD2108CAE0 /* Pods-Umami.release.xcconfig */;
+			baseConfigurationReference = 78FFF0E99811771C0CA5556C /* Pods-Umami.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Umami/Umami.entitlements;
-				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = E89C1D3D0743431586C18A39DE4E748;
 				INFOPLIST_FILE = Umami/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.0.3;
+				MARKETING_VERSION = 1.0;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",

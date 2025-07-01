@@ -2,7 +2,7 @@
   "expo": {
     "name": "umami-dev",
     "slug": "umami-dev",
-    "version": "2.0.2",
+    "version": "2.0.3",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "umami-dev",
@@ -57,6 +57,9 @@
     "extra": {
       "router": {
         "origin": false
+      },
+      "eas": {
+        "projectId": "e8829cf6-9ea1-42d0-8c9a-e804620cebf1"
       }
     },
     "owner": "mightyarch",

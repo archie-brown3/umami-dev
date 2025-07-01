@@ -24,6 +24,7 @@ import {
 } from "../services/recipeExtractor";
 import { analyzeRecipeText } from "../services/deepseekservice";
 import { extractRecipeFromTextOptimized } from "../services/optimizedRecipeExtractor";
+import { extractInstagramRecipe } from "../services/instagramExtractor";
 
 type TabType = "manual" | "url" | "ai" | "instagram";
 
@@ -236,56 +237,12 @@ export default function AddRecipeScreen() {
       setIsLoading(true);
       addLog(`[Instagram] Starting extraction for URL: ${instagramUrl}`);
 
-      // Extract content from Instagram URL using the API service
-      const extractedData = await extractRecipeFromUrl(instagramUrl);
-      addLog(`[Instagram] Extraction successful`);
+      // Use the new simplified Instagram extractor
+      const recipe = await extractInstagramRecipe(instagramUrl);
+      addLog(`[Instagram] Extraction successful: ${recipe.title}`);
 
-      // Validate we've received proper data
-      if (!extractedData) {
-        throw new Error("Received empty response from extraction service");
-      }
-
-      addLog(
-        `[Instagram] Extracted data: ${JSON.stringify(extractedData, null, 2)}`
-      );
-
-      // Create recipe from extracted data
-      const extractedDataAny = extractedData as any; // Type assertion to access dynamic properties
-      const newRecipe: Recipe = {
-        id: Date.now().toString(),
-        title: extractedDataAny.title || "Instagram Recipe",
-        name: extractedDataAny.title || "Instagram Recipe", // For backward compatibility
-        description:
-          extractedDataAny.description || extractedDataAny.caption || "",
-        ingredients: (extractedDataAny.ingredients || []).map(
-          (ing: any, index: number) => ({
-            id: `ing-${index}`,
-            name:
-              typeof ing === "string" ? ing : ing.name || "Unknown ingredient",
-            amount: 1,
-            unit: "item",
-          })
-        ),
-        instructions: extractedDataAny.instructions || [],
-        prepTime: extractedDataAny.prepTime || 0,
-        cookTime: extractedDataAny.cookTime || 0,
-        servings: extractedDataAny.servings || 2,
-        imageUrl: extractedDataAny.imageUrl || extractedDataAny.thumbnail,
-        tags: extractedDataAny.tags || [],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-
-      addLog(
-        `[Instagram] Created recipe object: ${JSON.stringify(
-          newRecipe,
-          null,
-          2
-        )}`
-      );
-
-      // Add the recipe
-      const savedRecipe = await addRecipe(newRecipe);
+      // Add the recipe directly (it's already a complete Recipe object)
+      const savedRecipe = await addRecipe(recipe);
       addLog(`[Instagram] Recipe added: ${savedRecipe.title}`);
 
       // Return to the recipe detail page with success message
@@ -305,50 +262,17 @@ export default function AddRecipeScreen() {
         error instanceof Error ? error.message : "Unknown error";
       addLog(`[Instagram] Error: ${errorMessage}`);
 
-      // Provide more helpful messages for specific error types
-      if (
-        errorMessage.includes("Network request failed") ||
-        errorMessage.includes("Unable to connect") ||
-        errorMessage.includes("Failed to fetch")
-      ) {
-        Alert.alert(
-          "Network Error",
-          "Unable to connect to the Instagram extraction service. This could be due to your internet connection or the service being temporarily unavailable.",
-          [
-            {
-              text: "Try Again",
-              onPress: () => handleInstagramExtraction(),
-            },
-            {
-              text: "Cancel",
-              style: "cancel",
-            },
-          ]
-        );
-      } else if (
-        errorMessage.includes("timed out") ||
-        errorMessage.includes("timeout")
-      ) {
-        Alert.alert(
-          "Request Timeout",
-          "The extraction service took too long to respond. This could be due to server load or your internet connection.",
-          [
-            {
-              text: "Try Again",
-              onPress: () => handleInstagramExtraction(),
-            },
-            {
-              text: "Cancel",
-              style: "cancel",
-            },
-          ]
-        );
-      } else {
-        Alert.alert(
-          "Instagram Extraction Error",
-          `Failed to extract recipe: ${errorMessage}`
-        );
-      }
+      // The new extractor provides clear error messages already
+      Alert.alert("Instagram Extraction Error", errorMessage, [
+        {
+          text: "Try Again",
+          onPress: () => handleInstagramExtraction(),
+        },
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+      ]);
     } finally {
       setIsLoading(false);
     }

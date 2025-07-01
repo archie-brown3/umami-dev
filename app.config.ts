@@ -4,7 +4,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: "Umami",
   slug: "umami-dev",
-  version: "2.0.2",
+  version: "2.0.4",
   orientation: "portrait",
   // Temporarily remove icon references until we have proper assets
   // icon: "./assets/icon.png",
@@ -18,6 +18,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ios: {
     supportsTablet: true,
     bundleIdentifier: "io.recipesaver.app",
+    buildNumber: "2", // Increment from default "1" for new submission
     config: {
       usesNonExemptEncryption: false,
     },
@@ -97,7 +98,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   // extra: {
   //   eas: {
-  //     projectId: "will-be-generated-by-new-account",
+  //     projectId: "will-be-generated-for-mightyarch3",
   //   },
   // },
   plugins: [

@@ -29,10 +29,16 @@
   },
   "submit": {
     "production": {
-      "ios": {}
+      "ios": {
+        "ascAppId": "6746698771",
+        "appleTeamId": "FZ394TU429"
+      }
     },
     "preview": {
-      "ios": {}
+      "ios": {
+        "ascAppId": "6746698771",
+        "appleTeamId": "FZ394TU429"
+      }
     }
   }
 }

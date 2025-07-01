@@ -641,42 +641,54 @@ export default function RecipeDetailScreen() {
                 style={styles.compactAddAllButton}
                 onPress={async () => {
                   try {
-                    let addedCount = 0;
-                    const errors: string[] = [];
+                    // Provide immediate haptic feedback
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-                    // Add each ingredient to the shopping list
-                    for (const ingredient of recipe.ingredients) {
-                      try {
+                    // Prepare all ingredients for batch addition
+                    const ingredientsToAdd = recipe.ingredients.map(
+                      (ingredient) => {
                         const scaledAmount = scaleIngredientAmount(
                           ingredient.amount,
                           recipe.servings || 4,
                           currentServings
                         );
 
-                        await addItemToShoppingList({
+                        return {
                           name: ingredient.name,
                           quantity: scaledAmount.toString(),
                           unit: ingredient.unit || "",
                           category: "Ingredients",
                           checked: false,
                           recipe_id: recipe.id,
-                        });
-
-                        addedCount++;
-                      } catch (error) {
-                        console.error(
-                          `Error adding ingredient ${ingredient.name}:`,
-                          error
-                        );
-                        errors.push(ingredient.name);
+                        };
                       }
-                    }
+                    );
+
+                    // Add all ingredients at once using Promise.allSettled for speed
+                    const results = await Promise.allSettled(
+                      ingredientsToAdd.map((item) =>
+                        addItemToShoppingList(item)
+                      )
+                    );
+
+                    // Count successful additions
+                    const addedCount = results.filter(
+                      (result) => result.status === "fulfilled"
+                    ).length;
+                    const errors = results
+                      .filter((result) => result.status === "rejected")
+                      .map((_, index) => ingredientsToAdd[index].name);
+
+                    // Provide immediate success haptic feedback
+                    Haptics.notificationAsync(
+                      Haptics.NotificationFeedbackType.Success
+                    );
 
                     // Show success/error message
                     if (errors.length === 0) {
                       Alert.alert(
-                        "Success! 🛒",
-                        `Added all ${addedCount} ingredients to your shopping list.`,
+                        "🛒 All Added!",
+                        `Successfully added all ${addedCount} ingredients to your shopping list.`,
                         [
                           {
                             text: "View Shopping List",
@@ -696,6 +708,9 @@ export default function RecipeDetailScreen() {
                     }
                   } catch (error) {
                     console.error("Error adding all ingredients:", error);
+                    Haptics.notificationAsync(
+                      Haptics.NotificationFeedbackType.Error
+                    );
                     Alert.alert(
                       "Error",
                       "Failed to add ingredients to shopping list. Please try again.",
@@ -704,14 +719,9 @@ export default function RecipeDetailScreen() {
                   }
                 }}
               >
-                <Ionicons name="cart" size={14} color={colors.black} />
-                <Text
-                  style={[
-                    styles.compactAddAllButtonText,
-                    { color: colors.black },
-                  ]}
-                >
-                  Add All
+                <Ionicons name="basket" size={16} color={colors.white} />
+                <Text style={styles.compactAddAllButtonText}>
+                  Add All ({recipe.ingredients.length})
                 </Text>
               </TouchableOpacity>
             )}
@@ -985,17 +995,22 @@ const styles = StyleSheet.create({
   },
   compactAddAllButton: {
     backgroundColor: colors.primary[600],
-    paddingVertical: 6,
-    paddingHorizontal: spacing.sm,
-    borderRadius: borderRadius.sm,
+    paddingVertical: 8,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.md,
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 6,
+    shadowColor: colors.primary[600],
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
   },
   compactAddAllButtonText: {
     color: colors.white,
-    fontSize: 12,
-    fontWeight: "600",
+    fontSize: 13,
+    fontWeight: "700",
   },
   instructionsSection: {
     paddingHorizontal: spacing.lg,

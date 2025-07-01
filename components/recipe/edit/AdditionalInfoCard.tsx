@@ -1,13 +1,5 @@
 import React, { useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  Alert,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Recipe } from "@/types";
 import { ValidationErrors, VALIDATION_LIMITS } from "@/utils/recipeValidation";
@@ -26,41 +18,7 @@ interface AdditionalInfoCardProps {
   errors: ValidationErrors;
 }
 
-const CATEGORIES = [
-  "Appetizer",
-  "Main Course",
-  "Side Dish",
-  "Dessert",
-  "Breakfast",
-  "Lunch",
-  "Dinner",
-  "Snack",
-  "Beverage",
-  "Soup",
-  "Salad",
-  "Sauce",
-];
-
-const CUISINES = [
-  "American",
-  "Italian",
-  "Mexican",
-  "Chinese",
-  "Japanese",
-  "Indian",
-  "French",
-  "Thai",
-  "Mediterranean",
-  "Greek",
-  "Spanish",
-  "Korean",
-  "Vietnamese",
-  "Middle Eastern",
-  "German",
-  "British",
-  "Other",
-];
-
+// Simplified categories - removed to streamline editing
 const DIFFICULTIES = [
   { value: "Easy", label: "Easy", icon: "star", color: colors.green[500] },
   {
@@ -82,101 +40,9 @@ const AdditionalInfoCard: React.FC<AdditionalInfoCardProps> = ({
   onUpdate,
   errors,
 }) => {
-  const [showCategories, setShowCategories] = useState(false);
-  const [showCuisines, setShowCuisines] = useState(false);
-
-  const renderDropdown = (
-    items: string[],
-    selectedValue: string,
-    onSelect: (value: string) => void,
-    placeholder: string,
-    isVisible: boolean,
-    onToggle: () => void
-  ) => (
-    <View style={styles.dropdownContainer}>
-      <TouchableOpacity style={styles.dropdownButton} onPress={onToggle}>
-        <Text
-          style={[
-            styles.dropdownText,
-            !selectedValue && styles.placeholderText,
-          ]}
-        >
-          {selectedValue || placeholder}
-        </Text>
-        <Ionicons
-          name={isVisible ? "chevron-up" : "chevron-down"}
-          size={20}
-          color={colors.gray[500]}
-        />
-      </TouchableOpacity>
-
-      {isVisible && (
-        <ScrollView style={styles.dropdownList} nestedScrollEnabled>
-          {items.map((item) => (
-            <TouchableOpacity
-              key={item}
-              style={[
-                styles.dropdownItem,
-                selectedValue === item && styles.selectedItem,
-              ]}
-              onPress={() => {
-                onSelect(item);
-                onToggle();
-              }}
-            >
-              <Text
-                style={[
-                  styles.dropdownItemText,
-                  selectedValue === item && styles.selectedItemText,
-                ]}
-              >
-                {item}
-              </Text>
-              {selectedValue === item && (
-                <Ionicons name="checkmark" size={16} color={colors.primary} />
-              )}
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      )}
-    </View>
-  );
-
   return (
     <View style={styles.card}>
       <Text style={styles.cardTitle}>Additional Information</Text>
-
-      {/* Category Selection */}
-      <View style={styles.fieldContainer}>
-        <Text style={styles.fieldLabel}>Category</Text>
-        {renderDropdown(
-          CATEGORIES,
-          recipe.category || "",
-          (value) => onUpdate("category", value),
-          "Select category",
-          showCategories,
-          () => setShowCategories(!showCategories)
-        )}
-        {errors.category && (
-          <Text style={styles.errorText}>{errors.category}</Text>
-        )}
-      </View>
-
-      {/* Cuisine Selection */}
-      <View style={styles.fieldContainer}>
-        <Text style={styles.fieldLabel}>Cuisine</Text>
-        {renderDropdown(
-          CUISINES,
-          recipe.cuisine || "",
-          (value) => onUpdate("cuisine", value),
-          "Select cuisine",
-          showCuisines,
-          () => setShowCuisines(!showCuisines)
-        )}
-        {errors.cuisine && (
-          <Text style={styles.errorText}>{errors.cuisine}</Text>
-        )}
-      </View>
 
       {/* Difficulty Selection */}
       <View style={styles.fieldContainer}>
@@ -220,7 +86,7 @@ const AdditionalInfoCard: React.FC<AdditionalInfoCardProps> = ({
         )}
       </View>
 
-      {/* Tags Section - Using new TagEditor component */}
+      {/* Tags Section - Using TagEditor component */}
       <View style={styles.fieldContainer}>
         <TagEditor
           tags={recipe.tags || []}
@@ -266,65 +132,9 @@ const styles = StyleSheet.create({
     color: colors.gray[700],
     marginBottom: spacing.xs,
   },
-  dropdownContainer: {
-    position: "relative",
-    zIndex: 1000,
-  },
-  dropdownButton: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: colors.gray[300],
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    backgroundColor: colors.white,
-    minHeight: 48,
-  },
-  dropdownText: {
-    fontSize: typography.fontSizes.md,
-    color: colors.dark,
-  },
-  placeholderText: {
-    color: colors.gray[500],
-  },
-  dropdownList: {
-    position: "absolute",
-    top: "100%",
-    left: 0,
-    right: 0,
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.gray[300],
-    borderTopWidth: 0,
-    borderBottomLeftRadius: borderRadius.md,
-    borderBottomRightRadius: borderRadius.md,
-    maxHeight: 200,
-    zIndex: 1001,
-    ...createShadow(4, 0.15, 8),
-  },
-  dropdownItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.gray[100],
-  },
-  selectedItem: {
-    backgroundColor: colors.primary + "10",
-  },
-  dropdownItemText: {
-    fontSize: typography.fontSizes.md,
-    color: colors.dark,
-  },
-  selectedItemText: {
-    color: colors.primary,
-    fontWeight: "600",
-  },
   difficultyContainer: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    gap: spacing.sm,
   },
   difficultyButton: {
     flex: 1,
@@ -335,7 +145,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.gray[300],
     borderRadius: borderRadius.md,
-    marginHorizontal: spacing.xs,
+    backgroundColor: colors.white,
+    gap: spacing.xs,
   },
   selectedDifficulty: {
     backgroundColor: colors.primary,
@@ -344,31 +155,30 @@ const styles = StyleSheet.create({
   difficultyText: {
     fontSize: typography.fontSizes.sm,
     fontWeight: "600",
-    marginLeft: spacing.xs,
     color: colors.gray[700],
   },
   selectedDifficultyText: {
     color: colors.white,
   },
-  errorText: {
-    fontSize: typography.fontSizes.sm,
-    color: colors.red[500],
-    marginTop: spacing.xs,
-  },
   tipsContainer: {
     flexDirection: "row",
     alignItems: "flex-start",
-    backgroundColor: colors.blue[50],
-    padding: spacing.sm,
+    backgroundColor: colors.gray[50],
+    padding: spacing.md,
     borderRadius: borderRadius.md,
+    gap: spacing.sm,
     marginTop: spacing.sm,
   },
   tipsText: {
-    fontSize: typography.fontSizes.xs,
-    color: colors.gray[600],
-    marginLeft: spacing.xs,
     flex: 1,
-    lineHeight: 16,
+    fontSize: typography.fontSizes.sm,
+    color: colors.gray[600],
+    lineHeight: 20,
+  },
+  errorText: {
+    color: colors.red[500],
+    fontSize: typography.fontSizes.sm,
+    marginTop: spacing.xs,
   },
 });
 

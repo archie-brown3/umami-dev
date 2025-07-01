@@ -11,7 +11,7 @@ PODS:
   - EXJSONUtils (0.15.0)
   - EXManifests (0.16.5):
     - ExpoModulesCore
-  - Expo (53.0.12):
+  - Expo (53.0.13):
     - DoubleConversion
     - ExpoModulesCore
     - glog
@@ -38,16 +38,16 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
-  - expo-dev-client (5.2.1):
+  - expo-dev-client (5.2.2):
     - EXManifests
     - expo-dev-launcher
     - expo-dev-menu
     - expo-dev-menu-interface
     - EXUpdatesInterface
-  - expo-dev-launcher (5.1.13):
+  - expo-dev-launcher (5.1.14):
     - DoubleConversion
     - EXManifests
-    - expo-dev-launcher/Main (= 5.1.13)
+    - expo-dev-launcher/Main (= 5.1.14)
     - expo-dev-menu
     - expo-dev-menu-interface
     - ExpoModulesCore
@@ -77,7 +77,7 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
-  - expo-dev-launcher/Main (5.1.13):
+  - expo-dev-launcher/Main (5.1.14):
     - DoubleConversion
     - EXManifests
     - expo-dev-launcher/Unsafe
@@ -110,7 +110,7 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
-  - expo-dev-launcher/Unsafe (5.1.13):
+  - expo-dev-launcher/Unsafe (5.1.14):
     - DoubleConversion
     - EXManifests
     - expo-dev-menu
@@ -279,7 +279,7 @@ PODS:
     - ExpoModulesCore
   - ExpoBlur (14.1.5):
     - ExpoModulesCore
-  - ExpoCamera (16.1.8):
+  - ExpoCamera (16.1.9):
     - ExpoModulesCore
     - ZXingObjC/OneD
     - ZXingObjC/PDF417
@@ -293,7 +293,7 @@ PODS:
     - ExpoModulesCore
   - ExpoHaptics (14.1.4):
     - ExpoModulesCore
-  - ExpoHead (5.1.0):
+  - ExpoHead (5.1.1):
     - ExpoModulesCore
   - ExpoImageManipulator (13.1.7):
     - EXImageLoader
@@ -444,11 +444,11 @@ PODS:
   - nanopb/decode (2.30910.0)
   - nanopb/encode (2.30910.0)
   - PromisesObjC (2.4.0)
-  - PurchasesHybridCommon (13.32.0):
-    - RevenueCat (= 5.24.0)
-  - PurchasesHybridCommonUI (13.32.0):
-    - PurchasesHybridCommon (= 13.32.0)
-    - RevenueCatUI (= 5.24.0)
+  - PurchasesHybridCommon (13.38.1):
+    - RevenueCat (= 5.29.0)
+  - PurchasesHybridCommonUI (13.38.1):
+    - PurchasesHybridCommon (= 13.38.1)
+    - RevenueCatUI (= 5.29.0)
   - RCT-Folly (2024.11.18.00):
     - boost
     - DoubleConversion
@@ -1777,7 +1777,7 @@ PODS:
     - React-Core
   - react-native-netinfo (11.4.1):
     - React-Core
-  - react-native-safe-area-context (5.4.0):
+  - react-native-safe-area-context (5.5.0):
     - React-Core
   - react-native-webview (13.13.5):
     - DoubleConversion
@@ -2125,9 +2125,9 @@ PODS:
     - React-logger (= 0.79.4)
     - React-perflogger (= 0.79.4)
     - React-utils (= 0.79.4)
-  - RevenueCat (5.24.0)
-  - RevenueCatUI (5.24.0):
-    - RevenueCat (= 5.24.0)
+  - RevenueCat (5.29.0)
+  - RevenueCatUI (5.29.0):
+    - RevenueCat (= 5.29.0)
   - RNCAsyncStorage (2.1.2):
     - React-Core
   - RNGestureHandler (2.24.0):
@@ -2161,11 +2161,11 @@ PODS:
     - GoogleMLKit/TextRecognitionJapanese (= 6.0.0)
     - GoogleMLKit/TextRecognitionKorean (= 6.0.0)
     - React
-  - RNPaywalls (8.11.0):
-    - PurchasesHybridCommonUI (= 13.32.0)
+  - RNPaywalls (8.11.7):
+    - PurchasesHybridCommonUI (= 13.38.1)
     - React-Core
-  - RNPurchases (8.11.0):
-    - PurchasesHybridCommon (= 13.32.0)
+  - RNPurchases (8.11.7):
+    - PurchasesHybridCommon (= 13.38.1)
     - React-Core
   - RNReanimated (3.17.5):
     - DoubleConversion
@@ -2318,7 +2318,7 @@ PODS:
     - Yoga
   - RNSVG (15.11.2):
     - React-Core
-  - SDWebImage/Core (5.21.0)
+  - SDWebImage/Core (5.21.1)
   - SDWebImageWebPCoder (0.14.6):
     - libwebp (~> 1.0)
     - SDWebImage/Core (~> 5.17)
@@ -2713,21 +2713,21 @@ SPEC CHECKSUMS:
   EXImageLoader: 4d3d3284141f1a45006cc4d0844061c182daf7ee
   EXJSONUtils: 1d3e4590438c3ee593684186007028a14b3686cd
   EXManifests: 951161dd9a63523c4eef0fa2a7476639a7ba230d
-  Expo: 7ef9ca441f60ca7e7dbafb2236d9e8f70916fbdd
-  expo-dev-client: bf14fdb681b2dc761f5df9ad4edca8bb55d640f4
-  expo-dev-launcher: 3c8f032e14affd6ac805416eed46f5daad0c997e
+  Expo: 37871d3899ef838808481997857e8726d5c81471
+  expo-dev-client: 2a5a4d2257b917b00d4d9d2ececd41d59278e672
+  expo-dev-launcher: f8e6a451e9f6ef73da36c84d05968b6af3192a21
   expo-dev-menu: 3b3ef144446cbe8921fcf7b1760085f4d16cf068
   expo-dev-menu-interface: 609c35ae8b97479cdd4c9e23c8cf6adc44beea0e
   ExpoAppleAuthentication: 4d2e0c88a4463229760f1fbb9a937a810efb6863
   ExpoAsset: 3bc9adb7dbbf27ae82c18ca97eb988a3ae7e73b1
   ExpoBlur: 3c8885b9bf9eef4309041ec87adec48b5f1986a9
-  ExpoCamera: 1667b34b8ba4b8015561808e38dd0a281a29da1b
+  ExpoCamera: 308cf0a75d73b6d1f3f8dda4212ba8e2752a6b03
   ExpoClipboard: c9771e7aa5f1316183e4a6f40a5755a0b98a6b8d
   ExpoCrypto: a9f1d75baeea6ef8b03c1660621585196c382e85
   ExpoFileSystem: c36eb8155eb2381c83dda7dc210e3eec332368b6
   ExpoFont: abbb91a911eb961652c2b0a22eef801860425ed6
   ExpoHaptics: 0ff6e0d83cd891178a306e548da1450249d54500
-  ExpoHead: 1e65b47330de2164c628da2bddf73d57cac123bf
+  ExpoHead: 5fa9071821209796843730542d666f625fa36f87
   ExpoImageManipulator: 1e06e7a1e56f454e75d01b7032c1e44963bfc865
   ExpoImagePicker: 0963da31800c906e01c03e25d7c849f16ebf02a2
   ExpoKeepAwake: bf0811570c8da182bfb879169437d4de298376e7
@@ -2762,8 +2762,8 @@ SPEC CHECKSUMS:
   MLKitVision: e858c5f125ecc288e4a31127928301eaba9ae0c1
   nanopb: 438bc412db1928dac798aa6fd75726007be04262
   PromisesObjC: f5707f49cb48b9636751c5b2e7d227e43fba9f47
-  PurchasesHybridCommon: 662aa1f4769ff4ef594e35adf1a5d0ad7b3d08b7
-  PurchasesHybridCommonUI: ce17a7fcc23bc9e47b6ed117fb87b4fc99539e15
+  PurchasesHybridCommon: 5a46c67f78680dee9289783edbcebd983ff7bd9c
+  PurchasesHybridCommonUI: 16e8f67451f43e55308a10651283ecd0953d8bf7
   RCT-Folly: e78785aa9ba2ed998ea4151e314036f6c49e6d82
   RCTDeprecation: 0418ac97b9f53b2e37f473da1663ef3061e46beb
   RCTRequired: b9fde7f981b11aa898f03a70d3d4d36b80f1b16d
@@ -2797,7 +2797,7 @@ SPEC CHECKSUMS:
   React-microtasksnativemodule: ef2292ca147fa8793305e4693586ad0caf3afad3
   react-native-get-random-values: d16467cf726c618e9c7a8c3c39c31faa2244bbba
   react-native-netinfo: cec9c4e86083cb5b6aba0e0711f563e2fbbff187
-  react-native-safe-area-context: 9d72abf6d8473da73033b597090a80b709c0b2f1
+  react-native-safe-area-context: 7f6ffa9a73488f84feee2de12e2dcdccfb601967
   react-native-webview: 1b5778b306d4ed09d13829a6e7a6550e3c1a644a
   React-NativeModulesApple: da60186ad0aafff031a9bc86b048711d34acc813
   React-oscompat: 472a446c740e39ee39cd57cd7bfd32177c763a2b
@@ -2830,17 +2830,17 @@ SPEC CHECKSUMS:
   ReactAppDependencyProvider: bf62814e0fde923f73fc64b7e82d76c63c284da9
   ReactCodegen: f891084749d03b8af8a244cefaa492e491b763fd
   ReactCommon: c7d636ec1b9801ff4ee83cce8e0bf74a1610fc3f
-  RevenueCat: 2d3639d30b8a71cbfe3d99cef8243c602793e0ec
-  RevenueCatUI: 80bec9099c200c254c0ec0025b4fb83a85fbacce
+  RevenueCat: 5fa12c42c14b390dd2423897e925f407f474b8fa
+  RevenueCatUI: fd24e43324c5e3711e5b5cba18eadd0fe2f023d0
   RNCAsyncStorage: b9f5f78da5d16a853fe3dc22e8268d932fc45a83
   RNGestureHandler: ce4a87dba81030b374d7f1993c4376f5c230da2e
   RNMLKitTextRecognition: ff4ec181537d3ec3bd53f48038ed3d0c381ff66a
-  RNPaywalls: d9b41b43dbc9d6d61cfa0df1bb4c6f0fc1bcea8a
-  RNPurchases: 4ddfd516e40b558dcb168625bddbea690ed8a81a
+  RNPaywalls: 3c1c4570d3828c3f9161ba6e97bd38e08803b85f
+  RNPurchases: 5f508be6d4237128d78b69fb17958ab07ae5380f
   RNReanimated: efe63b33e23e1b5b06e5e087779eceeee742452b
   RNScreens: 62fdbbc4c984150b34c36f095c6ba2510ca9b6a5
   RNSVG: ab84f2de7dd4f2c86d01825b8a65e0ef712fc36b
-  SDWebImage: f84b0feeb08d2d11e6a9b843cb06d75ebf5b8868
+  SDWebImage: f29024626962457f3470184232766516dee8dfea
   SDWebImageWebPCoder: e38c0a70396191361d60c092933e22c20d5b1380
   SocketRocket: d4aabe649be1e368d1318fdf28a022d714d65748
   Yoga: a6cb833e04fb8c59a012b49fb1d040fcb0cbb633

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useMemo } from "react";
 import {
   View,
   FlatList,
@@ -7,6 +7,7 @@ import {
   TextInput,
   TouchableOpacity,
   Text,
+  ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -16,6 +17,13 @@ import { RecipeCard } from "@/components/recipes/RecipeCard";
 import CategorizedTagFilter from "@/components/recipes/CategorizedTagFilter";
 import EmptyState from "@/components/common/EmptyState";
 import { useRecipes } from "@/context/RecipeContext";
+import {
+  processRecipeTags,
+  formatTagName,
+  getTagCategoryColor,
+  getCuisineFlag,
+  ProcessedTags,
+} from "@/services/tagUtils";
 
 interface RecipeListProps {
   recipes: Recipe[];
@@ -34,6 +42,11 @@ const RecipeList: React.FC<RecipeListProps> = ({
 
   // Get the refresh function from context
   const { refreshRecipes, isLoading } = useRecipes();
+
+  // Process all tags from recipes for header display
+  const processedTags = useMemo(() => {
+    return processRecipeTags(recipes);
+  }, [recipes]);
 
   // Update filtered recipes when recipes prop changes
   useEffect(() => {
@@ -80,7 +93,7 @@ const RecipeList: React.FC<RecipeListProps> = ({
     setSelectedTags(tags);
   }, []);
 
-  // Handle tag press from recipe cards
+  // Handle tag press from recipe cards or header
   const handleTagPress = useCallback(
     (tag: string) => {
       const normalizedTag = tag.toLowerCase();
@@ -103,8 +116,106 @@ const RecipeList: React.FC<RecipeListProps> = ({
     </View>
   );
 
+  // Render tag overview header
+  const renderTagsHeader = () => {
+    if (processedTags.allTags.length === 0) return null;
+
+    return (
+      <View style={styles.tagsHeaderContainer}>
+        <Text style={styles.tagsHeaderTitle}>
+          Popular Tags ({processedTags.allTags.length})
+        </Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tagsHeaderScroll}
+        >
+          {processedTags.categories.map((category) => (
+            <View key={category.name} style={styles.categoryHeader}>
+              <Text style={styles.categoryHeaderLabel}>
+                <Text style={styles.categoryHeaderIcon}>{category.icon}</Text>{" "}
+                {category.name}
+              </Text>
+              <View style={styles.categoryHeaderTags}>
+                {category.tags
+                  .slice(0, category.name === "Cuisine" ? 4 : 3)
+                  .map(({ tag, count }) => {
+                    const isCuisine = category.name === "Cuisine";
+                    const flag = isCuisine ? getCuisineFlag(tag) : "";
+                    const isSelected = selectedTags.includes(tag.toLowerCase());
+
+                    // Truncate cuisine names for better UI
+                    let displayTag = formatTagName(tag);
+                    if (isCuisine && displayTag.length > 8) {
+                      displayTag = displayTag.substring(0, 8) + "...";
+                    }
+
+                    return (
+                      <TouchableOpacity
+                        key={tag}
+                        style={[
+                          styles.headerTag,
+                          { borderColor: category.color + "40" },
+                          isSelected && {
+                            backgroundColor: category.color,
+                            borderColor: category.color,
+                          },
+                        ]}
+                        onPress={() => handleTagPress(tag)}
+                        activeOpacity={0.7}
+                      >
+                        {flag && (
+                          <Text style={styles.headerTagFlag}>{flag}</Text>
+                        )}
+                        <Text
+                          style={[
+                            styles.headerTagText,
+                            {
+                              color: isSelected ? colors.white : category.color,
+                            },
+                          ]}
+                        >
+                          {displayTag}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.headerTagCount,
+                            {
+                              color: isSelected
+                                ? colors.white + "CC"
+                                : category.color + "AA",
+                            },
+                          ]}
+                        >
+                          {count}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                {category.tags.length >
+                  (category.name === "Cuisine" ? 4 : 3) && (
+                  <Text
+                    style={[
+                      styles.moreTagsIndicator,
+                      { color: category.color },
+                    ]}
+                  >
+                    +
+                    {category.tags.length -
+                      (category.name === "Cuisine" ? 4 : 3)}
+                  </Text>
+                )}
+              </View>
+            </View>
+          ))}
+        </ScrollView>
+      </View>
+    );
+  };
+
   return (
     <View style={styles.container}>
+      {/* Search and Favorites */}
       <View style={styles.searchContainer}>
         <View style={styles.searchInputContainer}>
           <Ionicons
@@ -137,6 +248,10 @@ const RecipeList: React.FC<RecipeListProps> = ({
         </TouchableOpacity>
       </View>
 
+      {/* Tags Overview Header */}
+      {renderTagsHeader()}
+
+      {/* Advanced Filters */}
       <View style={styles.filtersContainer}>
         <CategorizedTagFilter
           recipes={recipes}
@@ -146,6 +261,7 @@ const RecipeList: React.FC<RecipeListProps> = ({
         />
       </View>
 
+      {/* Recipe Grid */}
       <FlatList
         data={filteredRecipes}
         renderItem={renderRecipeCard}
@@ -214,6 +330,68 @@ const styles = StyleSheet.create({
     height: 44,
     color: colors.dark,
     fontSize: 16,
+  },
+  tagsHeaderContainer: {
+    backgroundColor: colors.white,
+    paddingVertical: spacing.md,
+    marginBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.gray[100],
+  },
+  tagsHeaderTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: colors.dark,
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  tagsHeaderScroll: {
+    paddingHorizontal: spacing.md,
+  },
+  categoryHeader: {
+    marginRight: spacing.lg,
+    minWidth: 120,
+  },
+  categoryHeaderLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: colors.gray[600],
+    marginBottom: spacing.xs,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  categoryHeaderIcon: {
+    fontSize: 12,
+  },
+  categoryHeaderTags: {
+    gap: spacing.xs,
+  },
+  headerTag: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    backgroundColor: colors.white,
+    gap: 2,
+    marginBottom: spacing.xs,
+  },
+  headerTagFlag: {
+    fontSize: 10,
+  },
+  headerTagText: {
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  headerTagCount: {
+    fontSize: 10,
+    fontWeight: "500",
+  },
+  moreTagsIndicator: {
+    fontSize: 10,
+    fontWeight: "500",
+    marginTop: 2,
   },
   filtersContainer: {
     marginBottom: spacing.sm,
