@@ -1,4 +1,4 @@
-import { supabase } from "../utils/supabase";
+import { supabase } from "../lib/supabase";
 import { Recipe, RecipeWithDetails } from "../types/recipe";
 
 // Utility function to retry a function with exponential backoff
