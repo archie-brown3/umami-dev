@@ -1,4 +1,4 @@
-# Umami Recipe App
+<img src="assets/images/header.png" alt="umami — recipe discovery and step-by-step cooking" width="100%">
 
 A mobile app for finding, saving, and sharing recipes.
 
