@@ -22,11 +22,6 @@ import { colors, spacing, typography, borderRadius } from "@/utils/styleUtils";
 import { Ionicons } from "@expo/vector-icons";
 import { Recipe } from "@/types";
 import {
-  getRecipeWithDetails,
-  toggleRecipeFavorite,
-} from "@/services/recipeService";
-import { supabase } from "@/lib/supabase";
-import {
   formatTagName,
   getTagCategoryColor,
   categorizeTag,
@@ -56,7 +51,7 @@ export default function RecipeDetailScreen() {
   const [isTogglingFavorite, setIsTogglingFavorite] = useState(false);
   const [showAllTags, setShowAllTags] = useState(false);
   const { addItemToShoppingList } = useGroceries();
-  const { updateRecipe, removeRecipe } = useRecipes();
+  const { updateRecipe, removeRecipe, getRecipeById } = useRecipes();
 
   const fetchRecipeDetails = async () => {
     setIsLoading(true);
@@ -65,7 +60,7 @@ export default function RecipeDetailScreen() {
       console.log(
         `[RecipeDetailScreen] Fetching details for recipeId: ${recipeId}`
       );
-      const details = await getRecipeWithDetails(recipeId as string);
+      const details = getRecipeById(recipeId as string);
       if (details) {
         setRecipe(details);
         setCurrentServings(details.servings || 4); // Set current servings to recipe's original servings
@@ -255,23 +250,19 @@ export default function RecipeDetailScreen() {
     setIsTogglingFavorite(true);
     try {
       const newFavoriteStatus = !recipe.isFavorite;
-      const updatedStatus = await toggleRecipeFavorite(
-        recipeId as string,
-        newFavoriteStatus
-      );
 
       // Update local state
       setRecipe((prev) =>
-        prev ? { ...prev, isFavorite: updatedStatus } : null
+        prev ? { ...prev, isFavorite: newFavoriteStatus } : null
       );
 
       // Update recipe in context
-      await updateRecipe(recipeId as string, { isFavorite: updatedStatus });
+      await updateRecipe(recipeId as string, { isFavorite: newFavoriteStatus });
 
       // Provide user feedback
       Alert.alert(
         "Success",
-        updatedStatus ? "Added to favorites!" : "Removed from favorites"
+        newFavoriteStatus ? "Added to favorites!" : "Removed from favorites"
       );
 
       // Haptic feedback

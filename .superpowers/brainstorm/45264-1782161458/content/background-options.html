@@ -1,0 +1,132 @@
+<h2>Background Style</h2>
+<p class="subtitle">Which background vibe fits the app? Your app uses red accents, clean whites, and food photography.</p>
+
+<style>
+  .phone-frame {
+    display: inline-block;
+    border-radius: 28px;
+    background: #111;
+    padding: 8px 6px;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.5), inset 0 0 0 1.5px #333;
+    position: relative;
+  }
+  .phone-frame::before {
+    content: '';
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 60px;
+    height: 20px;
+    background: #111;
+    border-radius: 0 0 12px 12px;
+    z-index: 10;
+  }
+  .phone-screen {
+    border-radius: 22px;
+    overflow: hidden;
+    display: block;
+  }
+  .phone-screen img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .cascade {
+    position: relative;
+    width: 260px;
+    height: 210px;
+  }
+  .cascade .phone-frame:nth-child(1) {
+    position: absolute; left: 0; bottom: 0;
+    transform: rotate(-9deg);
+    z-index: 1;
+  }
+  .cascade .phone-frame:nth-child(2) {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    bottom: 18px;
+    z-index: 3;
+  }
+  .cascade .phone-frame:nth-child(3) {
+    position: absolute; right: 0; bottom: 0;
+    transform: rotate(9deg);
+    z-index: 1;
+  }
+
+  .bg-preview {
+    border-radius: 12px;
+    padding: 28px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 240px;
+    margin-top: 12px;
+  }
+  .card { padding: 20px 24px !important; }
+  .card h3 { margin-bottom: 4px; }
+</style>
+
+<div class="cards" style="flex-direction: column; gap: 20px;">
+
+  <!-- Option A: Dark charcoal + red glow -->
+  <div class="card" data-choice="dark-red" onclick="toggleSelect(this)">
+    <div class="card-body">
+      <h3>A — Dark + Red Glow</h3>
+      <p>Deep charcoal background with your app's red accent radiating from center. Bold and dramatic, matches the app's branding perfectly.</p>
+    </div>
+    <div class="bg-preview" style="background: radial-gradient(ellipse at center, #3d0a0a 0%, #1a1a1a 55%, #111 100%);">
+      <div class="cascade">
+        <div class="phone-frame"><div class="phone-screen" style="width:82px;height:166px"><img src="/screen1.png"></div></div>
+        <div class="phone-frame"><div class="phone-screen" style="width:96px;height:194px"><img src="/screen2.png"></div></div>
+        <div class="phone-frame"><div class="phone-screen" style="width:82px;height:166px"><img src="/screen3.png"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option B: Warm cream / food magazine -->
+  <div class="card" data-choice="warm-cream" onclick="toggleSelect(this)">
+    <div class="card-body">
+      <h3>B — Warm Cream</h3>
+      <p>Off-white / parchment background with a subtle warm vignette. Feels like a food magazine or cookbook — sophisticated and editorial.</p>
+    </div>
+    <div class="bg-preview" style="background: radial-gradient(ellipse at center, #fff8ef 0%, #f5e6d3 60%, #e8d5be 100%);">
+      <div class="cascade">
+        <div class="phone-frame"><div class="phone-screen" style="width:82px;height:166px"><img src="/screen1.png"></div></div>
+        <div class="phone-frame"><div class="phone-screen" style="width:96px;height:194px"><img src="/screen2.png"></div></div>
+        <div class="phone-frame"><div class="phone-screen" style="width:82px;height:166px"><img src="/screen3.png"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option C: Deep navy gradient -->
+  <div class="card" data-choice="navy" onclick="toggleSelect(this)">
+    <div class="card-body">
+      <h3>C — Deep Navy Gradient</h3>
+      <p>Rich navy-to-midnight gradient, similar to what you saw in option C earlier. Professional, trustworthy — common in polished app READMEs.</p>
+    </div>
+    <div class="bg-preview" style="background: linear-gradient(135deg, #0d1b2a 0%, #1b2a4a 50%, #162447 100%);">
+      <div class="cascade">
+        <div class="phone-frame"><div class="phone-screen" style="width:82px;height:166px"><img src="/screen1.png"></div></div>
+        <div class="phone-frame"><div class="phone-screen" style="width:96px;height:194px"><img src="/screen2.png"></div></div>
+        <div class="phone-frame"><div class="phone-screen" style="width:82px;height:166px"><img src="/screen3.png"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option D: Pure black minimal -->
+  <div class="card" data-choice="black" onclick="toggleSelect(this)">
+    <div class="card-body">
+      <h3>D — Pure Black</h3>
+      <p>Solid black — the screens do all the talking. Minimal, modern, very GitHub-dark-mode friendly. Phones pop cleanly against the void.</p>
+    </div>
+    <div class="bg-preview" style="background: #000;">
+      <div class="cascade">
+        <div class="phone-frame"><div class="phone-screen" style="width:82px;height:166px"><img src="/screen1.png"></div></div>
+        <div class="phone-frame"><div class="phone-screen" style="width:96px;height:194px"><img src="/screen2.png"></div></div>
+        <div class="phone-frame"><div class="phone-screen" style="width:82px;height:166px"><img src="/screen3.png"></div></div>
+      </div>
+    </div>
+  </div>
+
+</div>

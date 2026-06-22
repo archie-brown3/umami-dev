@@ -1,0 +1,18 @@
+{"type":"server-started","port":49954,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:49954","screen_dir":"/Users/archiebrown/umami-dev/.superpowers/brainstorm/45264-1782161458/content","state_dir":"/Users/archiebrown/umami-dev/.superpowers/brainstorm/45264-1782161458/state"}
+{"type":"screen-added","file":"/Users/archiebrown/umami-dev/.superpowers/brainstorm/45264-1782161458/content/layout-options.html"}
+{"source":"user-event","type":"click","text":"C — Staggered Cascade\n      Phones rotated and overlapping in a fan/cascade. Dynamic and energetic — feels more like a marketing banner than a documentation screenshot.","choice":"staggered","id":null,"timestamp":1782161551381}
+{"source":"user-event","type":"click","text":"C — Staggered Cascade\n      Phones rotated and overlapping in a fan/cascade. Dynamic and energetic — feels more like a marketing banner than a documentation screenshot.","choice":"staggered","id":null,"timestamp":1782161597311}
+{"source":"user-event","type":"click","text":"C — Staggered Cascade\n      Phones rotated and overlapping in a fan/cascade. Dynamic and energetic — feels more like a marketing banner than a documentation screenshot.","choice":"staggered","id":null,"timestamp":1782161597794}
+{"source":"user-event","type":"click","text":"C — Staggered Cascade\n      Phones rotated and overlapping in a fan/cascade. Dynamic and energetic — feels more like a marketing banner than a documentation screenshot.","choice":"staggered","id":null,"timestamp":1782161598276}
+{"type":"screen-added","file":"/Users/archiebrown/umami-dev/.superpowers/brainstorm/45264-1782161458/content/background-options.html"}
+{"source":"user-event","type":"click","text":"B — Warm Cream\n      Off-white / parchment background with a subtle warm vignette. Feels like a food magazine or cookbook — sophisticated and editorial.","choice":"warm-cream","id":null,"timestamp":1782161718677}
+{"type":"screen-added","file":"/Users/archiebrown/umami-dev/.superpowers/brainstorm/45264-1782161458/content/background-options-v2.html"}
+{"source":"user-event","type":"click","text":"B — Warm Cream\n      Off-white / parchment with a warm vignette. Editorial, food-magazine feel.","choice":"warm-cream","id":null,"timestamp":1782161766096}
+{"type":"screen-added","file":"/Users/archiebrown/umami-dev/.superpowers/brainstorm/45264-1782161458/content/final-design-preview.html"}
+{"type":"screen-added","file":"/Users/archiebrown/umami-dev/.superpowers/brainstorm/45264-1782161458/content/design-v3.html"}
+{"type":"screen-added","file":"/Users/archiebrown/umami-dev/.superpowers/brainstorm/45264-1782161458/content/design-v4.html"}
+{"type":"screen-added","file":"/Users/archiebrown/umami-dev/.superpowers/brainstorm/45264-1782161458/content/design-v5.html"}
+{"type":"screen-added","file":"/Users/archiebrown/umami-dev/.superpowers/brainstorm/45264-1782161458/content/design-v5b.html"}
+{"type":"screen-added","file":"/Users/archiebrown/umami-dev/.superpowers/brainstorm/45264-1782161458/content/design-v6.html"}
+{"type":"screen-added","file":"/Users/archiebrown/umami-dev/.superpowers/brainstorm/45264-1782161458/content/compare.html"}
+{"type":"server-stopped","reason":"idle timeout"}

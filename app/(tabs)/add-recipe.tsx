@@ -28,8 +28,6 @@ import {
   extractRecipeFromInstagramCaption,
   extractRecipeFromInstagram,
 } from "@/services/recipeExtractor";
-import { addRecipeToSupabase } from "@/services/recipeService";
-import { supabase } from "@/lib/supabase";
 import { RecipeCamera } from "@/components/RecipeCamera";
 import { extractTextFromImage } from "@/services/textRecognition";
 import * as ImagePicker from "expo-image-picker";
@@ -236,11 +234,6 @@ export default function AddRecipeScreen() {
     try {
       addLog("Recipe data is normalized and validated.");
 
-      // Get the current user
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
       // Prepare the recipe for saving
       const newRecipe: Recipe = {
         id: Date.now().toString(),
@@ -259,43 +252,20 @@ export default function AddRecipeScreen() {
         updatedAt: new Date().toISOString(),
       };
 
-      // Save to Supabase if user is logged in
-      if (user) {
-        const savedRecipe = await addRecipeToSupabase(newRecipe, user.id);
-        if (savedRecipe) {
-          addLog(`Recipe saved to Supabase: ${savedRecipe.title}`);
+      // Add the recipe using the context
+      addRecipe(newRecipe);
+      addLog(`Recipe added: ${newRecipe.title}`);
 
-          // Navigate back to recipes screen
-          Alert.alert(
-            "Success",
-            `Recipe "${savedRecipe.title}" has been successfully saved.`,
-            [
-              {
-                text: "OK",
-                onPress: () => router.replace("/recipes"),
-              },
-            ]
-          );
-        } else {
-          // Error alert is handled in addRecipeToSupabase
-          setIsLoading(false);
-        }
-      } else {
-        // If no user, just add to local state
-        addRecipe(newRecipe);
-        addLog(`Recipe added to local state: ${newRecipe.title}`);
-
-        Alert.alert(
-          "Success",
-          `Recipe "${newRecipe.title}" has been added to your collection.`,
-          [
-            {
-              text: "OK",
-              onPress: () => router.replace("/recipes"),
-            },
-          ]
-        );
-      }
+      Alert.alert(
+        "Success",
+        `Recipe "${newRecipe.title}" has been added to your collection.`,
+        [
+          {
+            text: "OK",
+            onPress: () => router.replace("/recipes"),
+          },
+        ]
+      );
     } catch (error) {
       console.error("Error processing recipe:", error);
       const errorMessage =
@@ -531,37 +501,24 @@ export default function AddRecipeScreen() {
         updatedAt: new Date().toISOString(),
       };
 
-      // Get current user and attempt to save to Supabase
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
+      // Add the recipe using the context
+      addRecipe(newRecipe);
+      addLog(`Manual recipe created: ${newRecipe.title}`);
 
-      if (userError || !user) {
-        throw new Error("You must be logged in to create recipes");
-      }
-
-      const savedRecipe = await addRecipeToSupabase(newRecipe, user.id);
-
-      if (savedRecipe) {
-        addLog(`Manual recipe saved to Supabase: ${savedRecipe.title}`);
-        Alert.alert(
-          "Success",
-          `Recipe "${savedRecipe.title}" has been successfully created! You can now edit it to add ingredients and instructions.`,
-          [
-            {
-              text: "Edit Recipe",
-              onPress: () => router.push(`/recipe/edit/${savedRecipe.id}`),
-            },
-            {
-              text: "View Recipe",
-              onPress: () => router.push(`/recipe/${savedRecipe.id}`),
-            },
-          ]
-        );
-      } else {
-        throw new Error("Failed to save recipe to database");
-      }
+      Alert.alert(
+        "Success",
+        `Recipe "${newRecipe.title}" has been successfully created! You can now edit it to add ingredients and instructions.`,
+        [
+          {
+            text: "Edit Recipe",
+            onPress: () => router.push(`/recipe/edit/${newRecipe.id}`),
+          },
+          {
+            text: "View Recipe",
+            onPress: () => router.push(`/recipe/${newRecipe.id}`),
+          },
+        ]
+      );
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error occurred";

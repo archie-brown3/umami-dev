@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Final Design Preview</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #1a1a1a;
+    padding: 32px;
+    color: #fff;
+  }
+
+  .label {
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #888;
+    margin-bottom: 10px;
+  }
+
+  /* ── The actual banner ── */
+  .banner {
+    width: 100%;
+    max-width: 900px;
+    margin: 0 auto 40px;
+    background: radial-gradient(ellipse at 50% 110%, #f0d9b5 0%, #fdf5e8 35%, #fff9f2 65%, #fef8f0 100%);
+    border-radius: 18px;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 48px 56px;
+    min-height: 320px;
+    box-shadow: 0 4px 40px rgba(0,0,0,0.3);
+  }
+
+  /* Subtle noise/grain texture overlay */
+  .banner::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+    opacity: 0.4;
+  }
+
+  /* Decorative circle */
+  .banner::before {
+    content: '';
+    position: absolute;
+    width: 500px;
+    height: 500px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(220,160,90,0.15) 0%, transparent 70%);
+    bottom: -180px;
+    left: -60px;
+    pointer-events: none;
+  }
+
+  /* ── Left: text block ── */
+  .text-block {
+    flex: 1;
+    min-width: 0;
+    padding-right: 40px;
+    z-index: 1;
+  }
+  .app-name {
+    font-size: 52px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    color: #1a1007;
+    line-height: 1;
+    margin-bottom: 14px;
+  }
+  .app-name span {
+    color: #c0392b;
+  }
+  .tagline {
+    font-size: 17px;
+    color: #6b4c2a;
+    font-weight: 400;
+    line-height: 1.5;
+    max-width: 340px;
+    margin-bottom: 28px;
+  }
+  .badges {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    padding: 5px 12px;
+    border-radius: 20px;
+    border: 1.5px solid rgba(160, 80, 30, 0.25);
+    color: #8b4513;
+    background: rgba(255,255,255,0.5);
+  }
+
+  /* ── Right: phones ── */
+  .phones-wrap {
+    position: relative;
+    width: 340px;
+    height: 270px;
+    flex-shrink: 0;
+    z-index: 1;
+  }
+
+  .phone {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: #1c1c1e;
+    border-radius: 36px;
+    padding: 11px 7px;
+    box-shadow:
+      0 0 0 1px rgba(255,255,255,0.12),
+      0 0 0 1.5px #2a2a2a,
+      0 20px 50px rgba(0,0,0,0.35),
+      0 6px 16px rgba(0,0,0,0.2);
+  }
+  .phone::before {
+    content: '';
+    position: absolute;
+    top: 11px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 64px;
+    height: 20px;
+    background: #1c1c1e;
+    border-radius: 0 0 12px 12px;
+    z-index: 2;
+  }
+  .phone-screen {
+    border-radius: 26px;
+    overflow: hidden;
+    display: block;
+    -webkit-mask-image: -webkit-radial-gradient(white, black);
+  }
+  .phone-screen img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .phone.left {
+    width: 106px;
+    bottom: 0; left: 10px;
+    transform: rotate(-10deg);
+    transform-origin: bottom center;
+    z-index: 1;
+  }
+  .phone.center {
+    width: 120px;
+    bottom: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    transform-origin: bottom center;
+    z-index: 3;
+  }
+  .phone.right {
+    width: 106px;
+    bottom: 0; right: 10px;
+    transform: rotate(10deg);
+    transform-origin: bottom center;
+    z-index: 1;
+  }
+
+  /* ── Question UI ── */
+  .question-section {
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  .q-title { font-size: 18px; font-weight: 600; margin-bottom: 6px; color: #eee; }
+  .q-sub { font-size: 13px; color: #888; margin-bottom: 20px; }
+
+  .options-row {
+    display: flex;
+    gap: 12px;
+  }
+  .opt {
+    flex: 1;
+    background: #252525;
+    border: 2px solid #333;
+    border-radius: 10px;
+    padding: 16px;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .opt:hover { border-color: #555; background: #2a2a2a; }
+  .opt.selected { border-color: #c0392b; background: #2a1a1a; }
+  .opt h4 { font-size: 14px; font-weight: 600; margin-bottom: 4px; color: #ddd; }
+  .opt p { font-size: 12px; color: #888; line-height: 1.4; }
+
+  .next-btn {
+    display: block;
+    margin: 20px auto 0;
+    background: #c0392b;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 12px 28px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    letter-spacing: 0.02em;
+  }
+</style>
+</head>
+<body>
+
+<div style="max-width:900px;margin:0 auto 16px;display:flex;align-items:center;justify-content:space-between;">
+  <div class="label">Final banner preview — warm cream</div>
+  <div class="label" style="color:#555">Scroll down for design questions</div>
+</div>
+
+<!-- THE BANNER -->
+<div class="banner">
+  <div class="text-block">
+    <div class="app-name">um<span>a</span>mi</div>
+    <div class="tagline">Recipe discovery & step-by-step cooking — all in one place.</div>
+    <div class="badges">
+      <span class="badge">iOS</span>
+      <span class="badge">React Native</span>
+      <span class="badge">Expo</span>
+    </div>
+  </div>
+  <div class="phones-wrap">
+    <div class="phone left">
+      <div class="phone-screen" style="width:90px;height:182px">
+        <img src="/files/screen1.png" alt="">
+      </div>
+    </div>
+    <div class="phone center">
+      <div class="phone-screen" style="width:104px;height:210px">
+        <img src="/files/screen2.png" alt="">
+      </div>
+    </div>
+    <div class="phone right">
+      <div class="phone-screen" style="width:90px;height:182px">
+        <img src="/files/screen3.png" alt="">
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- QUESTIONS -->
+<div class="question-section">
+  <div class="q-title">Two quick questions before I generate the final PNG</div>
+  <div class="q-sub">Click to select — just let me know in the terminal when you're done</div>
+
+  <div style="margin-bottom:16px;">
+    <div class="label" style="color:#666;margin-bottom:8px;">1 — Include text in the image?</div>
+    <div class="options-row">
+      <div class="opt" onclick="pick(this,'text','with-text')">
+        <h4>Yes — app name + tagline</h4>
+        <p>As shown above: "umami" + a one-liner</p>
+      </div>
+      <div class="opt" onclick="pick(this,'text','phones-only')">
+        <h4>Phones only</h4>
+        <p>Just the staggered screenshots, no text — cleaner, text lives in the README markdown</p>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-bottom:24px;">
+    <div class="label" style="color:#666;margin-bottom:8px;">2 — How to generate the image?</div>
+    <div class="options-row">
+      <div class="opt" onclick="pick(this,'gen','puppeteer')">
+        <h4>Puppeteer script</h4>
+        <p>I write a Node.js script, render the HTML headlessly, export a high-res PNG. Most faithful to the preview.</p>
+      </div>
+      <div class="opt" onclick="pick(this,'gen','python')">
+        <h4>Python + Pillow</h4>
+        <p>I composite the phone frames and screenshots programmatically. No browser dependency.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const picks = {};
+  function pick(el, group, val) {
+    document.querySelectorAll(`.opt[onclick*="'${group}'"]`).forEach(e => e.classList.remove('selected'));
+    el.classList.add('selected');
+    picks[group] = val;
+    console.log('pick', group, val);
+  }
+</script>
+</body>
+</html>

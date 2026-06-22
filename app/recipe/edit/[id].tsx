@@ -23,10 +23,6 @@ import {
   validateRecipeForEdit,
   ValidationErrors,
 } from "@/utils/recipeValidation";
-import {
-  getRecipeWithDetails,
-  updateRecipeFromApp,
-} from "@/services/recipeService";
 import { emitRecipeUpdated } from "@/utils/eventEmitter";
 import { useRecipes } from "@/context/RecipeContext";
 
@@ -52,7 +48,7 @@ interface EditState {
 
 const RecipeEditScreen: React.FC = () => {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { removeRecipe } = useRecipes();
+  const { removeRecipe, getRecipeById, updateRecipe } = useRecipes();
 
   const [state, setState] = useState<EditState>({
     recipe: {} as Recipe,
@@ -76,7 +72,7 @@ const RecipeEditScreen: React.FC = () => {
 
       try {
         console.log(`[RecipeEditScreen] Fetching recipe with ID: ${id}`);
-        const recipe = await getRecipeWithDetails(id);
+        const recipe = getRecipeById(id);
 
         if (!recipe) {
           Alert.alert("Error", "Recipe not found", [
@@ -310,7 +306,7 @@ const RecipeEditScreen: React.FC = () => {
       };
 
       console.log(
-        `[RecipeEditScreen] Calling updateRecipeFromApp with recipe:`,
+        `[RecipeEditScreen] Updating recipe:`,
         {
           id: updatedRecipe.id,
           title: updatedRecipe.title,
@@ -319,23 +315,19 @@ const RecipeEditScreen: React.FC = () => {
         }
       );
 
-      // Use the database update function instead of context
-      const savedRecipe = await updateRecipeFromApp(updatedRecipe);
-
-      if (!savedRecipe) {
-        throw new Error("Failed to save recipe to database");
-      }
+      // Use the context to update the recipe
+      await updateRecipe(updatedRecipe.id, updatedRecipe);
 
       console.log(`[RecipeEditScreen] Recipe saved successfully:`, {
-        id: savedRecipe.id,
-        title: savedRecipe.title,
-        ingredientCount: savedRecipe.ingredients?.length || 0,
+        id: updatedRecipe.id,
+        title: updatedRecipe.title,
+        ingredientCount: updatedRecipe.ingredients?.length || 0,
       });
 
       setState((prev) => ({
         ...prev,
-        recipe: savedRecipe,
-        originalRecipe: { ...savedRecipe },
+        recipe: updatedRecipe,
+        originalRecipe: { ...updatedRecipe },
         isDirty: false,
         isSaving: false,
         lastSaved: new Date(),
@@ -347,7 +339,7 @@ const RecipeEditScreen: React.FC = () => {
       }
 
       // Emit event to refresh recipes list
-      emitRecipeUpdated(savedRecipe);
+      emitRecipeUpdated(updatedRecipe);
 
       return true;
     } catch (error) {

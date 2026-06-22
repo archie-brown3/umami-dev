@@ -20,9 +20,6 @@ import {
 } from "@/utils/styleUtils";
 import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
 import { validateRecipe, ValidationErrors } from "@/utils/recipeValidation";
-import { supabase } from "@/lib/supabase";
-import { addRecipeToSupabase } from "@/services/recipeService";
-
 // Import edit components (reused for create)
 import EditHeader from "@/components/recipe/edit/EditHeader";
 import ImageEditSection from "@/components/recipe/edit/ImageEditSection";
@@ -282,40 +279,17 @@ const RecipeCreateScreen: React.FC = () => {
         return false;
       }
 
-      // Get the current user
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
-
-      if (userError || !user) {
-        throw new Error("You must be logged in to create recipes");
-      }
-
-      // Create final recipe with timestamps and user ID
+      // Create final recipe with timestamps
       const finalRecipe = {
         ...state.recipe,
-        userId: user.id,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
-
-      // Save recipe to database using the service function
-      const savedRecipe = await addRecipeToSupabase(finalRecipe, user.id);
-
-      if (!savedRecipe) {
-        throw new Error("Failed to save recipe to database");
-      }
-
-      // Clear draft from local storage
-      const draftKey = `recipe-draft-${state.recipe.id}`;
-      // await AsyncStorage.removeItem(draftKey);
 
       setState((prev) => ({
         ...prev,
         recipe: {
           ...finalRecipe,
-          id: savedRecipe.id, // Use the ID from the database
         },
         isDirty: false,
         isSaving: false,

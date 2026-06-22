@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 1280px;
+    height: 440px;
+    overflow: hidden;
+    background: #141414;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif;
+  }
+
+  .banner {
+    width: 1280px;
+    height: 440px;
+    display: flex;
+    align-items: stretch;
+    padding-left: 72px;
+    overflow: visible;
+    background:
+      radial-gradient(ellipse at 10% 60%, rgba(255,255,255,0.025) 0%, transparent 50%),
+      linear-gradient(145deg, #1c1c1e 0%, #141414 100%);
+    position: relative;
+  }
+
+  /* ── BRANDING ── */
+  .brand {
+    flex: 0 0 260px;
+    padding-right: 40px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 24px;
+    z-index: 2;
+  }
+
+  .wordmark {
+    font-size: 64px;
+    font-weight: 700;
+    letter-spacing: -0.045em;
+    color: #ffffff;
+    line-height: 1;
+  }
+  .wordmark .a-letter {
+    position: relative;
+    display: inline-block;
+  }
+  .wordmark .a-letter::after {
+    content: '';
+    position: absolute;
+    bottom: -3px;
+    left: 0; right: 0;
+    height: 4px;
+    background: #c0392b;
+    border-radius: 2px;
+  }
+
+  .badges {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 14px;
+    border-radius: 100px;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.1);
+    font-size: 12.5px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.72);
+    letter-spacing: 0.01em;
+    line-height: 1;
+    width: fit-content;
+  }
+  .badge img {
+    width: 14px;
+    height: 14px;
+    display: block;
+    flex-shrink: 0;
+  }
+
+  /* ── PHONES ── */
+  .phones {
+    flex: 1;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 18px;
+    z-index: 2;
+    padding-right: 24px;
+  }
+
+  .ph svg {
+    display: block;
+    filter: drop-shadow(0 24px 40px rgba(0,0,0,0.5));
+  }
+  .ph-side   svg { width: 200px; }
+  .ph-center svg { width: 232px; }
+</style>
+</head>
+<body>
+<div class="banner">
+
+  <div class="brand">
+    <div class="wordmark">um<span class="a-letter">a</span>mi</div>
+    <div class="badges">
+      <div class="badge"><img src="/files/logo-react-white.svg">React Native</div>
+      <div class="badge"><img src="/files/logo-expo-white.svg">Expo</div>
+      <div class="badge"><img src="/files/logo-typescript-white.svg">TypeScript</div>
+      <div class="badge"><img src="/files/logo-apple-white.svg">iOS</div>
+    </div>
+  </div>
+
+  <div class="phones">
+    <div class="ph ph-side">
+      <svg viewBox="0 0 200 432" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <clipPath id="c1"><rect x="7" y="7" width="186" height="418" rx="30"/></clipPath>
+          <linearGradient id="g1" x1="0" y1="0" x2="0.3" y2="1">
+            <stop offset="0%" stop-color="rgba(255,255,255,0.15)"/>
+            <stop offset="45%" stop-color="rgba(255,255,255,0)"/>
+          </linearGradient>
+        </defs>
+        <rect x="-4" y="80"  width="4" height="26" rx="2" fill="#3a3a3c"/>
+        <rect x="-4" y="116" width="4" height="34" rx="2" fill="#3a3a3c"/>
+        <rect x="-4" y="160" width="4" height="34" rx="2" fill="#3a3a3c"/>
+        <rect x="200" y="106" width="4" height="54" rx="2" fill="#3a3a3c"/>
+        <rect x="0" y="0" width="200" height="432" rx="38" fill="#2c2c2e"/>
+        <rect x="1" y="1" width="198" height="430" rx="37.5" fill="none"
+              stroke="rgba(255,255,255,0.12)" stroke-width="1.5"/>
+        <rect x="7" y="7" width="186" height="418" rx="30" fill="#000"/>
+        <image href="/files/screen1.png" x="7" y="7" width="186" height="418"
+               preserveAspectRatio="xMidYMin slice" clip-path="url(#c1)"/>
+        <rect x="7" y="7" width="186" height="418" rx="30"
+              fill="url(#g1)" pointer-events="none"/>
+      </svg>
+    </div>
+
+    <div class="ph ph-center">
+      <svg viewBox="0 0 200 432" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <clipPath id="c2"><rect x="7" y="7" width="186" height="418" rx="30"/></clipPath>
+          <linearGradient id="g2" x1="0" y1="0" x2="0.3" y2="1">
+            <stop offset="0%" stop-color="rgba(255,255,255,0.15)"/>
+            <stop offset="45%" stop-color="rgba(255,255,255,0)"/>
+          </linearGradient>
+        </defs>
+        <rect x="-4" y="80"  width="4" height="26" rx="2" fill="#3a3a3c"/>
+        <rect x="-4" y="116" width="4" height="34" rx="2" fill="#3a3a3c"/>
+        <rect x="-4" y="160" width="4" height="34" rx="2" fill="#3a3a3c"/>
+        <rect x="200" y="106" width="4" height="54" rx="2" fill="#3a3a3c"/>
+        <rect x="0" y="0" width="200" height="432" rx="38" fill="#2c2c2e"/>
+        <rect x="1" y="1" width="198" height="430" rx="37.5" fill="none"
+              stroke="rgba(255,255,255,0.12)" stroke-width="1.5"/>
+        <rect x="7" y="7" width="186" height="418" rx="30" fill="#000"/>
+        <image href="/files/screen2.png" x="7" y="7" width="186" height="418"
+               preserveAspectRatio="xMidYMin slice" clip-path="url(#c2)"/>
+        <rect x="7" y="7" width="186" height="418" rx="30"
+              fill="url(#g2)" pointer-events="none"/>
+      </svg>
+    </div>
+
+    <div class="ph ph-side">
+      <svg viewBox="0 0 200 432" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <clipPath id="c3"><rect x="7" y="7" width="186" height="418" rx="30"/></clipPath>
+          <linearGradient id="g3" x1="0" y1="0" x2="0.3" y2="1">
+            <stop offset="0%" stop-color="rgba(255,255,255,0.15)"/>
+            <stop offset="45%" stop-color="rgba(255,255,255,0)"/>
+          </linearGradient>
+        </defs>
+        <rect x="-4" y="80"  width="4" height="26" rx="2" fill="#3a3a3c"/>
+        <rect x="-4" y="116" width="4" height="34" rx="2" fill="#3a3a3c"/>
+        <rect x="-4" y="160" width="4" height="34" rx="2" fill="#3a3a3c"/>
+        <rect x="200" y="106" width="4" height="54" rx="2" fill="#3a3a3c"/>
+        <rect x="0" y="0" width="200" height="432" rx="38" fill="#2c2c2e"/>
+        <rect x="1" y="1" width="198" height="430" rx="37.5" fill="none"
+              stroke="rgba(255,255,255,0.12)" stroke-width="1.5"/>
+        <rect x="7" y="7" width="186" height="418" rx="30" fill="#000"/>
+        <image href="/files/screen3.png" x="7" y="7" width="186" height="418"
+               preserveAspectRatio="xMidYMin slice" clip-path="url(#c3)"/>
+        <rect x="7" y="7" width="186" height="418" rx="30"
+              fill="url(#g3)" pointer-events="none"/>
+      </svg>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

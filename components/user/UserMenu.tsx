@@ -1,38 +1,16 @@
 import React from "react";
 import { View, Text, StyleSheet, Pressable, Alert } from "react-native";
-import { useAuth } from "../../context/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, typography } from "../../utils/styleUtils";
+import { demoUser } from "../../lib/demoData";
 
-/**
- * UserMenu component that displays user information and actions
- * Shown in the header when a user is authenticated
- */
 export default function UserMenu() {
-  const { user, signOut } = useAuth();
+  const user = demoUser;
 
-  // If not authenticated, show sign in button
-  if (!user) {
-    return (
-      <Pressable style={styles.signInButton}>
-        <Text style={styles.signInText}>Sign In</Text>
-      </Pressable>
-    );
-  }
-
-  // Generate avatar initials from email
   const initials = user.email ? user.email.substring(0, 2).toUpperCase() : "US";
 
-  // Enhanced signOut with error handling
   const handleSignOut = async () => {
-    try {
-      console.log("Signing out user...");
-      await signOut();
-      console.log("Signed out successfully");
-    } catch (error) {
-      console.error("Error signing out:", error);
-      Alert.alert("Error", "Failed to sign out. Please try again.");
-    }
+    Alert.alert("Demo App", "Sign out is disabled in demo mode.", [{ text: "OK" }]);
   };
 
   return (

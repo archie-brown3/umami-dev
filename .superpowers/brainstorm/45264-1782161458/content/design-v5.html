@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #111;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 36px 24px 60px;
+  }
+
+  .meta {
+    width: 980px; margin-bottom: 14px;
+    display: flex; justify-content: space-between;
+    font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #444;
+  }
+
+  /* ── BANNER ── */
+  .banner {
+    width: 980px;
+    height: 460px;
+    border-radius: 22px;
+    display: flex;
+    align-items: center;
+    padding: 48px 52px;
+    position: relative;
+    overflow: hidden;
+
+    background:
+      radial-gradient(ellipse at 30% 120%, rgba(210,155,60,0.28) 0%, transparent 50%),
+      radial-gradient(ellipse at 90%  -5%, rgba(255,235,190,0.35) 0%, transparent 45%),
+      linear-gradient(158deg, #fff9f0 0%, #fdf3e0 50%, #fef6e8 100%);
+
+    box-shadow:
+      inset 0 1.5px 0 rgba(255,255,255,0.7),
+      inset 0 -1px 0 rgba(180,130,50,0.12),
+      0 16px 80px rgba(0,0,0,0.5);
+  }
+
+  /* ── LEFT ── */
+  .branding {
+    flex: 0 0 210px;
+    padding-right: 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    z-index: 2;
+  }
+
+  /* wordmark — the "a" has a chilli growing from its crown */
+  .wordmark {
+    font-size: 52px;
+    font-weight: 800;
+    letter-spacing: -0.05em;
+    color: #1a0e04;
+    line-height: 1;
+    display: flex;
+    align-items: baseline;
+  }
+
+  .a-wrap {
+    position: relative;
+    color: #c0392b;
+    display: inline-block;
+  }
+
+  /*
+    Chilli: centred above the "a", slight lean.
+    At 52px 800-weight, the letter "a" is ~30px wide.
+    We centre the chilli (24px wide) over it, 18px above the baseline.
+  */
+  .chilli-svg {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    /* horizontally centred over the "a" */
+    left: 50%;
+    transform: translateX(-50%) rotate(-12deg);
+    /* sit just above the top of the letter */
+    top: -18px;
+    pointer-events: none;
+  }
+
+  /* badges — column, full-width */
+  .badges {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .badge {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 12px;
+    border-radius: 100px;
+    background: rgba(255,255,255,0.62);
+    border: 1px solid rgba(150,90,25,0.15);
+    font-size: 11.5px;
+    font-weight: 600;
+    color: #5a3810;
+    letter-spacing: 0.01em;
+    width: fit-content;
+    line-height: 1;
+  }
+  /* all badge icons: fixed 14×14, vertically centred */
+  .badge svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    display: block;
+  }
+
+  /* ── RIGHT: phones ── */
+  .phones {
+    flex: 1;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 18px;
+    height: 100%;
+    padding-bottom: 0;
+    z-index: 2;
+  }
+
+  /* Each phone SVG: no rotation, different heights for centre emphasis */
+  .phones svg {
+    display: block;
+    filter: drop-shadow(0 20px 32px rgba(0,0,0,0.28));
+  }
+  .phones .ph-side   svg { width: 142px; }
+  .phones .ph-center svg { width: 164px; }
+</style>
+</head>
+<body>
+
+<div class="meta">
+  <span>README header — v5 · clean, upright, no rotation</span>
+  <span>Approve or request tweaks in terminal</span>
+</div>
+
+<div class="banner">
+
+  <!-- BRANDING -->
+  <div class="branding">
+
+    <!-- Wordmark -->
+    <div class="wordmark">
+      <span>um</span><span class="a-wrap">a
+        <!-- Chilli — centred above the "a", body red (matches letter), stem green -->
+        <svg class="chilli-svg" viewBox="0 0 24 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- stem -->
+          <path d="M12 11 Q15 4 22 1" stroke="#4a8040" stroke-width="2.6" stroke-linecap="round"/>
+          <!-- leaf nub -->
+          <path d="M13.5 9 Q18 5 20 8 Q16.5 10 13.5 9Z" fill="#4a8040"/>
+          <!-- body — centred on x=12 -->
+          <ellipse cx="12" cy="30" rx="9" ry="16" fill="#c0392b"/>
+          <!-- pointed tip at bottom -->
+          <path d="M7 42 Q12 52 17 42" fill="#c0392b"/>
+          <!-- highlight -->
+          <path d="M8 16 C7 21 7 30 8.5 40"
+                stroke="rgba(255,255,255,0.28)" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+      </span><span>mi</span>
+    </div>
+
+    <!-- Badges -->
+    <div class="badges">
+
+      <!-- React Native -->
+      <div class="badge">
+        <svg viewBox="0 0 100 100" fill="none">
+          <circle cx="50" cy="50" r="9" fill="#61DAFB"/>
+          <ellipse cx="50" cy="50" rx="46" ry="15" stroke="#61DAFB" stroke-width="7"/>
+          <ellipse cx="50" cy="50" rx="46" ry="15" stroke="#61DAFB" stroke-width="7" transform="rotate(60 50 50)"/>
+          <ellipse cx="50" cy="50" rx="46" ry="15" stroke="#61DAFB" stroke-width="7" transform="rotate(120 50 50)"/>
+        </svg>
+        React Native
+      </div>
+
+      <!-- Expo -->
+      <div class="badge">
+        <svg viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="50" fill="#000"/>
+          <text x="50" y="68" text-anchor="middle"
+                font-family="Arial Black, Arial, sans-serif"
+                font-weight="900" font-size="58" fill="white">E</text>
+        </svg>
+        Expo
+      </div>
+
+      <!-- TypeScript -->
+      <div class="badge">
+        <svg viewBox="0 0 100 100">
+          <rect width="100" height="100" rx="14" fill="#3178C6"/>
+          <text x="50" y="70" text-anchor="middle"
+                font-family="Arial, sans-serif"
+                font-weight="700" font-size="42" fill="white">TS</text>
+        </svg>
+        TypeScript
+      </div>
+
+      <!-- iOS — simple apple shape -->
+      <div class="badge">
+        <svg viewBox="0 0 56 64" fill="#555">
+          <!-- leaf -->
+          <path d="M32 2 Q42 -1 40 12 Q30 15 32 2Z"/>
+          <!-- body: two lobes + body -->
+          <path d="M28 14
+            C 20 14 8 22 8 36
+            C 8 52 18 64 28 64
+            C 33 64 36 61 40 61
+            C 44 61 47 64 52 63
+            C 44 50 40 43 40 36
+            C 40 27 46 20 50 15
+            C 44 13 38 12 34 12
+            C 32 12 30 14 28 14Z"/>
+        </svg>
+        iOS
+      </div>
+
+    </div>
+  </div>
+
+  <!-- PHONES — all upright, flexbox row -->
+  <div class="phones">
+
+    <!-- Phone 1: recipe list -->
+    <div class="ph-side">
+      <svg viewBox="0 0 200 432" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <clipPath id="c1"><rect x="7" y="7" width="186" height="418" rx="30"/></clipPath>
+          <linearGradient id="g1" x1="0" y1="0" x2="0.3" y2="1">
+            <stop offset="0%" stop-color="rgba(255,255,255,0.18)"/>
+            <stop offset="50%" stop-color="rgba(255,255,255,0)"/>
+          </linearGradient>
+        </defs>
+        <rect x="-4"  y="80"  width="4" height="26" rx="2" fill="#2c2c2e"/>
+        <rect x="-4"  y="116" width="4" height="34" rx="2" fill="#2c2c2e"/>
+        <rect x="-4"  y="160" width="4" height="34" rx="2" fill="#2c2c2e"/>
+        <rect x="200" y="106" width="4" height="54" rx="2" fill="#2c2c2e"/>
+        <rect x="0" y="0" width="200" height="432" rx="38" fill="#1c1c1e"/>
+        <rect x="1" y="1" width="198" height="430" rx="37.5" fill="none"
+              stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>
+        <rect x="7" y="7" width="186" height="418" rx="30" fill="#000"/>
+        <image href="/files/screen1.png" x="7" y="7" width="186" height="418"
+               preserveAspectRatio="xMidYMin slice" clip-path="url(#c1)"/>
+        <rect x="7" y="7" width="186" height="418" rx="30"
+              fill="url(#g1)" pointer-events="none"/>
+      </svg>
+    </div>
+
+    <!-- Phone 2: recipe detail (slightly wider → taller) -->
+    <div class="ph-center">
+      <svg viewBox="0 0 200 432" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <clipPath id="c2"><rect x="7" y="7" width="186" height="418" rx="30"/></clipPath>
+          <linearGradient id="g2" x1="0" y1="0" x2="0.3" y2="1">
+            <stop offset="0%" stop-color="rgba(255,255,255,0.18)"/>
+            <stop offset="50%" stop-color="rgba(255,255,255,0)"/>
+          </linearGradient>
+        </defs>
+        <rect x="-4"  y="80"  width="4" height="26" rx="2" fill="#2c2c2e"/>
+        <rect x="-4"  y="116" width="4" height="34" rx="2" fill="#2c2c2e"/>
+        <rect x="-4"  y="160" width="4" height="34" rx="2" fill="#2c2c2e"/>
+        <rect x="200" y="106" width="4" height="54" rx="2" fill="#2c2c2e"/>
+        <rect x="0" y="0" width="200" height="432" rx="38" fill="#1c1c1e"/>
+        <rect x="1" y="1" width="198" height="430" rx="37.5" fill="none"
+              stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>
+        <rect x="7" y="7" width="186" height="418" rx="30" fill="#000"/>
+        <image href="/files/screen2.png" x="7" y="7" width="186" height="418"
+               preserveAspectRatio="xMidYMin slice" clip-path="url(#c2)"/>
+        <rect x="7" y="7" width="186" height="418" rx="30"
+              fill="url(#g2)" pointer-events="none"/>
+      </svg>
+    </div>
+
+    <!-- Phone 3: cooking mode -->
+    <div class="ph-side">
+      <svg viewBox="0 0 200 432" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <clipPath id="c3"><rect x="7" y="7" width="186" height="418" rx="30"/></clipPath>
+          <linearGradient id="g3" x1="0" y1="0" x2="0.3" y2="1">
+            <stop offset="0%" stop-color="rgba(255,255,255,0.18)"/>
+            <stop offset="50%" stop-color="rgba(255,255,255,0)"/>
+          </linearGradient>
+        </defs>
+        <rect x="-4"  y="80"  width="4" height="26" rx="2" fill="#2c2c2e"/>
+        <rect x="-4"  y="116" width="4" height="34" rx="2" fill="#2c2c2e"/>
+        <rect x="-4"  y="160" width="4" height="34" rx="2" fill="#2c2c2e"/>
+        <rect x="200" y="106" width="4" height="54" rx="2" fill="#2c2c2e"/>
+        <rect x="0" y="0" width="200" height="432" rx="38" fill="#1c1c1e"/>
+        <rect x="1" y="1" width="198" height="430" rx="37.5" fill="none"
+              stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>
+        <rect x="7" y="7" width="186" height="418" rx="30" fill="#000"/>
+        <image href="/files/screen3.png" x="7" y="7" width="186" height="418"
+               preserveAspectRatio="xMidYMin slice" clip-path="url(#c3)"/>
+        <rect x="7" y="7" width="186" height="418" rx="30"
+              fill="url(#g3)" pointer-events="none"/>
+      </svg>
+    </div>
+
+  </div>
+</div>
+
+<!-- Approve -->
+<div style="margin-top:24px;display:flex;gap:12px;justify-content:center;">
+  <button onclick="this.style.borderColor='#c0392b';this.style.color='#fff'"
+    style="background:#1e1e1e;border:1.5px solid #333;border-radius:10px;padding:12px 24px;font-size:13px;font-family:inherit;color:#aaa;cursor:pointer;">
+    ✓ Looks good — generate the PNG
+  </button>
+  <button onclick="this.style.borderColor='#c0392b';this.style.color='#fff'"
+    style="background:#1e1e1e;border:1.5px solid #333;border-radius:10px;padding:12px 24px;font-size:13px;font-family:inherit;color:#aaa;cursor:pointer;">
+    ✏ Needs tweaks
+  </button>
+</div>
+
+</body>
+</html>

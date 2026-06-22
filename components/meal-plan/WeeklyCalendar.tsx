@@ -14,11 +14,21 @@ import { Ionicons } from "@expo/vector-icons";
 import { useMealPlan } from "@/context/MealPlanContext";
 import { useGroceries } from "@/context/GroceriesContext";
 import { useRecipes } from "@/context/RecipeContext";
-import { getWeekDates, MealPlanItem } from "@/services/mealPlanService";
+import { MealPlanItem } from "@/context/mealPlanTypes";
 import { colors, spacing, borderRadius } from "@/utils/styleUtils";
 import MealSlot from "./MealSlot";
 import { RecipeCard } from "../recipes/RecipeCard";
 import { router } from "expo-router";
+
+function getWeekDates(weekStart: Date): string[] {
+  const dates: string[] = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(weekStart);
+    d.setDate(d.getDate() + i);
+    dates.push(d.toISOString().split("T")[0]);
+  }
+  return dates;
+}
 
 const DAYS_OF_WEEK = [
   "Monday",

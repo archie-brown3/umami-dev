@@ -11,16 +11,14 @@ import {
   SafeAreaView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useAuth } from "@/context/AuthContext";
 import { useRecipes } from "@/context/RecipeContext";
 import { useFeatureGating } from "@/hooks/useFeatureGating";
 import { useSubscription } from "@/context/SubscriptionContext";
 import { Paywall } from "@/components/subscription/Paywall";
 import { router, Stack } from "expo-router";
 import { colors, spacing, borderRadius, typography } from "@/utils/styleUtils";
-import { getUserRecipes } from "@/services/recipeService";
 import * as ImagePicker from "expo-image-picker";
-import { supabase } from "@/lib/supabase";
+import { demoUser, demoRecipes } from "@/lib/demoData";
 
 interface UserStats {
   totalRecipes: number;
@@ -30,80 +28,43 @@ interface UserStats {
 }
 
 export default function ProfileScreen() {
-  const { user, signOut } = useAuth();
   const { recipes } = useRecipes();
   const { isPremium, presentPaywall } = useSubscription();
   const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [showPaywall, setShowPaywall] = useState(false);
+
+  const user = demoUser;
 
   useEffect(() => {
-    if (user) {
-      loadUserStats();
-      // Load existing avatar if available
-      if (user.user_metadata?.avatar_url) {
-        setAvatarUrl(user.user_metadata.avatar_url);
-      }
-    }
-  }, [user]);
+    loadUserStats();
+  }, [recipes]);
 
   const loadUserStats = async () => {
     setIsLoading(true);
     try {
-      if (!user) return;
+      const allRecipes = recipes.length > 0 ? recipes : demoRecipes;
+      const totalRecipes = allRecipes.length;
+      const favoriteRecipes = allRecipes.filter((r) => r.isFavorite).length;
 
-      // Get recipe statistics
-      const { data: recipes, error: recipesError } = await supabase
-        .from("recipes")
-        .select("id, isFavorite, created_at")
-        .eq("userId", user.id);
-
-      if (recipesError) {
-        console.error("[Profile] Error fetching recipes:", recipesError);
-        return;
-      }
-
-      const totalRecipes = recipes?.length || 0;
-      const favoriteRecipes = recipes?.filter((r) => r.isFavorite).length || 0;
-
-      // Calculate recipes added this week
       const oneWeekAgo = new Date();
       oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
       const recentlyAdded =
-        recipes?.filter((r) => new Date(r.created_at) > oneWeekAgo).length || 0;
+        allRecipes.filter((r) => new Date(r.createdAt) > oneWeekAgo).length || 0;
 
       setUserStats({
         totalRecipes,
         favoriteRecipes,
         recentlyAdded,
-        joinedDate: user.created_at,
+        joinedDate: demoUser.created_at,
       });
     } catch (error) {
       console.error("[Profile] Error loading user stats:", error);
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleSignOut = async () => {
-    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
-      {
-        text: "Cancel",
-        style: "cancel",
-      },
-      {
-        text: "Sign Out",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await signOut();
-          } catch (error) {
-            Alert.alert("Error", "Failed to sign out");
-          }
-        },
-      },
-    ]);
   };
 
   const formatJoinDate = (dateString: string) => {
@@ -191,21 +152,7 @@ export default function ProfileScreen() {
   const uploadPhoto = async (uri: string) => {
     setIsUploadingPhoto(true);
     try {
-      // For now, just use the local URI
-      // In production, you'd upload to Supabase Storage
       setAvatarUrl(uri);
-
-      // Update user metadata
-      const { error } = await supabase.auth.updateUser({
-        data: { avatar_url: uri },
-      });
-
-      if (error) {
-        console.error("Error updating avatar:", error);
-        Alert.alert("Error", "Failed to update profile photo.");
-        return;
-      }
-
       Alert.alert("Success", "Profile photo updated successfully!");
     } catch (error) {
       console.error("Error uploading photo:", error);
@@ -218,18 +165,6 @@ export default function ProfileScreen() {
   const removePhoto = async () => {
     try {
       setAvatarUrl(null);
-
-      // Update user metadata
-      const { error } = await supabase.auth.updateUser({
-        data: { avatar_url: null },
-      });
-
-      if (error) {
-        console.error("Error removing avatar:", error);
-        Alert.alert("Error", "Failed to remove profile photo.");
-        return;
-      }
-
       Alert.alert("Success", "Profile photo removed successfully!");
     } catch (error) {
       console.error("Error removing photo:", error);
@@ -237,50 +172,14 @@ export default function ProfileScreen() {
     }
   };
 
-  if (!user) {
-    return (
-      <SafeAreaView style={styles.safeArea}>
-        <Stack.Screen
-          options={{
-            headerShown: false,
-          }}
-        />
-
-        {/* Custom Header */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="chevron-back" size={24} color={colors.dark} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Profile</Text>
-          <View style={styles.headerActions}>
-            <View style={styles.actionButton}>
-              {/* Empty placeholder for consistent spacing */}
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>Loading profile...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
   return (
     <SafeAreaView style={styles.safeArea}>
-      {/* Disable the native header */}
       <Stack.Screen
         options={{
           headerShown: false,
         }}
       />
 
-      {/* Custom Header - Simplified without edit button */}
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
@@ -291,12 +190,11 @@ export default function ProfileScreen() {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Profile</Text>
         <View style={styles.headerActions}>
-          {/* Removed edit button for cleaner UI */}
+          <View style={styles.actionButton} />
         </View>
       </View>
 
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-        {/* Profile Header with Enhanced Photo Upload */}
         <View style={styles.profileHeader}>
           <View style={styles.avatarContainer}>
             <TouchableOpacity
@@ -340,7 +238,6 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* User Statistics - Removed Cook Time */}
         {isLoading ? (
           <View style={styles.statsLoadingContainer}>
             <ActivityIndicator size="small" color={colors.primary} />
@@ -372,7 +269,6 @@ export default function ProfileScreen() {
           </View>
         )}
 
-        {/* Subscription Status */}
         <View style={styles.subscriptionSection}>
           <Text style={styles.sectionTitle}>⭐ Subscription Status</Text>
           <View style={styles.subscriptionCard}>
@@ -488,26 +384,36 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* Account Actions - Simplified */}
         <View style={styles.accountSection}>
           <TouchableOpacity
             style={styles.signOutButton}
-            onPress={handleSignOut}
+            onPress={() =>
+              Alert.alert(
+                "Demo App",
+                "This is a demo version. Sign out is disabled.",
+                [{ text: "OK" }]
+              )
+            }
           >
             <Ionicons
               name="log-out-outline"
               size={20}
               color={colors.red[500]}
             />
-            <Text style={styles.signOutText}>Sign Out</Text>
+            <Text style={styles.signOutText}>Sign Out (Demo)</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Bottom padding */}
         <View style={{ height: 40 }} />
       </ScrollView>
 
-      <Paywall visible={false} onClose={() => {}} feature="Premium Features" />
+      {showPaywall && (
+        <Paywall
+          visible={showPaywall}
+          onClose={() => setShowPaywall(false)}
+          feature="Premium Features"
+        />
+      )}
     </SafeAreaView>
   );
 }

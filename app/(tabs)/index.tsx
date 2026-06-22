@@ -15,7 +15,6 @@ import { useFocusEffect, router } from "expo-router";
 import { colors, spacing, borderRadius, typography } from "@/utils/styleUtils";
 import { useRecipes } from "@/context/RecipeContext";
 import { useMealPlan } from "@/context/MealPlanContext";
-import { useAuth } from "@/context/AuthContext";
 import { useFeatureGating } from "@/hooks/useFeatureGating";
 import { Paywall } from "@/components/subscription/Paywall";
 import TodaysMealPlan from "@/components/meal-planning/TodaysMealPlan";
@@ -147,7 +146,6 @@ const RecentRecipeItem = ({
 export default function HomeScreen() {
   const { recipes } = useRecipes();
   const { weekMeals } = useMealPlan();
-  const { user } = useAuth();
   const { isPremium } = useFeatureGating();
   const { presentPaywall } = useSubscription();
 

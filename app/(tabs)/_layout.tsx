@@ -1,29 +1,16 @@
-import React, { useState } from "react";
-import {
-  View,
-  Text,
-  Pressable,
-  StyleSheet,
-  Platform,
-  TouchableOpacity,
-} from "react-native";
-import { Tabs, Link, usePathname, router } from "expo-router";
+import React from "react";
+import { View, StyleSheet, Platform } from "react-native";
+import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { colors, spacing, createShadow } from "@/utils/styleUtils";
+import { colors } from "@/utils/styleUtils";
 import { useColorScheme } from "@/hooks/useColorScheme";
-import { useAuth } from "@/context/AuthContext";
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
-  const { user } = useAuth();
   const insets = useSafeAreaInsets();
-
-  if (!user) {
-    return null;
-  }
 
   return (
     <View style={styles.container}>

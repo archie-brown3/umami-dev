@@ -23,7 +23,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       usesNonExemptEncryption: false,
     },
     // Enable Apple Sign In capability
-    usesAppleSignIn: true,
+    usesAppleSignIn: false,
     infoPlist: {
       // Camera permission for taking recipe photos and text recognition
       NSCameraUsageDescription:
@@ -101,7 +101,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   //     projectId: "will-be-generated-for-mightyarch3",
   //   },
   // },
-  plugins: [
+    plugins: [
     "expo-router",
     [
       "expo-build-properties",
@@ -111,8 +111,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         },
       },
     ],
-    // Apple Authentication plugin - REQUIRED for TestFlight
-    "expo-apple-authentication",
     [
       "expo-image-picker",
       {

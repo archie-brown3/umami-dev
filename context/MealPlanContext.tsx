@@ -3,20 +3,11 @@ import React, {
   useContext,
   useState,
   useEffect,
-  ReactNode,
 } from "react";
-import { useAuth } from "./AuthContext";
-import {
-  MealPlan,
-  MealPlanItem,
-  WeekMeals,
-  getMealPlansForWeek,
-  addMealPlanItem,
-  removeMealPlanItem,
-  getWeekStart,
-  getWeekDates,
-} from "@/services/mealPlanService";
-import { generateShoppingListFromMealPlan } from "@/services/groceriesService";
+import { demoStore } from "@/lib/demoStore";
+import { MealPlanItem, WeekMeals } from "./mealPlanTypes";
+
+export { MealPlanItem, WeekMeals };
 
 export interface MealSlot {
   date: string;
@@ -25,41 +16,21 @@ export interface MealSlot {
 }
 
 interface MealPlanContextType {
-  // Current week view
   currentWeek: Date;
   weekMeals: WeekMeals;
   isLoading: boolean;
   error: string | null;
-
-  // Date selection
   selectedDate: string;
   setSelectedDate: (date: string) => void;
   setCurrentWeek: (week: Date) => void;
-
-  // CRUD operations
-  addMealToDay: (
-    date: string,
-    mealType: string,
-    recipeId: string
-  ) => Promise<void>;
-  removeMealFromDay: (
-    date: string,
-    mealType: string,
-    recipeId: string
-  ) => Promise<void>;
+  addMealToDay: (date: string, mealType: string, recipeId: string) => Promise<void>;
+  removeMealFromDay: (date: string, mealType: string, recipeId: string) => Promise<void>;
   moveMeal: (from: MealSlot, to: MealSlot) => Promise<void>;
-
-  // Navigation
   goToNextWeek: () => void;
   goToPreviousWeek: () => void;
   goToToday: () => void;
-
-  // Utilities
   generateShoppingList: (
-    dateRange: {
-      start: string;
-      end: string;
-    },
+    dateRange: { start: string; end: string },
     options?: {
       consolidateSimilar?: boolean;
       addToExistingList?: boolean;
@@ -83,8 +54,27 @@ export const useMealPlan = () => {
   return context;
 };
 
+function getWeekStart(date: Date): Date {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  d.setDate(diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function getWeekDates(weekStart: Date): string[] {
+  const dates: string[] = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(weekStart);
+    d.setDate(d.getDate() + i);
+    dates.push(d.toISOString().split("T")[0]);
+  }
+  return dates;
+}
+
 interface MealPlanProviderProps {
-  children: ReactNode;
+  children: React.ReactNode;
 }
 
 export const MealPlanProvider: React.FC<MealPlanProviderProps> = ({
@@ -99,72 +89,40 @@ export const MealPlanProvider: React.FC<MealPlanProviderProps> = ({
   const [weekMeals, setWeekMeals] = useState<WeekMeals>({});
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [retryCount, setRetryCount] = useState(0);
 
-  // Get auth context - should be safe since AuthProvider wraps this provider
-  const { user } = useAuth();
-
-  // Load week meals when user or currentWeek changes
-  useEffect(() => {
-    if (user?.id) {
-      loadWeekMeals();
-    }
-  }, [user?.id, currentWeek]);
-
-  const loadWeekMeals = async (isRetry: boolean = false) => {
-    if (!user?.id) return;
-
+  const loadWeekMeals = async () => {
     setIsLoading(true);
-    if (!isRetry) {
-      setError(null);
-      setRetryCount(0);
-    }
+    setError(null);
 
     try {
-      console.log(`[MealPlanContext] Loading meals for user: ${user.id}`);
       const weekStart = currentWeek.toISOString().split("T")[0];
-      const meals = await getMealPlansForWeek(user.id, weekStart);
+      const meals = demoStore.getMealPlansForWeek("demo-user-001", weekStart);
       setWeekMeals(meals);
-      setError(null);
-      setRetryCount(0);
-      console.log(`[MealPlanContext] Successfully loaded meals`);
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : "Failed to load meal plans";
       setError(errorMessage);
       console.error("Error loading week meals:", err);
-
-      // Auto-retry for network errors (up to 3 times)
-      if (retryCount < 3 && errorMessage.toLowerCase().includes("network")) {
-        const newRetryCount = retryCount + 1;
-        setRetryCount(newRetryCount);
-        console.log(
-          `[MealPlanContext] Auto-retrying (${newRetryCount}/3) in 2 seconds...`
-        );
-        setTimeout(() => {
-          loadWeekMeals(true);
-        }, 2000);
-      }
     } finally {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadWeekMeals();
+  }, [currentWeek]);
 
   const addMealToDay = async (
     date: string,
     mealType: string,
     recipeId: string
   ): Promise<void> => {
-    if (!user?.id) throw new Error("User not authenticated");
-
     try {
       setError(null);
-      await addMealPlanItem(user.id, date, {
+      demoStore.addMealPlanItem("demo-user-001", date, {
         recipe_id: recipeId,
-        meal_type: mealType as "breakfast" | "lunch" | "dinner" | "snack",
+        meal_type: mealType,
       });
-
-      // Refresh the week data
       await loadWeekMeals();
     } catch (err) {
       const errorMessage =
@@ -179,22 +137,14 @@ export const MealPlanProvider: React.FC<MealPlanProviderProps> = ({
     mealType: string,
     recipeId: string
   ): Promise<void> => {
-    if (!user?.id) throw new Error("User not authenticated");
-
     try {
       setError(null);
-
-      // Find the meal plan item to remove
       const dayMeals = weekMeals[date]?.[mealType] || [];
       const itemToRemove = dayMeals.find((item) => item.recipe_id === recipeId);
-
       if (!itemToRemove) {
         throw new Error("Meal not found");
       }
-
-      await removeMealPlanItem(itemToRemove.id);
-
-      // Refresh the week data
+      demoStore.removeMealPlanItem(itemToRemove.id);
       await loadWeekMeals();
     } catch (err) {
       const errorMessage =
@@ -205,15 +155,9 @@ export const MealPlanProvider: React.FC<MealPlanProviderProps> = ({
   };
 
   const moveMeal = async (from: MealSlot, to: MealSlot): Promise<void> => {
-    if (!user?.id) throw new Error("User not authenticated");
-
     try {
       setError(null);
-
-      // Remove from source
       await removeMealFromDay(from.date, from.mealType, from.recipeId);
-
-      // Add to destination
       await addMealToDay(to.date, to.mealType, from.recipeId);
     } catch (err) {
       const errorMessage =
@@ -240,50 +184,32 @@ export const MealPlanProvider: React.FC<MealPlanProviderProps> = ({
   };
 
   const generateShoppingList = async (
-    dateRange: {
-      start: string;
-      end: string;
-    },
+    dateRange: { start: string; end: string },
     options?: {
       consolidateSimilar?: boolean;
       addToExistingList?: boolean;
       excludePantryItems?: boolean;
     }
   ): Promise<void> => {
-    if (!user?.id) throw new Error("User not authenticated");
-
-    try {
-      setError(null);
-      await generateShoppingListFromMealPlan(user.id, dateRange, options);
-    } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Failed to generate shopping list";
-      setError(errorMessage);
-      throw err;
-    }
+    console.log("generateShoppingList called (demo mode)", dateRange, options);
   };
 
   const duplicateWeek = async (
     sourceWeek: Date,
     targetWeek: Date
   ): Promise<void> => {
-    if (!user?.id) throw new Error("User not authenticated");
-
     try {
       setError(null);
-
-      // Get source week meals
       const sourceWeekStart = getWeekStart(sourceWeek)
         .toISOString()
         .split("T")[0];
-      const sourceMeals = await getMealPlansForWeek(user.id, sourceWeekStart);
-
-      // Get target week dates
-      const targetWeekStart = getWeekStart(targetWeek);
-      const targetDates = getWeekDates(targetWeekStart);
+      const sourceMeals = demoStore.getMealPlansForWeek(
+        "demo-user-001",
+        sourceWeekStart
+      );
+      const targetDates = getWeekDates(getWeekStart(targetWeek));
       const sourceDates = getWeekDates(getWeekStart(sourceWeek));
 
-      // Copy meals from source to target
       for (let i = 0; i < 7; i++) {
         const sourceDate = sourceDates[i];
         const targetDate = targetDates[i];
@@ -299,8 +225,7 @@ export const MealPlanProvider: React.FC<MealPlanProviderProps> = ({
         }
       }
 
-      // Refresh if we're viewing the target week
-      if (targetWeekStart.getTime() === currentWeek.getTime()) {
+      if (targetWeek.getTime() === currentWeek.getTime()) {
         await loadWeekMeals();
       }
     } catch (err) {
@@ -312,7 +237,6 @@ export const MealPlanProvider: React.FC<MealPlanProviderProps> = ({
   };
 
   const refreshWeek = async (): Promise<void> => {
-    setRetryCount(0);
     await loadWeekMeals();
   };
 

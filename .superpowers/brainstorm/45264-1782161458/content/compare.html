@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0d0d0d;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 40px;
+    padding: 36px 24px 80px;
+  }
+
+  .section-label {
+    width: 980px;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #444;
+    margin-bottom: -28px;
+  }
+
+  /* ─── PHONE FRAME (shared) ─── */
+  .phone-wrap { position: relative; }
+  .phone-wrap svg { display: block; filter: drop-shadow(0 20px 32px rgba(0,0,0,0.35)); }
+  .ph-side   svg { width: 180px; }
+  .ph-center svg { width: 208px; }
+
+  /* ─── BADGES (shared structure) ─── */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 13px;
+    border-radius: 100px;
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    line-height: 1;
+  }
+  .badge img {
+    width: 13px;
+    height: 13px;
+    display: block;
+    flex-shrink: 0;
+  }
+
+  /* ══════════════════════════════════════
+     DESIGN A — Warm cream, playful
+  ══════════════════════════════════════ */
+  .banner-a {
+    width: 980px;
+    height: 460px;
+    border-radius: 22px;
+    display: flex;
+    align-items: stretch;
+    padding-left: 56px;
+    overflow: visible;
+    background:
+      radial-gradient(ellipse at 28% 120%, rgba(210,150,55,0.28) 0%, transparent 48%),
+      radial-gradient(ellipse at 88% -8%,  rgba(255,235,185,0.36) 0%, transparent 44%),
+      linear-gradient(158deg, #fff9f0 0%, #fdf3e0 50%, #fef6e8 100%);
+    box-shadow:
+      inset 0 1.5px 0 rgba(255,255,255,0.72),
+      0 16px 72px rgba(0,0,0,0.45);
+    position: relative;
+  }
+
+  .brand-a {
+    flex: 0 0 210px;
+    padding-right: 28px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 22px;
+    z-index: 2;
+  }
+
+  .wordmark-a {
+    font-size: 54px;
+    font-weight: 800;
+    letter-spacing: -0.05em;
+    color: #1a0e04;
+    line-height: 1;
+    /* relative so the JS-positioned chilli can use it as anchor */
+    position: relative;
+  }
+  .wordmark-a .a-letter { color: #c0392b; }
+
+  /* Chilli: initially hidden, JS positions it */
+  #chilli-a {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.1s;
+  }
+
+  .badges-a {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .badge-a {
+    background: rgba(255,255,255,0.62);
+    border: 1px solid rgba(150,90,25,0.15);
+    color: #5a3810;
+  }
+
+  .phones-a {
+    flex: 1;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 14px;
+    z-index: 2;
+  }
+
+  /* ══════════════════════════════════════
+     DESIGN B — Dark slate, professional
+  ══════════════════════════════════════ */
+  .banner-b {
+    width: 980px;
+    height: 460px;
+    border-radius: 22px;
+    display: flex;
+    align-items: stretch;
+    padding-left: 56px;
+    overflow: visible;
+    background:
+      radial-gradient(ellipse at 10% 60%, rgba(255,255,255,0.03) 0%, transparent 50%),
+      linear-gradient(145deg, #1c1c1e 0%, #141414 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.06),
+      0 16px 72px rgba(0,0,0,0.6);
+    position: relative;
+  }
+
+  .brand-b {
+    flex: 0 0 210px;
+    padding-right: 28px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 22px;
+    z-index: 2;
+  }
+
+  .wordmark-b {
+    font-size: 54px;
+    font-weight: 700;
+    letter-spacing: -0.045em;
+    color: #ffffff;
+    line-height: 1;
+  }
+  /* Professional accent: thin red underline beneath "a" only */
+  .wordmark-b .a-letter {
+    position: relative;
+  }
+  .wordmark-b .a-letter::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0; right: 0;
+    height: 3px;
+    background: #c0392b;
+    border-radius: 2px;
+  }
+
+  .badges-b {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .badge-b {
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.75);
+  }
+
+  .phones-b {
+    flex: 1;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 14px;
+    z-index: 2;
+  }
+
+  /* ── Approve row ── */
+  .choose-row {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    margin-top: 0;
+  }
+  .choose-btn {
+    background: #1a1a1a;
+    border: 1.5px solid #333;
+    border-radius: 10px;
+    padding: 13px 28px;
+    font-size: 13px;
+    font-family: inherit;
+    font-weight: 600;
+    color: #888;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+    letter-spacing: 0.01em;
+  }
+  .choose-btn:hover { border-color: #555; color: #ccc; }
+  .choose-btn.selected { border-color: #c0392b; color: #fff; background: #1e1010; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════ DESIGN A ═══════════ -->
+<div class="section-label">A — Warm &amp; Characterful</div>
+
+<div class="banner-a">
+
+  <div class="brand-a">
+    <!-- Wordmark: "a" gets chilli positioned by JS -->
+    <div class="wordmark-a" id="wm-a">
+      um<span class="a-letter" id="letter-a">a</span>mi
+      <!-- chilli floated above the "a" by JS -->
+      <svg id="chilli-a" viewBox="0 0 30 54" fill="none">
+        <path d="M15 10 Q11 3 5 1" stroke="#4a8040" stroke-width="2.8" stroke-linecap="round"/>
+        <path d="M13.5 8.5 Q9 4.5 6.5 8 Q10 10 13.5 8.5Z" fill="#4a8040"/>
+        <ellipse cx="15" cy="31" rx="10" ry="17" fill="#c0392b"/>
+        <path d="M9 45 Q15 55 21 45" fill="#c0392b"/>
+        <path d="M10 18 C9 24 9 34 10.5 44"
+              stroke="rgba(255,255,255,0.3)" stroke-width="1.8" stroke-linecap="round"/>
+      </svg>
+    </div>
+
+    <div class="badges-a">
+      <div class="badge badge-a"><img src="/files/logo-react.svg">React Native</div>
+      <div class="badge badge-a"><img src="/files/logo-expo.svg">Expo</div>
+      <div class="badge badge-a"><img src="/files/logo-typescript.svg">TypeScript</div>
+      <div class="badge badge-a"><img src="/files/logo-apple.svg">iOS</div>
+    </div>
+  </div>
+
+  <div class="phones-a">
+    <!-- Phone 1 -->
+    <div class="phone-wrap ph-side">
+      <svg viewBox="0 0 200 432" xmlns="http://www.w3.org/2000/svg">
+        <defs><clipPath id="ca1"><rect x="7" y="7" width="186" height="418" rx="30"/></clipPath>
+        <linearGradient id="ga1" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0%" stop-color="rgba(255,255,255,0.17)"/><stop offset="48%" stop-color="rgba(255,255,255,0)"/></linearGradient></defs>
+        <rect x="-4" y="80" width="4" height="26" rx="2" fill="#2c2c2e"/>
+        <rect x="-4" y="116" width="4" height="34" rx="2" fill="#2c2c2e"/>
+        <rect x="-4" y="160" width="4" height="34" rx="2" fill="#2c2c2e"/>
+        <rect x="200" y="106" width="4" height="54" rx="2" fill="#2c2c2e"/>
+        <rect x="0" y="0" width="200" height="432" rx="38" fill="#1c1c1e"/>
+        <rect x="1" y="1" width="198" height="430" rx="37.5" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>
+        <rect x="7" y="7" width="186" height="418" rx="30" fill="#000"/>
+        <image href="/files/screen1.png" x="7" y="7" width="186" height="418" preserveAspectRatio="xMidYMin slice" clip-path="url(#ca1)"/>
+        <rect x="7" y="7" width="186" height="418" rx="30" fill="url(#ga1)" pointer-events="none"/>
+      </svg>
+    </div>
+    <!-- Phone 2 -->
+    <div class="phone-wrap ph-center">
+      <svg viewBox="0 0 200 432" xmlns="http://www.w3.org/2000/svg">
+        <defs><clipPath id="ca2"><rect x="7" y="7" width="186" height="418" rx="30"/></clipPath>
+        <linearGradient id="ga2" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0%" stop-color="rgba(255,255,255,0.17)"/><stop offset="48%" stop-color="rgba(255,255,255,0)"/></linearGradient></defs>
+        <rect x="-4" y="80" width="4" height="26" rx="2" fill="#2c2c2e"/>
+        <rect x="-4" y="116" width="4" height="34" rx="2" fill="#2c2c2e"/>
+        <rect x="-4" y="160" width="4" height="34" rx="2" fill="#2c2c2e"/>
+        <rect x="200" y="106" width="4" height="54" rx="2" fill="#2c2c2e"/>
+        <rect x="0" y="0" width="200" height="432" rx="38" fill="#1c1c1e"/>
+        <rect x="1" y="1" width="198" height="430" rx="37.5" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>
+        <rect x="7" y="7" width="186" height="418" rx="30" fill="#000"/>
+        <image href="/files/screen2.png" x="7" y="7" width="186" height="418" preserveAspectRatio="xMidYMin slice" clip-path="url(#ca2)"/>
+        <rect x="7" y="7" width="186" height="418" rx="30" fill="url(#ga2)" pointer-events="none"/>
+      </svg>
+    </div>
+    <!-- Phone 3 -->
+    <div class="phone-wrap ph-side">
+      <svg viewBox="0 0 200 432" xmlns="http://www.w3.org/2000/svg">
+        <defs><clipPath id="ca3"><rect x="7" y="7" width="186" height="418" rx="30"/></clipPath>
+        <linearGradient id="ga3" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0%" stop-color="rgba(255,255,255,0.17)"/><stop offset="48%" stop-color="rgba(255,255,255,0)"/></linearGradient></defs>
+        <rect x="-4" y="80" width="4" height="26" rx="2" fill="#2c2c2e"/>
+        <rect x="-4" y="116" width="4" height="34" rx="2" fill="#2c2c2e"/>
+        <rect x="-4" y="160" width="4" height="34" rx="2" fill="#2c2c2e"/>
+        <rect x="200" y="106" width="4" height="54" rx="2" fill="#2c2c2e"/>
+        <rect x="0" y="0" width="200" height="432" rx="38" fill="#1c1c1e"/>
+        <rect x="1" y="1" width="198" height="430" rx="37.5" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>
+        <rect x="7" y="7" width="186" height="418" rx="30" fill="#000"/>
+        <image href="/files/screen3.png" x="7" y="7" width="186" height="418" preserveAspectRatio="xMidYMin slice" clip-path="url(#ca3)"/>
+        <rect x="7" y="7" width="186" height="418" rx="30" fill="url(#ga3)" pointer-events="none"/>
+      </svg>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ DESIGN B ═══════════ -->
+<div class="section-label">B — Dark &amp; Professional</div>
+
+<div class="banner-b">
+
+  <div class="brand-b">
+    <div class="wordmark-b">
+      um<span class="a-letter">a</span>mi
+    </div>
+
+    <div class="badges-b">
+      <div class="badge badge-b"><img src="/files/logo-react-white.svg">React Native</div>
+      <div class="badge badge-b"><img src="/files/logo-expo-white.svg">Expo</div>
+      <div class="badge badge-b"><img src="/files/logo-typescript-white.svg">TypeScript</div>
+      <div class="badge badge-b"><img src="/files/logo-apple-white.svg">iOS</div>
+    </div>
+  </div>
+
+  <div class="phones-b">
+    <div class="phone-wrap ph-side">
+      <svg viewBox="0 0 200 432" xmlns="http://www.w3.org/2000/svg">
+        <defs><clipPath id="cb1"><rect x="7" y="7" width="186" height="418" rx="30"/></clipPath>
+        <linearGradient id="gb1" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0%" stop-color="rgba(255,255,255,0.17)"/><stop offset="48%" stop-color="rgba(255,255,255,0)"/></linearGradient></defs>
+        <rect x="-4" y="80" width="4" height="26" rx="2" fill="#3a3a3c"/>
+        <rect x="-4" y="116" width="4" height="34" rx="2" fill="#3a3a3c"/>
+        <rect x="-4" y="160" width="4" height="34" rx="2" fill="#3a3a3c"/>
+        <rect x="200" y="106" width="4" height="54" rx="2" fill="#3a3a3c"/>
+        <rect x="0" y="0" width="200" height="432" rx="38" fill="#2c2c2e"/>
+        <rect x="1" y="1" width="198" height="430" rx="37.5" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1.5"/>
+        <rect x="7" y="7" width="186" height="418" rx="30" fill="#000"/>
+        <image href="/files/screen1.png" x="7" y="7" width="186" height="418" preserveAspectRatio="xMidYMin slice" clip-path="url(#cb1)"/>
+        <rect x="7" y="7" width="186" height="418" rx="30" fill="url(#gb1)" pointer-events="none"/>
+      </svg>
+    </div>
+    <div class="phone-wrap ph-center">
+      <svg viewBox="0 0 200 432" xmlns="http://www.w3.org/2000/svg">
+        <defs><clipPath id="cb2"><rect x="7" y="7" width="186" height="418" rx="30"/></clipPath>
+        <linearGradient id="gb2" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0%" stop-color="rgba(255,255,255,0.17)"/><stop offset="48%" stop-color="rgba(255,255,255,0)"/></linearGradient></defs>
+        <rect x="-4" y="80" width="4" height="26" rx="2" fill="#3a3a3c"/>
+        <rect x="-4" y="116" width="4" height="34" rx="2" fill="#3a3a3c"/>
+        <rect x="-4" y="160" width="4" height="34" rx="2" fill="#3a3a3c"/>
+        <rect x="200" y="106" width="4" height="54" rx="2" fill="#3a3a3c"/>
+        <rect x="0" y="0" width="200" height="432" rx="38" fill="#2c2c2e"/>
+        <rect x="1" y="1" width="198" height="430" rx="37.5" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1.5"/>
+        <rect x="7" y="7" width="186" height="418" rx="30" fill="#000"/>
+        <image href="/files/screen2.png" x="7" y="7" width="186" height="418" preserveAspectRatio="xMidYMin slice" clip-path="url(#cb2)"/>
+        <rect x="7" y="7" width="186" height="418" rx="30" fill="url(#gb2)" pointer-events="none"/>
+      </svg>
+    </div>
+    <div class="phone-wrap ph-side">
+      <svg viewBox="0 0 200 432" xmlns="http://www.w3.org/2000/svg">
+        <defs><clipPath id="cb3"><rect x="7" y="7" width="186" height="418" rx="30"/></clipPath>
+        <linearGradient id="gb3" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0%" stop-color="rgba(255,255,255,0.17)"/><stop offset="48%" stop-color="rgba(255,255,255,0)"/></linearGradient></defs>
+        <rect x="-4" y="80" width="4" height="26" rx="2" fill="#3a3a3c"/>
+        <rect x="-4" y="116" width="4" height="34" rx="2" fill="#3a3a3c"/>
+        <rect x="-4" y="160" width="4" height="34" rx="2" fill="#3a3a3c"/>
+        <rect x="200" y="106" width="4" height="54" rx="2" fill="#3a3a3c"/>
+        <rect x="0" y="0" width="200" height="432" rx="38" fill="#2c2c2e"/>
+        <rect x="1" y="1" width="198" height="430" rx="37.5" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1.5"/>
+        <rect x="7" y="7" width="186" height="418" rx="30" fill="#000"/>
+        <image href="/files/screen3.png" x="7" y="7" width="186" height="418" preserveAspectRatio="xMidYMin slice" clip-path="url(#cb3)"/>
+        <rect x="7" y="7" width="186" height="418" rx="30" fill="url(#gb3)" pointer-events="none"/>
+      </svg>
+    </div>
+  </div>
+</div>
+
+<div class="choose-row">
+  <button class="choose-btn" onclick="pick(this,'a')">A — Warm &amp; Characterful</button>
+  <button class="choose-btn" onclick="pick(this,'b')">B — Dark &amp; Professional</button>
+</div>
+
+<script>
+// Position chilli above the "a" using exact measured coordinates
+function positionChilli() {
+  const letter = document.getElementById('letter-a');
+  const wordmark = document.getElementById('wm-a');
+  const chilli = document.getElementById('chilli-a');
+  if (!letter || !chilli) return;
+
+  const lr = letter.getBoundingClientRect();
+  const wr = wordmark.getBoundingClientRect();
+
+  const chilliW = 16, chilliH = 16;
+  // Centre chilli horizontally over the "a", sit it just above the top of the letter
+  const left = (lr.left - wr.left) + (lr.width / 2) - (chilliW / 2);
+  const top  = (lr.top  - wr.top)  - chilliH - 2;
+
+  chilli.style.left = left + 'px';
+  chilli.style.top  = top  + 'px';
+  chilli.style.opacity = '1';
+}
+
+window.addEventListener('load', positionChilli);
+
+function pick(btn, choice) {
+  document.querySelectorAll('.choose-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  // Log for server events
+  if (window.__notifySelect) window.__notifySelect(choice, btn.textContent);
+}
+</script>
+</body>
+</html>

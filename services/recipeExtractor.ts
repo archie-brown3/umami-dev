@@ -1,5 +1,4 @@
 import { Recipe, Ingredient } from "../types";
-import { supabase } from "@/lib/supabase";
 import { API_ENDPOINTS } from "@/constants/api";
 import {
   scrapeFromUrl,

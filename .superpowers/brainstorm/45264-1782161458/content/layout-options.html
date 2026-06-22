@@ -1,0 +1,128 @@
+<h2>README Header Layout</h2>
+<p class="subtitle">Which arrangement of the three app screenshots feels right for the header?</p>
+
+<style>
+  .phone-frame {
+    display: inline-block;
+    border-radius: 36px;
+    background: #111;
+    padding: 10px 8px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.45), inset 0 0 0 1.5px #333;
+    position: relative;
+  }
+  .phone-frame::before {
+    content: '';
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 90px;
+    height: 28px;
+    background: #111;
+    border-radius: 0 0 16px 16px;
+    z-index: 10;
+  }
+  .phone-screen {
+    border-radius: 28px;
+    overflow: hidden;
+    display: block;
+  }
+  .phone-screen img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .preview-wrap {
+    border-radius: 12px;
+    padding: 32px 20px;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 220px;
+    overflow: hidden;
+  }
+
+  /* Option A – Triptych (3 equal, side by side) */
+  .triptych { gap: 16px; }
+  .triptych .phone-frame { }
+  .triptych .phone-screen { width: 100px; height: 200px; }
+
+  /* Option B – Hero + flanking (center phone larger) */
+  .hero-flanked { gap: 10px; align-items: center; }
+  .hero-flanked .phone-frame.big .phone-screen { width: 110px; height: 225px; }
+  .hero-flanked .phone-frame.small .phone-screen { width: 82px; height: 168px; }
+  .hero-flanked .phone-frame.small { opacity: 0.85; }
+
+  /* Option C – Staggered cascade */
+  .staggered { gap: 0; position: relative; align-items: flex-end; }
+  .staggered .phone-frame:nth-child(1) { transform: rotate(-6deg) translateX(16px); z-index: 1; }
+  .staggered .phone-frame:nth-child(2) { transform: rotate(0deg); z-index: 3; }
+  .staggered .phone-frame:nth-child(3) { transform: rotate(6deg) translateX(-16px); z-index: 1; }
+  .staggered .phone-screen { width: 100px; height: 200px; }
+  .staggered .phone-frame:nth-child(2) .phone-screen { width: 112px; height: 228px; }
+</style>
+
+<div class="cards" style="flex-direction: column; gap: 24px;">
+
+  <!-- Option A: Triptych -->
+  <div class="card" data-choice="triptych" onclick="toggleSelect(this)" style="padding: 24px 28px;">
+    <div class="card-body" style="margin-bottom: 16px;">
+      <h3>A — Equal Triptych</h3>
+      <p>Three phones side by side at the same size. Clean, balanced, symmetric — easy to scan at a glance. Works great for dark or gradient backgrounds.</p>
+    </div>
+    <div class="preview-wrap" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);">
+      <div class="phone-frame" style="margin-right:16px">
+        <div class="phone-screen" style="width:100px;height:200px"><img src="/screen1.png"></div>
+      </div>
+      <div class="phone-frame" style="margin-right:16px">
+        <div class="phone-screen" style="width:100px;height:200px"><img src="/screen2.png"></div>
+      </div>
+      <div class="phone-frame">
+        <div class="phone-screen" style="width:100px;height:200px"><img src="/screen3.png"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option B: Hero center -->
+  <div class="card" data-choice="hero" onclick="toggleSelect(this)" style="padding: 24px 28px;">
+    <div class="card-body" style="margin-bottom: 16px;">
+      <h3>B — Hero Center</h3>
+      <p>Center screen is larger (the recipe detail view), flanked by two smaller screens. Draws attention to your best-looking screen while showing breadth.</p>
+    </div>
+    <div class="preview-wrap" style="background: linear-gradient(135deg, #f8f0e3 0%, #fde9d2 100%);">
+      <div class="phone-frame" style="opacity:0.85;margin-right:8px">
+        <div class="phone-screen" style="width:80px;height:162px"><img src="/screen1.png"></div>
+      </div>
+      <div class="phone-frame" style="margin-right:8px">
+        <div class="phone-screen" style="width:112px;height:228px"><img src="/screen2.png"></div>
+      </div>
+      <div class="phone-frame" style="opacity:0.85">
+        <div class="phone-screen" style="width:80px;height:162px"><img src="/screen3.png"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option C: Staggered -->
+  <div class="card" data-choice="staggered" onclick="toggleSelect(this)" style="padding: 24px 28px;">
+    <div class="card-body" style="margin-bottom: 16px;">
+      <h3>C — Staggered Cascade</h3>
+      <p>Phones rotated and overlapping in a fan/cascade. Dynamic and energetic — feels more like a marketing banner than a documentation screenshot.</p>
+    </div>
+    <div class="preview-wrap" style="background: linear-gradient(135deg, #1a1a2e 0%, #2d1b69 100%); padding-bottom: 40px;">
+      <div style="position:relative;width:280px;height:200px;display:flex;align-items:flex-end;justify-content:center;">
+        <div class="phone-frame" style="position:absolute;left:10px;bottom:0;transform:rotate(-8deg);z-index:1;">
+          <div class="phone-screen" style="width:88px;height:176px"><img src="/screen1.png"></div>
+        </div>
+        <div class="phone-frame" style="position:absolute;left:50%;transform:translateX(-50%);bottom:12px;z-index:3;">
+          <div class="phone-screen" style="width:104px;height:210px"><img src="/screen2.png"></div>
+        </div>
+        <div class="phone-frame" style="position:absolute;right:10px;bottom:0;transform:rotate(8deg);z-index:1;">
+          <div class="phone-screen" style="width:88px;height:176px"><img src="/screen3.png"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>

@@ -13,8 +13,8 @@ import { useLocalSearchParams, router, Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, typography, borderRadius } from "@/utils/styleUtils";
 import { Recipe } from "@/types";
-import { getRecipeWithDetails } from "@/services/recipeService";
 import { RecipeCard } from "@/components/recipes/RecipeCard";
+import { useRecipes } from "@/context/RecipeContext";
 
 const { width } = Dimensions.get("window");
 
@@ -26,6 +26,7 @@ export default function CookingScreen() {
   const [isCompleted, setIsCompleted] = useState(false);
   const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
 
+  const { getRecipeById } = useRecipes();
   const recipeId = Array.isArray(id) ? id[0] : id;
 
   useEffect(() => {
@@ -34,8 +35,8 @@ export default function CookingScreen() {
 
   const fetchRecipe = async () => {
     try {
-      const recipeData = await getRecipeWithDetails(recipeId as string);
-      setRecipe(recipeData);
+      const recipeData = getRecipeById(recipeId as string);
+      setRecipe(recipeData || null);
     } catch (error) {
       console.error("Error fetching recipe:", error);
       Alert.alert("Error", "Failed to load recipe");

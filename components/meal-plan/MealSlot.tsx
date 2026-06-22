@@ -10,7 +10,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useMealPlan } from "@/context/MealPlanContext";
 import { useRecipes } from "@/context/RecipeContext";
-import { MealPlanItem } from "@/services/mealPlanService";
+import { MealPlanItem } from "@/context/mealPlanTypes";
 import { colors } from "@/utils/styleUtils";
 import { getRecipeColor } from "@/utils/groceryUtils";
 import RecipePicker from "./RecipePicker";

@@ -13,7 +13,7 @@ import {
 import { Swipeable } from "react-native-gesture-handler";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing } from "../../../utils/styleUtils";
-import { ShoppingItem } from "../../../services/groceriesService";
+import { ShoppingItem } from "../../../types";
 import { getRecipeColor, getLightColor } from "../../../utils/groceryUtils";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
