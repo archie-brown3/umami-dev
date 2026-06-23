@@ -11,8 +11,8 @@ import {
 import {
   testInstagramScraping,
   testMultipleInstagramUrls,
-} from "../services/recipeExtractor";
-import { getServiceLogs, clearServiceLogs } from "../services/deepseekservice";
+} from "@/services/recipeExtractor";
+import { getServiceLogs, clearServiceLogs } from "@/services/deepseekservice";
 
 export default function InstagramTestScreen() {
   const [url, setUrl] = useState("");

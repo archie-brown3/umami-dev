@@ -11,20 +11,20 @@ import {
 } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, spacing, typography } from "../utils/styleUtils";
-import { useRecipes } from "../context/RecipeContext";
-import { Recipe, Ingredient } from "../types";
-import { scrapeFromUrl } from "../services/deepseekservice";
+import { colors, spacing, typography } from "@/utils/styleUtils";
+import { useRecipes } from "@/context/RecipeContext";
+import { Recipe, Ingredient } from "@/types";
+import { scrapeFromUrl } from "@/services/deepseekservice";
 import {
   extractRecipeFromUrl,
   extractRecipeFromInstagram,
   normalizeRecipe,
   validateRecipe,
   generateRecipeId,
-} from "../services/recipeExtractor";
-import { analyzeRecipeText } from "../services/deepseekservice";
-import { extractRecipeFromTextOptimized } from "../services/optimizedRecipeExtractor";
-import { extractInstagramRecipe } from "../services/instagramExtractor";
+} from "@/services/recipeExtractor";
+import { analyzeRecipeText } from "@/services/deepseekservice";
+import { extractRecipeFromTextOptimized } from "@/services/optimizedRecipeExtractor";
+import { extractInstagramRecipe } from "@/services/instagramExtractor";
 
 type TabType = "manual" | "url" | "ai" | "instagram";
 

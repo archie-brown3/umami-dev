@@ -9,10 +9,10 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, spacing, borderRadius } from "../../utils/styleUtils";
-import { useMealPlan } from "../../context/MealPlanContext";
-import { useSubscription } from "../../context/SubscriptionContext";
-import WeeklyCalendar from "../../components/meal-plan/WeeklyCalendar";
+import { colors, spacing, borderRadius } from "@/utils/styleUtils";
+import { useMealPlan } from "@/context/MealPlanContext";
+import { useSubscription } from "@/context/SubscriptionContext";
+import WeeklyCalendar from "@/components/meal-plan/WeeklyCalendar";
 
 export default function MealPlanTab() {
   const {

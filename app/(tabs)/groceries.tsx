@@ -10,13 +10,13 @@ import {
 import { Stack } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, spacing, borderRadius } from "../../utils/styleUtils";
-import { useGroceries } from "../../context/GroceriesContext";
-import { useMealPlan } from "../../context/MealPlanContext";
-import GroceriesTabSwitcher from "../../components/groceries/GroceriesTabSwitcher";
-import ShoppingListScreen from "../../components/groceries/ShoppingListScreen";
-import CupboardScreen from "../../components/groceries/CupboardScreen";
-import RecipeCarousel from "../../components/groceries/shared/RecipeCarousel";
+import { colors, spacing, borderRadius } from "@/utils/styleUtils";
+import { useGroceries } from "@/context/GroceriesContext";
+import { useMealPlan } from "@/context/MealPlanContext";
+import GroceriesTabSwitcher from "@/components/groceries/GroceriesTabSwitcher";
+import ShoppingListScreen from "@/components/groceries/ShoppingListScreen";
+import CupboardScreen from "@/components/groceries/CupboardScreen";
+import RecipeCarousel from "@/components/groceries/shared/RecipeCarousel";
 
 export default function GroceriesTab() {
   const {
