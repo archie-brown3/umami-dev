@@ -1,0 +1,32 @@
+name: Frontend CI
+
+on:
+  push:
+    paths:
+      - 'src/**'
+      - 'app/**'
+      - 'package.json'
+      - 'package-lock.json'
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'app/**'
+      - 'package.json'
+      - 'package-lock.json'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - run: npm ci
+      - run: npx expo lint
+      - run: npx jest --passWithNoTests

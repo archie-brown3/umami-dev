@@ -1,103 +1,180 @@
-<img src="assets/images/header.png" alt="umami — recipe discovery and step-by-step cooking" width="100%">
+<img src="assets/images/header.png" alt="Fullstack Recipe App — React Native, Node.js, Supabase" width="100%">
 
-A mobile app for finding, saving, and sharing recipes.
+A fullstack mobile recipe management platform — React Native (Expo) frontend with a Node.js/Express REST API, Supabase PostgreSQL, and DeepSeek AI for recipe extraction and nutrition analysis.
 
-## Development Setup
+## Architecture
 
-### Prerequisites
-
-- Node.js (v18+)
-- npm or yarn
-- Expo CLI
-
-### Installation
-
-1. Clone the repository:
-
-```bash
-git clone https://github.com/yourusername/umami-dev.git
-cd umami-dev
+```
++--------------------+       +---------------------------+       +------------------+
+|  React Native App  | ----> |  Node.js/Express REST API | ----> |  Supabase (PG)   |
+|  (Expo Router)     |       |  (JWT Auth + Joi)         |       |  Auth + Storage  |
++--------------------+       +---------------------------+       +------------------+
+        |                                  |
+        | camera OCR                      | AI prompts
+        v                                  v
++--------------------+           +------------------+
+|  On-device ML Kit  |           |  DeepSeek API    |
+|  text recognition  |           |  recipe analysis |
++--------------------+           +------------------+
 ```
 
-2. Install dependencies:
+## Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Frontend | React Native 0.79, Expo SDK 53, TypeScript |
+| Navigation | Expo Router (file-based, 21 routes) |
+| State management | React Context (Auth, Recipe, MealPlan, Groceries, Subscription) |
+| UI | Custom components (50+), shadcn/ui-inspired design system |
+| Backend | Node.js 18+, Express |
+| Auth | Supabase Auth (JWT + Apple Sign In) |
+| Database | Supabase (PostgreSQL) — 8 tables |
+| AI | DeepSeek API (recipe extraction, nutrition analysis) |
+| Validation | Joi (API), TypeScript (frontend) |
+| Infrastructure | Docker, docker-compose |
+| Security | Helmet, CORS, rate limiting, JWT verification |
+
+## Project Structure
+
+```
+umami-dev/
+├── app/                   Expo Router routes (21 screens)
+│   ├── (auth)/            Login, register, forgot password
+│   ├── (tabs)/            Home, recipes, add, meal plan, groceries
+│   ├── recipe/            Recipe detail, create, edit
+│   └── cooking/           Step-by-step cooking mode
+├── src/
+│   ├── components/        50+ React components
+│   │   ├── recipes/       RecipeCard, RecipeList, IngredientInput, TagEditor
+│   │   ├── groceries/     ShoppingListScreen, CupboardScreen, item cards
+│   │   ├── meal-plan/     WeeklyCalendar, MealSlot, RecipePicker
+│   │   ├── recipe/edit/   ImageEditSection, IngredientsCard, InstructionsCard
+│   │   ├── ui/            Button, Card, Input, Badge, Toast, Avatar
+│   │   └── ...
+│   ├── services/          API clients, extractors, migrations
+│   ├── context/           React Context providers
+│   ├── hooks/             Custom hooks
+│   ├── lib/               Supabase client, auth, revenuecat
+│   └── utils/             Image processing, validation, scaling
+├── backend/               Node.js/Express REST API
+│   └── src/
+│       ├── routes/        Express route definitions
+│       ├── controllers/   Request handlers
+│       ├── services/      Business logic + DeepSeek AI
+│       ├── middleware/     Auth (JWT) + validation (Joi)
+│       └── config/        Supabase client setup
+├── .github/workflows/     CI for frontend and backend
+└── assets/images/         App icons, header image
+```
+
+## Features
+
+### Mobile App (React Native)
+
+- Recipe CRUD with ingredient parsing, step-by-step instructions
+- Meal planning with weekly calendar and drag-to-assign
+- Shopping lists and cupboard/pantry tracking
+- Camera-based recipe capture (ML Kit OCR)
+- Nutrition analysis per recipe (DeepSeek AI)
+- Recipe scaling by servings
+- Tag-based categorization and search
+- Supabase authentication (email/password + Apple Sign In)
+- RevenueCat subscription management
+- Offline-aware with network status detection
+
+### REST API (Backend)
+
+- JWT token verification against Supabase
+- Full recipe CRUD with pagination, search, and tag filtering
+- Structured AI recipe extraction from text (DeepSeek)
+- URL-based recipe scraping via external extraction service
+- Request validation (Joi schemas)
+- Rate limiting (100 req/15min per IP)
+- CORS with configurable origins
+- Health check endpoints
+- Docker multi-stage production build
+
+## API Endpoints
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/health` | No | Server health check |
+| GET | `/api/auth/health` | No | Auth service health |
+| POST | `/api/auth/verify` | No | Verify JWT token |
+| GET | `/api/auth/profile` | Yes | Get user profile |
+| GET | `/api/recipes` | Yes | List recipes (paginated, searchable) |
+| GET | `/api/recipes/:id` | Yes | Get single recipe |
+| POST | `/api/recipes` | Yes | Create recipe |
+| PUT | `/api/recipes/:id` | Yes | Update recipe |
+| DELETE | `/api/recipes/:id` | Yes | Delete recipe |
+| POST | `/api/recipes/:id/favorite` | Yes | Toggle favorite |
+| POST | `/api/recipes/extract-url` | Yes | Extract recipe from URL |
+| POST | `/api/recipes/analyze-text` | Yes | AI recipe text analysis |
+
+All authenticated endpoints require: `Authorization: Bearer <supabase_jwt>`
+Response format: `{ "success": true, "data": {...} }` or `{ "success": false, "error": "..." }`
+
+## Database Schema
+
+```
+recipes
+  id (uuid PK), user_id (FK auth.users), title, description, image_url,
+  prep_time, cook_time, servings, difficulty, source_url, is_favorite, is_public
+
+recipe_ingredients          ingredients
+  recipe_id (FK recipes) ──>  id (uuid PK), name, category
+  ingredient_id (FK)
+  quantity, unit
+
+recipe_steps                tags ──< recipe_tags >── recipes
+  recipe_id (FK recipes)         id (uuid PK), name
+  step_number, instruction
+
+Supporting: meal_plans, meal_plan_recipes, shopping_lists, shopping_list_items
+```
+
+## Quickstart
+
+### Frontend
 
 ```bash
 npm install
+npx expo start        # scan QR code with Expo Go
 ```
 
-3. Set up environment variables:
+### Backend
 
 ```bash
-cp .env.example .env.local
+cd backend
+npm install
+cp env.example .env   # add SUPABASE_URL, SUPABASE_ANON_KEY, DEEPSEEK_API_KEY
+npm run dev            # http://localhost:3000
 ```
 
-Then edit `.env.local` to include your API keys.
-
-### Running the App
-
-#### Standard Development Mode
+### Docker (backend only)
 
 ```bash
-npm start
+cd backend
+docker-compose up --build
 ```
 
-#### Tunnel Mode (Recommended for API Connectivity Issues)
+## Design Decisions
 
-If you're experiencing API connectivity issues when testing on a physical device, use tunnel mode:
+**Monorepo structure.** Frontend, backend, and database schema live in one repository so a reviewer can see the full system — client code, API, data model, and infrastructure — in a single view.
 
-```bash
-npm run dev-tunnel
-```
+**Expo Router over React Navigation.** File-based routing maps directory structure to navigation, reducing boilerplate and making the screen hierarchy self-documenting.
 
-This creates a tunnel that bypasses local network restrictions and allows your device to communicate with the development server regardless of network configuration.
+**React Context over Redux.** With five bounded state domains (auth, recipes, meal plans, groceries, subscriptions), context providers with custom hooks are simpler and require less ceremony than a global store.
 
-#### Tunnel Mode with Debugging
+**Supabase over custom auth.** Managed auth (JWT, social login, row-level security) and PostgreSQL eliminates two infrastructure concerns while keeping the database relational.
 
-For more verbose logging to diagnose connectivity issues:
+**JWT passthrough in the API.** The backend verifies Supabase-issued tokens rather than issuing its own — the API trusts the same auth provider the frontend uses, avoiding a separate auth system.
 
-```bash
-npm run tunnel-debug
-```
+**AI as a service dependency.** Recipe extraction via DeepSeek is a call-out, not core logic. The service layer wraps it with caching and timeout handling so the API remains responsive if the AI endpoint is slow.
 
-### API Connection Diagnostics
+## Known Limitations
 
-When running in tunnel mode, you'll see:
-
-1. A floating "API Test" button on the main screen
-2. A connection diagnostics tool in the bottom left corner
-
-Use these tools to:
-
-- Check connectivity to all APIs (Supabase, DeepSeek, etc.)
-- Diagnose network issues
-- Verify environment variables are correctly loaded
-
-## API Dependencies
-
-This app relies on several external APIs:
-
-1. **Supabase** - For database and authentication
-2. **DeepSeek API** - For recipe analysis and AI processing
-3. **Recipe Extraction Service** - For extracting recipes from websites and Instagram
-
-All API keys must be correctly configured in `.env.local` for proper functionality.
-
-## Troubleshooting Common Issues
-
-### "Network request failed" Errors
-
-- Make sure you're running in tunnel mode (`npm run dev-tunnel`)
-- Check that your API keys are properly set in `.env.local`
-- Verify that the APIs are accessible from your network
-- Try using a different network (switching from WiFi to cellular data)
-
-### DeepSeek API Issues
-
-- Verify your DeepSeek API key in `.env.local`
-- The app has a fallback API key, but it may be rate-limited
-
-### Recipe Extraction Service Issues
-
-- The extraction service is hosted on Render which may have cold starts
-- The first request might take longer to process
-- The app will automatically retry failed requests
+- No end-to-end test suite (backend integration tests in progress)
+- Recipe extraction from URLs relies on an external scraping service
+- iOS build pipeline requires an Apple Developer account for TestFlight/App Store
+- Real-time sync is polling-based via Supabase (no WebSocket support)

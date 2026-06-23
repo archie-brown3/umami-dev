@@ -30,7 +30,21 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
 .env*.local
+
+# Docker
+docker-compose.override.yml
+
+# Supabase CLI temp
+supabase/.temp/
+
+# iOS build artifacts
+ios/build/
+
+# IDE
+.vscode/
+.idea/
 
 # typescript
 *.tsbuildinfo
