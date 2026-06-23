@@ -41,3 +41,13 @@ yarn-error.*
 app-example
 temp_images/
 text-test
+
+# Supabase CLI temp
+supabase/.temp/
+
+# iOS build artifacts
+ios/build/
+
+# IDE
+.vscode/
+.idea/
