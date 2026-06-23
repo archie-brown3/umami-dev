@@ -31,16 +31,10 @@ yarn-error.*
 
 # local env files
 .env
-.env.*
-!.env.example
+.env*.local
 
-# typescript
-*.tsbuildinfo
-
-# project artifacts
-app-example
-temp_images/
-text-test
+# Docker
+docker-compose.override.yml
 
 # Supabase CLI temp
 supabase/.temp/
@@ -51,3 +45,8 @@ ios/build/
 # IDE
 .vscode/
 .idea/
+
+# typescript
+*.tsbuildinfo
+
+app-example
